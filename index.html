@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Equipment Database - Sign in</title>
+<meta name="theme-color" content="#1a3a6b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Equipment DB">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="robots" content="noindex, nofollow">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;background:linear-gradient(160deg,#12294d,#1a3a6b 55%,#24508f);color:#1b2433;display:flex;align-items:center;justify-content:center;min-height:100vh;min-height:100dvh;padding:20px;padding-bottom:calc(20px + env(safe-area-inset-bottom));}
+  .card{width:100%;max-width:380px;background:#fff;border-radius:16px;padding:28px 24px 24px;box-shadow:0 18px 50px rgba(0,0,0,.35);}
+  .logo{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+  .badge{width:42px;height:42px;border-radius:10px;background:#1a3a6b;color:#fff;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;letter-spacing:.03em;}
+  h1{font-size:20px;margin:0;line-height:1.2;}
+  .sub{font-size:13px;color:#5b6678;margin:2px 0 0;}
+  form{margin-top:20px;display:flex;flex-direction:column;gap:14px;}
+  label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#38445a;}
+  input[type=text],input[type=password]{font:inherit;font-size:16px;padding:12px 12px;border:1px solid #c6cddb;border-radius:9px;background:#f8fafd;color:#1b2433;width:100%;}
+  input:focus{outline:2px solid #2f6fdc;outline-offset:0;border-color:#2f6fdc;background:#fff;}
+  .pw-wrap{position:relative;}
+  .pw-wrap input{padding-right:64px;}
+  .pw-toggle{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:transparent;color:#2f6fdc;font:inherit;font-size:13px;font-weight:600;padding:8px;cursor:pointer;}
+  .keep{flex-direction:row;align-items:center;gap:10px;font-weight:500;font-size:13.5px;}
+  .keep input{width:20px;height:20px;margin:0;}
+  button.go{font:inherit;font-size:16px;font-weight:600;padding:13px;border:none;border-radius:9px;background:#1a3a6b;color:#fff;cursor:pointer;}
+  button.go:hover{background:#224a88;}
+  button.go:disabled{opacity:.6;cursor:default;}
+  .err{min-height:20px;font-size:13.5px;color:#b3261e;font-weight:600;}
+  .foot{margin-top:14px;font-size:12px;color:#6b7686;text-align:center;line-height:1.5;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="badge">AU</div>
+    <div>
+      <h1>Equipment Database</h1>
+      <div class="sub">Sign in to continue</div>
+    </div>
+  </div>
+  <form id="loginForm" autocomplete="on">
+    <label>Username
+      <input id="user" name="username" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+    </label>
+    <label>Password
+      <div class="pw-wrap">
+        <input id="pass" name="password" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+        <button class="pw-toggle" id="pwToggle" type="button">Show</button>
+      </div>
+    </label>
+    <label class="keep"><input id="keep" type="checkbox"> Keep me signed in on this device</label>
+    <div class="err" id="err" role="alert" aria-live="assertive"></div>
+    <button class="go" id="goBtn" type="submit">Sign in</button>
+  </form>
+  <div class="foot">Authorized users only.<br>Don't tick "keep me signed in" on a shared device.</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+/* shared by the login page, the admin page and the build script */
+var ITER = 310000;
+var enc = new TextEncoder(), dec = new TextDecoder();
+function b64e(buf){
+  var b = new Uint8Array(buf), s = "";
+  for (var i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function b64d(str){
+  var s = atob(str), b = new Uint8Array(s.length);
+  for (var i = 0; i < s.length; i++) b[i] = s.charCodeAt(i);
+  return b;
+}
+function hex(buf){ return Array.prototype.map.call(new Uint8Array(buf), function(x){ return ("0" + x.toString(16)).slice(-2); }).join(""); }
+function normUser(u){ return String(u || "").trim().toLowerCase(); }
+function rand(n){ return crypto.getRandomValues(new Uint8Array(n)); }
+async function userId(u){
+  return hex(await crypto.subtle.digest("SHA-256", enc.encode("equipmentdb:user:" + normUser(u))));
+}
+async function deriveKek(pw, salt, iter){
+  var base = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey({name: "PBKDF2", salt: salt, iterations: iter, hash: "SHA-256"}, base, {name: "AES-GCM", length: 256}, false, ["encrypt", "decrypt"]);
+}
+function newContentKey(){
+  return crypto.subtle.generateKey({name: "AES-GCM", length: 256}, true, ["encrypt", "decrypt"]);
+}
+// one access.json entry: the content key locked with this person's password
+async function makeEntry(contentKey, user, pw, iter){
+  var salt = rand(16), iv = rand(12), niv = rand(12);
+  var kek = await deriveKek(pw, salt, iter);
+  var raw = await crypto.subtle.exportKey("raw", contentKey);
+  var wk = await crypto.subtle.encrypt({name: "AES-GCM", iv: iv}, kek, raw);
+  var nm = await crypto.subtle.encrypt({name: "AES-GCM", iv: niv}, contentKey, enc.encode(normUser(user)));
+  return {id: await userId(user), salt: b64e(salt), iv: b64e(iv), wk: b64e(wk), niv: b64e(niv), nm: b64e(nm)};
+}
+// returns the content key, or null if the username / password is wrong
+async function unlockAccess(access, user, pw){
+  var id = await userId(user);
+  var entry = null;
+  (access.users || []).forEach(function(e){ if (e.id === id) entry = e; });
+  if (!entry){
+    await deriveKek(pw, rand(16), access.iter || ITER);   // same delay whether or not the user exists
+    return null;
+  }
+  try{
+    var kek = await deriveKek(pw, b64d(entry.salt), access.iter || ITER);
+    var raw = await crypto.subtle.decrypt({name: "AES-GCM", iv: b64d(entry.iv)}, kek, b64d(entry.wk));
+    return await crypto.subtle.importKey("raw", raw, "AES-GCM", true, ["encrypt", "decrypt"]);
+  }catch(e){ return null; }
+}
+async function entryName(contentKey, entry){
+  try{ return dec.decode(await crypto.subtle.decrypt({name: "AES-GCM", iv: b64d(entry.niv)}, contentKey, b64d(entry.nm))); }
+  catch(e){ return "(unknown)"; }
+}
+async function encryptApp(contentKey, html){
+  var iv = rand(12);
+  var ct = await crypto.subtle.encrypt({name: "AES-GCM", iv: iv}, contentKey, enc.encode(html));
+  return {v: 1, iv: b64e(iv), ct: b64e(ct)};
+}
+async function decryptApp(contentKey, obj){
+  var buf = await crypto.subtle.decrypt({name: "AES-GCM", iv: b64d(obj.iv)}, contentKey, b64d(obj.ct));
+  return dec.decode(buf);
+}
+
+
+var AUTH_KEY = "equipmentDb.auth.v1";
+var form = document.getElementById("loginForm");
+var errEl = document.getElementById("err");
+var goBtn = document.getElementById("goBtn");
+var fails = 0;
+
+function showErr(msg){ errEl.textContent = msg || ""; }
+
+document.getElementById("pwToggle").addEventListener("click", function(){
+  var p = document.getElementById("pass");
+  var show = p.type === "password";
+  p.type = show ? "text" : "password";
+  this.textContent = show ? "Hide" : "Show";
+});
+
+function fetchJson(url){
+  return fetch(url, {cache: "no-cache"}).then(function(r){
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return r.json();
+  });
+}
+
+// hand the page over to the real app
+function launch(html){
+  var script = "<scr" + "ipt>(function(){" +
+    "function go(){var h=document.querySelector('.masthead');var b=document.createElement('button');" +
+    "b.type='button';b.textContent='Sign out';b.title='Sign out of Equipment Database';" +
+    "b.style.cssText='margin-left:auto;padding:6px 12px;min-height:0;font-size:12.5px;cursor:pointer;';" +
+    "b.addEventListener('click',function(){try{localStorage.removeItem('" + AUTH_KEY + "');sessionStorage.removeItem('" + AUTH_KEY + "');}catch(e){}location.reload();});" +
+    "if(h){h.appendChild(b);}else{b.style.cssText+='position:fixed;top:8px;right:8px;z-index:99;';document.body.appendChild(b);}}" +
+    "if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();" +
+    "})();</scr" + "ipt>";
+  var i = html.lastIndexOf("</body>");
+  html = i >= 0 ? html.slice(0, i) + script + html.slice(i) : html + script;
+  document.open();
+  document.write(html);
+  document.close();
+}
+
+function openWith(key){
+  return fetchJson("app.enc").then(function(obj){ return decryptApp(key, obj); }).then(launch);
+}
+
+function remember(key, persistent){
+  return crypto.subtle.exportKey("jwk", key).then(function(jwk){
+    var s = JSON.stringify(jwk);
+    try{ (persistent ? localStorage : sessionStorage).setItem(AUTH_KEY, s); }catch(e){}
+  });
+}
+
+function savedKey(){
+  var s = null;
+  try{ s = localStorage.getItem(AUTH_KEY) || sessionStorage.getItem(AUTH_KEY); }catch(e){}
+  if (!s) return Promise.resolve(null);
+  try{
+    return crypto.subtle.importKey("jwk", JSON.parse(s), "AES-GCM", true, ["encrypt", "decrypt"]).catch(function(){ return null; });
+  }catch(e){ return Promise.resolve(null); }
+}
+
+form.addEventListener("submit", function(ev){
+  ev.preventDefault();
+  var user = document.getElementById("user").value;
+  var pass = document.getElementById("pass").value;
+  if (!user.trim() || !pass) return;
+  showErr("");
+  goBtn.disabled = true;
+  goBtn.textContent = "Signing in...";
+  var wait = Math.min(fails, 5) * 1000;   // slow down repeated wrong guesses
+  new Promise(function(r){ setTimeout(r, wait); })
+    .then(function(){ return fetchJson("access.json"); })
+    .then(function(access){ return unlockAccess(access, user, pass); })
+    .then(function(key){
+      if (!key){
+        fails++;
+        showErr("Wrong username or password.");
+        goBtn.disabled = false;
+        goBtn.textContent = "Sign in";
+        document.getElementById("pass").select();
+        return;
+      }
+      var keep = document.getElementById("keep").checked;
+      return remember(key, keep).then(function(){ return openWith(key); });
+    })
+    .catch(function(e){
+      goBtn.disabled = false;
+      goBtn.textContent = "Sign in";
+      showErr(navigator.onLine === false
+        ? "You're offline. Sign in once with internet, then it works offline."
+        : "Couldn't sign in (" + (e && e.message ? e.message : e) + "). Try again.");
+    });
+});
+
+if (!(window.crypto && crypto.subtle)){
+  showErr("This page needs https (a secure connection). Open the web address, not a downloaded file.");
+  goBtn.disabled = true;
+} else {
+  // already signed in on this device?
+  savedKey().then(function(key){
+    if (!key) return;
+    openWith(key).catch(function(){
+      try{ localStorage.removeItem(AUTH_KEY); sessionStorage.removeItem(AUTH_KEY); }catch(e){}
+    });
+  });
+}
+
+if ("serviceWorker" in navigator && /^https?:$/.test(location.protocol)){
+  window.addEventListener("load", function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); });
+}
+})();
+</script>
+</body>
+</html>

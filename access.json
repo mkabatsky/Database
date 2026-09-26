@@ -1,0 +1,14 @@
+{
+ "v": 1,
+ "iter": 310000,
+ "users": [
+  {
+   "id": "b07c4d96919507a303c91cf1ad080a987cb2dd3d40da71ce68bfa2bfc2d1fdbf",
+   "salt": "4jDMM5lImvkRIv5Yir2qGA==",
+   "iv": "uJ2eGBDgV2f/R/aL",
+   "wk": "49LeXfkkeXmwlL0S/LHZ08o4bLx4yK236WunyGE+rQaBzuf4ePoM34iBkRulRE94",
+   "niv": "cSIaG9ERjXqYD9Ec",
+   "nm": "fkAMyrJAz/h/bmFLPlxTiaHfmi8="
+  }
+ ]
+}
