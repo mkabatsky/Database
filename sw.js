@@ -1,6 +1,6 @@
 // Service worker: lets the app open offline and pick up new versions when online.
 // Bump CACHE when you upload a new app.enc / index.html so phones refresh.
-var CACHE = "equipment-db-v12";
+var CACHE = "equipment-db-v13";
 var CORE = ["./", "./index.html", "./app.enc", "./access.json", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 
 self.addEventListener("install", function(e){
