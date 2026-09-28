@@ -5502,7 +5502,17 @@
           showLogin("You were signed out. Sign in again.");
         }
       });
-      return cloud.sb.auth.getSession();
+      // A stored session with an expired access token makes getSession()
+      // reach out to Supabase to refresh it before it can resolve. On a
+      // flaky mobile connection that first request can fail on a dropped
+      // packet even though the device is genuinely still signed in - retry
+      // once after a beat so that doesn't look identical to being logged
+      // out. (Desktop wifi rarely hits this, which is why it reads as
+      // "mobile only".)
+      return cloud.sb.auth.getSession().catch(function(){
+        return new Promise(function(resolve){ setTimeout(resolve, 800); })
+          .then(function(){ return cloud.sb.auth.getSession(); });
+      });
     }).then(function(r){
       var session = r && r.data && r.data.session;
       if (session && session.user) return afterSignIn(session.user);
@@ -5519,6 +5529,20 @@
       showLogin("Sign in to continue");
       cloudStatus("bad", "Signed out");
     }).catch(function(e){
+      // Still failing after the retry. If this looks like a network problem
+      // rather than an actual "you're not signed in", and this device has
+      // signed in before, don't bounce to the login form - open the job
+      // picker with the cached identity, same as the offline branch above.
+      // A dropped connection on mobile shouldn't look the same as being
+      // logged out.
+      var saved = null;
+      try{ saved = JSON.parse(lsGet(CK.user) || "null"); }catch(e2){}
+      if (isNetworkProblem(e) && saved){
+        cloud.user = saved;
+        cloudEl("cloudUser").textContent = saved.email || "";
+        cloudEl("cloudLogin").hidden = true;
+        return showJobs("Couldn't reach the server just now — pick a job saved on this device.");
+      }
       showLogin("Couldn't start sync: " + (e && e.message ? e.message : e));
     });
   }
