@@ -601,7 +601,8 @@
   body.role-viewer #labelsBtn, body.role-tech #labelsBtn,
   body.role-viewer #packingSlipBtn, body.role-tech #packingSlipBtn,
   body.role-viewer .del-btn, body.role-tech .del-btn,
-  body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn{
+  body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn,
+  body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn{
     display:none !important;
   }
   /* only hide the Jobs picker when this account is pinned to one job - a
@@ -645,6 +646,27 @@
   .delivery-request-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
   .delivery-request-msg.bad{color:var(--danger);font-weight:600;}
   .delivery-request-msg.good{color:var(--success);font-weight:600;}
+
+  /* =================== manage users modal =================== */
+  .modal-backdrop#manageUsersBackdrop[hidden]{display:none;}
+  .mu-list{max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
+  .mu-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px;}
+  .mu-row:last-child{border-bottom:none;}
+  .mu-email{flex:1 1 200px;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mu-row select{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
+  .mu-row button{padding:6px 11px;font-size:12.5px;}
+  .mu-row .mu-save{visibility:hidden;}
+  .mu-row.mu-dirty .mu-save{visibility:visible;}
+  .mu-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-bottom:6px;}
+  .mu-msg.bad{color:var(--danger);font-weight:600;}
+  .mu-msg.good{color:var(--success);font-weight:600;}
+  .mu-new{border-top:1px solid var(--border);padding-top:12px;margin-top:4px;}
+  .mu-new h3{margin:0 0 10px;font-size:14px;}
+  .mu-new-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:12px;}
+  .mu-new-fields label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);}
+  .mu-new-fields input, .mu-new-fields select{font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
+  .mu-new-fields label.mu-new-job{display:none;}
+  .mu-new-fields label.mu-new-job.show{display:flex;}
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
@@ -668,7 +690,7 @@
       </div>
     </div>
     <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Saved on this device</span></div>
-    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
+    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
     <span id="roleBanner"></span>
   </div>
 
@@ -893,6 +915,40 @@
       <button class="primary" id="deliveryRequestSubmitBtn" type="button">Submit request</button>
     </div>
     <div class="delivery-request-msg" id="deliveryRequestMsg" aria-live="polite"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="manageUsersBackdrop" hidden="">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="manageUsersTitle">
+    <div class="modal-head">
+      <h2 id="manageUsersTitle">Manage users</h2>
+      <button class="icon-btn" id="manageUsersCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub">Full-access staff only. A new login can sign in right away with the password you set below.</p>
+
+    <div class="mu-list" id="muList"></div>
+    <div class="mu-msg" id="muMsg" aria-live="polite"></div>
+
+    <div class="mu-new">
+      <h3>Add a user</h3>
+      <div class="mu-new-fields">
+        <label>Email<input type="email" id="muNewEmail" autocomplete="off"></label>
+        <label>Password<input type="text" id="muNewPassword" autocomplete="off" placeholder="at least 6 characters"></label>
+        <label>Name (optional)<input type="text" id="muNewName" autocomplete="off"></label>
+        <label>Role
+          <select id="muNewRole">
+            <option value="staff">Staff (full access)</option>
+            <option value="viewer-locked">Viewer - one job</option>
+            <option value="viewer-any">Viewer - all jobs</option>
+            <option value="tech">Tech - one job (delivery requests)</option>
+          </select>
+        </label>
+        <label class="mu-new-job" id="muNewJobWrap">Job<select id="muNewJob"></select></label>
+      </div>
+      <button class="primary" id="muCreateBtn" type="button">Create user</button>
+    </div>
   </div>
 </div>
 <div id="packingSlipPrintRoot"><div id="packingSlipPrintDoc"></div></div>
@@ -5751,6 +5807,197 @@
   if (deliveryBackdropEl) deliveryBackdropEl.addEventListener("click", function(ev){ if (ev.target === deliveryBackdropEl) closeDeliveryRequestModal(); });
   var deliverySubmitBtnEl = cloudEl("deliveryRequestSubmitBtn");
   if (deliverySubmitBtnEl) deliverySubmitBtnEl.addEventListener("click", submitDeliveryRequest);
+
+  // ---------- manage users (staff only) ----------
+  // "Role" in the UI is one of 4 kinds; the database only knows role +
+  // job_id, so viewer-locked/viewer-any are both stored as role="viewer",
+  // told apart by whether job_id is set.
+  var muJobs = []; // [{id, name}], refreshed each time the list loads
+  var muUsers = [];
+
+  function muKind(u){
+    if (u.role === "viewer") return u.jobId ? "viewer-locked" : "viewer-any";
+    if (u.role === "tech") return "tech";
+    return "staff";
+  }
+  function muKindNeedsJob(kind){ return kind === "viewer-locked" || kind === "tech"; }
+  function muRoleAndJob(kind, jobId){
+    if (kind === "viewer-locked") return {role: "viewer", jobId: jobId || null};
+    if (kind === "viewer-any") return {role: "viewer", jobId: null};
+    if (kind === "tech") return {role: "tech", jobId: jobId || null};
+    return {role: "staff", jobId: null};
+  }
+  function muJobOptionsHtml(selectedId){
+    return '<option value="">Pick a job...</option>' + muJobs.map(function(j){
+      return '<option value="' + j.id + '"' + (j.id === selectedId ? " selected" : "") + '>' + escHtml(j.name || "Untitled job") + '</option>';
+    }).join("");
+  }
+
+  function muMsg(text, kind){
+    var m = cloudEl("muMsg");
+    m.textContent = text || "";
+    m.className = "mu-msg" + (kind ? " " + kind : "");
+  }
+
+  function renderMuList(){
+    var list = cloudEl("muList");
+    list.innerHTML = muUsers.map(function(u){
+      var kind = muKind(u);
+      var jobShown = muKindNeedsJob(kind);
+      return (
+        '<div class="mu-row" data-id="' + u.id + '">' +
+          '<span class="mu-email">' + escHtml(u.email) + '</span>' +
+          '<select class="mu-role">' +
+            '<option value="staff"' + (kind === "staff" ? " selected" : "") + '>Staff (full access)</option>' +
+            '<option value="viewer-locked"' + (kind === "viewer-locked" ? " selected" : "") + '>Viewer - one job</option>' +
+            '<option value="viewer-any"' + (kind === "viewer-any" ? " selected" : "") + '>Viewer - all jobs</option>' +
+            '<option value="tech"' + (kind === "tech" ? " selected" : "") + '>Tech - one job</option>' +
+          '</select>' +
+          '<select class="mu-job" style="' + (jobShown ? "" : "display:none") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
+          '<button type="button" class="mu-save primary">Save</button>' +
+          '<button type="button" class="mu-delete">Delete login</button>' +
+        '</div>'
+      );
+    }).join("") || '<div class="mu-row">No users yet.</div>';
+  }
+
+  function muFindRowEls(rowEl){
+    return {
+      id: rowEl.getAttribute("data-id"),
+      roleSel: rowEl.querySelector(".mu-role"),
+      jobSel: rowEl.querySelector(".mu-job"),
+      saveBtn: rowEl.querySelector(".mu-save"),
+    };
+  }
+
+  function loadMuList(){
+    muMsg("Loading...");
+    return invokeFn("admin-users", {action: "list"}).then(function(res){
+      if (res.error){ muMsg("Couldn't load: " + res.error.message, "bad"); return; }
+      var data = res.data || {};
+      if (data.error){ muMsg("Couldn't load: " + data.error, "bad"); return; }
+      muUsers = data.users || [];
+      muJobs = data.jobs || [];
+      renderMuList();
+      cloudEl("muNewJob").innerHTML = muJobOptionsHtml("");
+      muMsg("");
+    }).catch(function(e){
+      muMsg("Couldn't load: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+
+  function openManageUsersModal(){
+    cloudEl("manageUsersBackdrop").hidden = false;
+    cloudEl("muNewEmail").value = "";
+    cloudEl("muNewPassword").value = "";
+    cloudEl("muNewName").value = "";
+    cloudEl("muNewRole").value = "staff";
+    cloudEl("muNewJobWrap").classList.remove("show");
+    loadMuList();
+  }
+  function closeManageUsersModal(){ cloudEl("manageUsersBackdrop").hidden = true; }
+
+  // Manage Users list: role dropdown toggles that row's job dropdown, and
+  // marks the row dirty (Save button becomes visible) until saved.
+  document.addEventListener("change", function(ev){
+    var rowEl = ev.target.closest && ev.target.closest(".mu-row[data-id]");
+    if (!rowEl) return;
+    if (ev.target.classList.contains("mu-role")){
+      var kind = ev.target.value;
+      var jobSel = rowEl.querySelector(".mu-job");
+      jobSel.style.display = muKindNeedsJob(kind) ? "" : "none";
+    }
+    if (ev.target.classList.contains("mu-role") || ev.target.classList.contains("mu-job")){
+      rowEl.classList.add("mu-dirty");
+    }
+  });
+
+  document.addEventListener("click", function(ev){
+    var saveBtn = ev.target.closest && ev.target.closest(".mu-row .mu-save");
+    if (saveBtn){
+      var rowEl = saveBtn.closest(".mu-row");
+      var f = muFindRowEls(rowEl);
+      var kind = f.roleSel.value;
+      var rj = muRoleAndJob(kind, f.jobSel.value);
+      if (muKindNeedsJob(kind) && !rj.jobId){ muMsg("Pick a job for that role first.", "bad"); return; }
+      saveBtn.disabled = true;
+      muMsg("Saving...");
+      invokeFn("admin-users", {action: "setRole", userId: f.id, role: rj.role, jobId: rj.jobId}).then(function(res){
+        saveBtn.disabled = false;
+        if (res.error){ muMsg("Couldn't save: " + res.error.message, "bad"); return; }
+        var data = res.data || {};
+        if (data.error){ muMsg("Couldn't save: " + data.error, "bad"); return; }
+        muMsg("Saved.", "good");
+        rowEl.classList.remove("mu-dirty");
+        loadMuList();
+      }).catch(function(e){
+        saveBtn.disabled = false;
+        muMsg("Couldn't save: " + (e && e.message ? e.message : e), "bad");
+      });
+      return;
+    }
+    var delBtn = ev.target.closest && ev.target.closest(".mu-row .mu-delete");
+    if (delBtn){
+      var rowEl2 = delBtn.closest(".mu-row");
+      var f2 = muFindRowEls(rowEl2);
+      var user = muUsers.filter(function(u){ return u.id === f2.id; })[0];
+      if (!confirm("Delete the login for " + (user ? user.email : "this user") + "? They will no longer be able to sign in at all.")) return;
+      delBtn.disabled = true;
+      muMsg("Deleting...");
+      invokeFn("admin-users", {action: "deleteUser", userId: f2.id}).then(function(res){
+        delBtn.disabled = false;
+        if (res.error){ muMsg("Couldn't delete: " + res.error.message, "bad"); return; }
+        var data = res.data || {};
+        if (data.error){ muMsg("Couldn't delete: " + data.error, "bad"); return; }
+        muMsg("Deleted.", "good");
+        loadMuList();
+      }).catch(function(e){
+        delBtn.disabled = false;
+        muMsg("Couldn't delete: " + (e && e.message ? e.message : e), "bad");
+      });
+    }
+  });
+
+  var muNewRoleEl = cloudEl("muNewRole");
+  if (muNewRoleEl) muNewRoleEl.addEventListener("change", function(){
+    cloudEl("muNewJobWrap").classList.toggle("show", muKindNeedsJob(muNewRoleEl.value));
+  });
+
+  var muCreateBtnEl = cloudEl("muCreateBtn");
+  if (muCreateBtnEl) muCreateBtnEl.addEventListener("click", function(){
+    var email = cloudEl("muNewEmail").value.trim();
+    var password = cloudEl("muNewPassword").value;
+    var displayName = cloudEl("muNewName").value.trim();
+    var kind = cloudEl("muNewRole").value;
+    var rj = muRoleAndJob(kind, cloudEl("muNewJob").value);
+    if (!email){ muMsg("Enter an email address.", "bad"); return; }
+    if (!password || password.length < 6){ muMsg("Password needs to be at least 6 characters.", "bad"); return; }
+    if (muKindNeedsJob(kind) && !rj.jobId){ muMsg("Pick a job for that role first.", "bad"); return; }
+
+    muCreateBtnEl.disabled = true;
+    muMsg("Creating...");
+    invokeFn("admin-users", {action: "createUser", email: email, password: password, displayName: displayName, role: rj.role, jobId: rj.jobId}).then(function(res){
+      muCreateBtnEl.disabled = false;
+      if (res.error){ muMsg("Couldn't create: " + res.error.message, "bad"); return; }
+      var data = res.data || {};
+      if (data.error){ muMsg("Couldn't create: " + data.error, "bad"); return; }
+      muMsg("Created " + email + ".", "good");
+      cloudEl("muNewEmail").value = "";
+      cloudEl("muNewPassword").value = "";
+      cloudEl("muNewName").value = "";
+      loadMuList();
+    }).catch(function(e){
+      muCreateBtnEl.disabled = false;
+      muMsg("Couldn't create: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
+
+  var manageUsersBtnEl = cloudEl("manageUsersBtn");
+  if (manageUsersBtnEl) manageUsersBtnEl.addEventListener("click", openManageUsersModal);
+  var manageUsersCloseBtnEl = cloudEl("manageUsersCloseBtn");
+  if (manageUsersCloseBtnEl) manageUsersCloseBtnEl.addEventListener("click", closeManageUsersModal);
+  var manageUsersBackdropEl = cloudEl("manageUsersBackdrop");
+  if (manageUsersBackdropEl) manageUsersBackdropEl.addEventListener("click", function(ev){ if (ev.target === manageUsersBackdropEl) closeManageUsersModal(); });
 
   // installable app: works offline once opened over https
   // a scan from an iOS/iPadOS Shortcut, another scanner app's "open URL" action, or any
