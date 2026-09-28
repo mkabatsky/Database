@@ -600,9 +600,23 @@
   body.role-viewer #newDbBtn, body.role-tech #newDbBtn,
   body.role-viewer #labelsBtn, body.role-tech #labelsBtn,
   body.role-viewer #packingSlipBtn, body.role-tech #packingSlipBtn,
-  body.role-viewer #cloudJobsBtn, body.role-tech #cloudJobsBtn,
   body.role-viewer .del-btn, body.role-tech .del-btn,
   body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn{
+    display:none !important;
+  }
+  /* only hide the Jobs picker when this account is pinned to one job - a
+     viewer with no job assigned can still browse and switch between jobs,
+     same as staff, just read-only once inside one */
+  body.locked-job #cloudJobsBtn{
+    display:none !important;
+  }
+  /* an unlocked viewer can open the Jobs list (to browse/switch jobs) but
+     the per-job Delete button there is still a write action, and so is
+     creating a new job */
+  body.role-viewer .job-row button:not(.primary){
+    display:none !important;
+  }
+  body.role-viewer #cloudNewBtn, body.role-viewer #cloudNewName{
     display:none !important;
   }
   /* viewer never needs the row-selection checkboxes (nothing to select for);
@@ -5462,17 +5476,22 @@
   // uncluttered screen, not about being the actual lock on the door.
   var realPersist = persist; // cloud.js's real "save + sync" implementation
 
-  function applyRoleUi(role){
-    document.body.classList.remove("role-viewer", "role-tech");
+  // `locked` = true when this account is pinned to one specific job (the
+  // Jobs button/picker makes no sense then, since there's nothing else to
+  // switch to). A viewer with no job assigned is NOT locked - they behave
+  // like staff for navigation (pick any job) but read-only once inside one.
+  function applyRoleUi(role, locked){
+    document.body.classList.remove("role-viewer", "role-tech", "locked-job");
     if (role === "viewer" || role === "tech"){
       document.body.classList.add("role-" + role);
+      if (locked) document.body.classList.add("locked-job");
       persist = function(){}; // this account can never write eq_jobs/eq_rows - RLS would reject it anyway
     } else {
       persist = realPersist;
     }
     var banner = cloudEl("roleBanner");
     if (banner){
-      banner.textContent = role === "viewer" ? "Viewer — read only"
+      banner.textContent = role === "viewer" ? (locked ? "Viewer — read only" : "Viewer — read only (all jobs)")
         : role === "tech" ? "Tech — request deliveries only"
         : "";
     }
@@ -5484,8 +5503,14 @@
       var role = (pr.data && pr.data.role) || "staff";
       var jobId = pr.data && pr.data.job_id;
       cloud.role = role;
+
+      if (role === "viewer" && !jobId){
+        // read-only, but can browse/open any job - same navigation as staff
+        applyRoleUi(role, false);
+        return legacyResume();
+      }
       if ((role === "viewer" || role === "tech") && jobId){
-        applyRoleUi(role);
+        applyRoleUi(role, true);
         return cloud.sb.from("eq_jobs").select("id,name,meta").eq("id", jobId).maybeSingle().then(function(jr){
           if (jr.error || !jr.data){
             cloudStatus("bad", "Your assigned job wasn't found — contact your administrator.");
@@ -5493,6 +5518,13 @@
           }
           return openJob(jr.data);
         });
+      }
+      if (role === "tech" && !jobId){
+        // a tech needs a job to submit delivery requests against - this
+        // shouldn't normally happen, but fail clearly rather than guess
+        applyRoleUi(role, true);
+        cloudStatus("bad", "No job is assigned to this account yet — contact your administrator.");
+        return;
       }
       applyRoleUi("staff");
       return legacyResume();
