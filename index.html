@@ -5672,10 +5672,23 @@
     m.className = "delivery-request-msg" + (kind ? " " + kind : "");
   }
 
+  // An item with no barcode yet hasn't been through Labels - nothing to scan
+  // or match against when it shows up at the job site, so it can't go on a
+  // delivery request.
+  function rowsMissingBarcode(rows){
+    return rows.filter(function(r){ return !r.barcode || !String(r.barcode).trim(); });
+  }
+
   function openDeliveryRequestModal(){
     var selRows = getSelectedRows();
     if (!selRows.length){
       showSnackbar("Select one or more rows in the table first (checkbox in the # column).");
+      return;
+    }
+    var missing = rowsMissingBarcode(selRows);
+    if (missing.length){
+      showSnackbar((missing.length === 1 ? "1 selected item doesn't" : missing.length + " selected items don't") +
+        " have a barcode yet - generate labels for it first, then request delivery.");
       return;
     }
     renderDeliveryItemsList(selRows);
@@ -5686,11 +5699,44 @@
   }
   function closeDeliveryRequestModal(){ cloudEl("deliveryRequestBackdrop").hidden = true; }
 
+  // "2026-09-28" -> "09/28/26"
+  function formatDeliveryDate(iso){
+    if (!iso) return "";
+    var parts = String(iso).split("-");
+    if (parts.length !== 3) return iso;
+    return parts[1] + "/" + parts[2] + "/" + parts[0].slice(2);
+  }
+  // "07:30" -> "07:30 AM"
+  function formatDeliveryTime(hhmm){
+    if (!hhmm) return "";
+    var m = /^(\d{1,2}):(\d{2})/.exec(hhmm);
+    if (!m) return hhmm;
+    var h = parseInt(m[1], 10), min = m[2];
+    var ampm = h >= 12 ? "PM" : "AM";
+    var h12 = h % 12; if (h12 === 0) h12 = 12;
+    return (h12 < 10 ? "0" + h12 : String(h12)) + ":" + min + " " + ampm;
+  }
+  function deliveryJobLine(){
+    return [meta.project, meta.projectNumber].filter(function(v){ return v && String(v).trim(); }).join(" - ");
+  }
+  // shared field list, in the order requested - same fields, same order, in
+  // both the PDF and the HTML attachment
+  function deliveryInfoFields(contact, dateIso, time){
+    return [
+      ["Job", deliveryJobLine()],
+      ["Date", formatDeliveryDate(dateIso)],
+      ["Time", formatDeliveryTime(time)],
+      ["Tech Name", contact.name || ""],
+      ["Address", meta.address || ""],
+      ["Phone #", contact.phone || ""],
+      ["Vendor", meta.vendor || ""]
+    ];
+  }
+
   // A clean, self-contained HTML document (own inline styles, not dependent
   // on the app's stylesheet) - this is what actually goes out as the
   // packing-slip.html attachment, so it has to look right opened on its own.
   function buildDeliveryHtmlDoc(selRows, contact, dateIso, time){
-    var jobLine = [meta.project, meta.projectNumber].filter(function(v){ return v && String(v).trim(); }).join(" - ");
     var rowsHtml = selRows.map(function(r){
       var qty = (r.totalQty === "" || r.totalQty == null) ? "" : String(r.totalQty);
       return "<tr>" +
@@ -5702,48 +5748,65 @@
         "<td>" + escHtml(r.serialNumber) + "</td>" +
       "</tr>";
     }).join("");
+    var infoHtml = deliveryInfoFields(contact, dateIso, time)
+      .map(function(f){ return "<b>" + escHtml(f[0]) + ":</b> " + escHtml(f[1]); })
+      .join("<br>");
     return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Delivery Request</title>" +
       "<style>body{font:14px/1.4 -apple-system,Arial,sans-serif;color:#1a2530;padding:24px;}" +
-      "h1{font-size:20px;margin:0 0 4px;}.sub{color:#64707c;margin:0 0 16px;}" +
-      "table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:6px 8px;font-size:13px;text-align:left;}" +
-      "th{background:#eee;}.info{margin:0 0 14px;font-size:13.5px;}</style></head><body>" +
-      "<h1>Delivery Request / Packing Slip</h1>" +
-      (jobLine ? "<p class='sub'>" + escHtml(jobLine) + "</p>" : "") +
-      "<p class='info'><b>Requested by:</b> " + escHtml(contact.name || "") + (contact.phone ? " (" + escHtml(contact.phone) + ")" : "") + "<br>" +
-      "<b>Requested date/time:</b> " + escHtml(dateIso || "") + " " + escHtml(time || "") +
-      (meta.vendor ? "<br><b>Vendor:</b> " + escHtml(meta.vendor) : "") + "</p>" +
-      "<table><thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>" +
-      "<tbody>" + rowsHtml + "</tbody></table>" +
+      "h1{font-size:20px;margin:0 0 14px;}" +
+      ".table-wrap{overflow-x:auto;}" +
+      "table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:6px 8px;font-size:13px;text-align:left;white-space:nowrap;}" +
+      "th{background:#eee;}.info{margin:0 0 16px;font-size:13.5px;}</style></head><body>" +
+      "<h1>Delivery Request Packing Slip</h1>" +
+      "<p class='info'>" + infoHtml + "</p>" +
+      "<div class='table-wrap'><table><thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>" +
+      "<tbody>" + rowsHtml + "</tbody></table></div>" +
       "</body></html>";
   }
 
   function buildDeliveryPdfBase64(selRows, contact, dateIso, time){
     if (typeof window.jspdf === "undefined") return "";
     var jsPDFCtor = window.jspdf.jsPDF;
-    var doc = new jsPDFCtor({unit: "pt", format: "letter"});
+    // landscape, and wide enough that real AV part descriptions fit on one
+    // line without wrapping
+    var doc = new jsPDFCtor({unit: "pt", format: "letter", orientation: "landscape"});
     var pageW = doc.internal.pageSize.getWidth();
-    var jobLine = [meta.project, meta.projectNumber].filter(function(v){ return v && String(v).trim(); }).join(" - ");
 
     doc.setFontSize(16);
-    doc.text("Delivery Request / Packing Slip", pageW / 2, 36, {align: "center"});
-    if (jobLine){
-      doc.setFontSize(10.5);
-      doc.text(jobLine, pageW / 2, 52, {align: "center"});
-    }
-    doc.setFontSize(9.5);
-    var infoY = 74;
-    doc.text("Requested by: " + (contact.name || "") + (contact.phone ? " (" + contact.phone + ")" : ""), 40, infoY);
-    doc.text("Requested date/time: " + (dateIso || "") + " " + (time || ""), 40, infoY + 14);
-    if (meta.vendor) doc.text("Vendor: " + meta.vendor, 40, infoY + 28);
+    doc.text("Delivery Request Packing Slip", pageW / 2, 32, {align: "center"});
 
+    doc.setFontSize(9.5);
+    var fields = deliveryInfoFields(contact, dateIso, time);
+    var leftX = 40, topY = 54, lineH = 14;
+    fields.forEach(function(f, i){
+      doc.text(f[0] + ": " + f[1], leftX, topY + i * lineH);
+    });
+
+    var tableStartY = topY + fields.length * lineH + 14;
     var body = selRows.map(function(r){
       return [r.barcode, r.manufacturer, r.model, r.deviceType, (r.totalQty === "" || r.totalQty == null) ? "" : String(r.totalQty), r.serialNumber];
     });
     doc.autoTable({
       head: [["BarCode", "Manufacturer", "Model", "Device Type", "Qty", "Serial Number"]],
       body: body,
-      startY: infoY + 40,
-      styles: {fontSize: 9, cellPadding: 4, lineWidth: 0.5, lineColor: [90, 98, 107]},
+      startY: tableStartY,
+      margin: {left: 40, right: 40},
+      styles: {fontSize: 9, cellPadding: 4, lineWidth: 0.5, lineColor: [90, 98, 107], overflow: "visible"},
+      columnStyles: {
+        // overflow:"visible" (above) means long text in a cell isn't wrapped
+        // or clipped by that cell's own border - but the NEXT cell's
+        // background is still drawn on top of it, so a column has to be
+        // wide enough for its own longest realistic value or the overflow
+        // gets visually painted over. Manufacturer/Model widened after
+        // "COMPREHENSIVE VIDEO" was found getting covered by the Model
+        // column at the old 90pt width.
+        0: {cellWidth: 80},
+        1: {cellWidth: 140},
+        2: {cellWidth: 95},
+        3: {cellWidth: "auto"},
+        4: {cellWidth: 30, halign: "center"},
+        5: {cellWidth: 80}
+      },
       headStyles: {fillColor: [40, 50, 61], textColor: 255, fontStyle: "bold"},
       alternateRowStyles: {fillColor: [242, 244, 247]},
       theme: "grid"
@@ -5754,6 +5817,13 @@
   function submitDeliveryRequest(){
     var selRows = getSelectedRows();
     if (!selRows.length){ deliveryMsg("Select at least one item first.", "bad"); return; }
+    // Re-checked here too (not just when the modal opened) in case the
+    // selection changed underneath it - e.g. another device's realtime
+    // update cleared a barcode while this modal was still open.
+    if (rowsMissingBarcode(selRows).length){
+      deliveryMsg("One or more selected items don't have a barcode yet - close this, generate labels for them, then try again.", "bad");
+      return;
+    }
     var contact = {
       name: cloudEl("deliveryContactName").value.trim(),
       phone: cloudEl("deliveryContactPhone").value.trim(),
