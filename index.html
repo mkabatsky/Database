@@ -631,7 +631,7 @@
      so it needs the same override repeated on it specifically. */
   tr.row-shipped-locked{background:var(--shipped-tint) !important;}
   tr.row-shipped-locked td:first-child{background:var(--shipped-tint) !important;}
-  tr.row-shipped-locked td input{background:transparent;color:var(--ink-muted);cursor:default;}
+  tr.row-shipped-locked td input{background:transparent;color:var(--ink);font-weight:600;cursor:default;}
 
   /* =================== roles: viewer / tech =================== */
   /* The real enforcement is server-side (RLS) and persist() being turned
@@ -2950,7 +2950,6 @@
 '.field input[type=text],.field input[type=date]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:16px;font:inherit;-webkit-user-select:text;user-select:text;}\n' +
 '#signedDate:disabled{opacity:1;-webkit-text-fill-color:#1a1a18;color:#1a1a18;background:#eef0f3;}\n' +
 '#sigCanvas.sig-highlight{border-color:#b8720f;border-style:solid;box-shadow:0 0 0 3px rgba(184,114,15,.25);}\n' +
-'.sig-debug{margin-top:6px;font-family:monospace;font-size:10.5px;color:#666;background:#f4f5f7;border-radius:6px;padding:6px 8px;white-space:pre-wrap;word-break:break-all;max-height:110px;overflow:auto;}\n' +
 '#sigCanvas{width:100%;height:180px;border:2px dashed #99a3b0;border-radius:8px;touch-action:none;background:#fff;display:block;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}\n' +
 '.sign-actions{display:flex;justify-content:flex-end;margin-top:8px;}\n' +
 'button{font:inherit;font-size:15px;padding:10px 16px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;touch-action:manipulation;}\n' +
@@ -2967,7 +2966,7 @@
 '  <h2>Sign to confirm receipt</h2>\n' +
 '  <div class="field"><label for="signerName">Signed by (name)</label><input type="text" id="signerName" placeholder="Full name" autocomplete="name" enterkeyhint="done"></div>\n' +
 '  <div class="field"><label for="signedDate">Date</label><input type="date" id="signedDate" value="' + todayIso + '" disabled></div>\n' +
-'  <div class="field"><label>Signature</label><canvas id="sigCanvas"></canvas><div class="sign-actions"><button type="button" id="clearBtn">Clear</button></div><div id="sigDebug" class="sig-debug"></div></div>\n' +
+'  <div class="field"><label>Signature</label><canvas id="sigCanvas"></canvas><div class="sign-actions"><button type="button" id="clearBtn">Clear</button></div></div>\n' +
 '  <button type="button" id="submitBtn" class="primary">Submit signed slip</button>\n' +
 '  <div id="statusMsg"></div>\n' +
 '</div>\n' +
@@ -2994,14 +2993,6 @@
 '    }, 0);\n' +
 '  });\n' +
 '  var hasSignature = false, drawing = false;\n' +
-'  var sigDebugEl = document.getElementById("sigDebug");\n' +
-'  var sigDebugLines = [];\n' +
-'  function sigDebug(line){\n' +
-'    sigDebugLines.push(line);\n' +
-'    if (sigDebugLines.length > 8) sigDebugLines.shift();\n' +
-'    sigDebugEl.textContent = sigDebugLines.join("\\n");\n' +
-'  }\n' +
-'  sigDebug("PointerEvent: " + (!!window.PointerEvent) + " | dpr: " + (window.devicePixelRatio||1) + " | UA: " + navigator.userAgent.slice(0,60));\n' +
 '  function fitCanvas(preserve){\n' +
 '    var rect = canvas.getBoundingClientRect();\n' +
 '    if (rect.width < 10 || rect.height < 10){\n' +
@@ -3066,25 +3057,19 @@
 '  // can cancel the pointer stroke the instant it starts (a pointercancel right\n' +
 '  // after pointerdown) when both event models are listening on the same canvas.\n' +
 '  if (window.PointerEvent){\n' +
-'    var sigMoveCount = 0;\n' +
 '    canvas.addEventListener("pointerdown", function(e){\n' +
-'      var rect = canvas.getBoundingClientRect();\n' +
-'      sigMoveCount = 0;\n' +
-'      sigDebug("down type=" + e.pointerType + " canvasBox=" + Math.round(rect.width) + "x" + Math.round(rect.height) + " bufferPx=" + canvas.width + "x" + canvas.height);\n' +
 '      var p = pos(e.clientX, e.clientY);\n' +
 '      beginStroke(p.x, p.y);\n' +
 '      if (canvas.setPointerCapture){ try { canvas.setPointerCapture(e.pointerId); } catch(err){} }\n' +
 '      e.preventDefault();\n' +
 '    });\n' +
 '    canvas.addEventListener("pointermove", function(e){\n' +
-'      sigMoveCount++;\n' +
-'      if (sigMoveCount === 1 || sigMoveCount % 10 === 0) sigDebug("move #" + sigMoveCount + " drawing=" + drawing);\n' +
 '      var p = pos(e.clientX, e.clientY);\n' +
 '      continueStroke(p.x, p.y);\n' +
 '      e.preventDefault();\n' +
 '    });\n' +
 '    ["pointerup","pointercancel"].forEach(function(ev){\n' +
-'      canvas.addEventListener(ev, function(e){ sigDebug(ev + " after " + sigMoveCount + " moves"); endStroke(); });\n' +
+'      canvas.addEventListener(ev, function(e){ endStroke(); });\n' +
 '    });\n' +
 '  } else {\n' +
 '    // only reached on a browser with no Pointer Event support at all\n' +
