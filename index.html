@@ -211,6 +211,12 @@
     background:transparent;border:1px solid transparent;color:var(--ink-muted);
   }
   .del-btn:hover{background:var(--danger);border-color:var(--danger);color:var(--danger-ink);}
+  .unlock-btn{
+    width:26px;height:26px;padding:0;border-radius:6px;flex:none;
+    display:inline-flex;align-items:center;justify-content:center;
+    background:transparent;border:1px solid transparent;color:var(--ink-muted);
+  }
+  .unlock-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
 
   tfoot td{padding:9px 10px;font-weight:600;border-top:1px solid var(--border);background:var(--surface-alt);color:var(--ink-muted);font-size:12.5px;}
   tfoot td.total-qty{color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:center;}
@@ -436,6 +442,7 @@
     button{min-height:44px;padding:9px 14px;font-size:14px;}
     .icon-btn{min-width:44px;min-height:44px;justify-content:center;}
     .del-btn{min-height:0;width:40px;height:40px;}
+    .unlock-btn{min-height:0;width:40px;height:40px;}
     .scroll-nav button{min-height:40px;min-width:44px;justify-content:center;}
     .col-resize-handle{min-height:0;}
     .snackbar button{min-height:40px;}
@@ -448,8 +455,13 @@
     thead th button.sort-btn{padding:14px 10px;}
   }
 
-  /* phones and portrait tablets: one card per item instead of a wide table */
-  @media (max-width:820px){
+  /* phones (portrait or landscape) and portrait tablets: one card per item
+     instead of a wide table. A landscape phone is wide (an iPhone or a
+     Galaxy S25 rotated is typically 660-930px) but short - under ~430px
+     tall, versus 700px+ for an actual tablet in landscape - so a short
+     touchscreen viewport gets the same treatment as a narrow one here,
+     regardless of its width. */
+  @media (max-width:820px), (max-height:480px) and (pointer:coarse){
     body{padding-inline:10px;padding-block:10px calc(88px + env(safe-area-inset-bottom));}
     .wrap{gap:12px;}
     .sticky-header{position:static;margin-top:0;padding-top:0;padding-bottom:0;gap:12px;box-shadow:none !important;}
@@ -530,14 +542,31 @@
     .snackbar{bottom:calc(88px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px);width:max-content;}
   }
 
-  /* Tablet-width portrait screens (iPad and similar, ~600-820px): same card
-     layout as the phone breakpoint above, but with room for more fields per
-     row, so each card is much shorter and more items fit on screen at once. */
-  @media (min-width:600px) and (max-width:820px){
+  /* Tablet-width portrait screens (iPad and similar, ~600-820px) get the
+     same card layout as the phone breakpoint above, but with room for more
+     fields per row, so each card is much shorter and more items fit on
+     screen at once - and a landscape phone (short but wide, see above)
+     qualifies for the exact same reason: there's width to spare even
+     though it still needs the phone breakpoint's card layout, full-screen
+     modals and bottom-pinned action bar. */
+  @media (min-width:600px) and (max-width:820px), (max-height:480px) and (pointer:coarse) and (min-width:560px){
     tbody tr{grid-template-columns:repeat(4, 1fr);}
     tbody td:first-child{grid-column:auto;position:static;}
     tbody td[data-key="model"]{grid-column:auto;}
     tbody td[data-key="deviceType"]{grid-column:1 / -1;}
+    .meta-grid{grid-template-columns:repeat(2, 1fr);}
+    .meta-grid .field-wide{grid-column:1 / -1;}
+  }
+
+  /* landscape phones specifically (a real tablet's pinned bottom bar isn't
+     competing with anywhere near as little vertical space): trim the fixed
+     header/footer chrome's height a bit to leave more room for content in
+     a viewport that's under ~430px tall to begin with. */
+  @media (max-height:480px) and (pointer:coarse) and (min-width:560px){
+    body{padding-block:10px calc(70px + env(safe-area-inset-bottom));}
+    .fab{width:48px;height:48px;bottom:calc(60px + env(safe-area-inset-bottom));}
+    .btn-group{padding:6px 10px calc(6px + env(safe-area-inset-bottom));}
+    .btn-group button{min-height:40px;}
   }
 
   /* =================== CLOUD SYNC (Supabase) =================== */
@@ -583,6 +612,15 @@
   .job-msg{font-size:13px;color:var(--ink-muted);min-height:18px;flex:none;}
   .job-msg.bad{color:var(--danger);font-weight:600;}
 
+  /* TEMP (2026-09-29): Scan and Search Files hidden per request - not
+     removed, just hidden for now. Delete this rule to bring them back. */
+  #scanBtn, #searchFilesBtn{display:none !important;}
+
+  /* a shipped row's fields are readOnly (see renderRows) - styled so it
+     still reads clearly rather than looking greyed-out/broken like a
+     disabled input would. */
+  tr.row-shipped-locked td input{background:var(--surface-alt);cursor:default;}
+
   /* =================== roles: viewer / tech =================== */
   /* The real enforcement is server-side (RLS) and persist() being turned
      into a no-op for these roles (see roles.js) - this CSS just keeps the
@@ -601,6 +639,7 @@
   body.role-viewer #labelsBtn, body.role-tech #labelsBtn,
   body.role-viewer #packingSlipBtn, body.role-tech #packingSlipBtn,
   body.role-viewer .del-btn, body.role-tech .del-btn,
+  body.role-viewer .unlock-btn, body.role-tech .unlock-btn,
   body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn,
   body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn{
     display:none !important;
@@ -656,6 +695,7 @@
   .mu-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px;}
   .mu-row:last-child{border-bottom:none;}
   .mu-email{flex:1 1 200px;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mu-master-badge{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:99px;background:var(--accent);color:#fff;vertical-align:middle;}
   .mu-row select{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
   .mu-row button{padding:6px 11px;font-size:12.5px;}
   .mu-row .mu-save{visibility:hidden;}
@@ -1090,7 +1130,7 @@
     <p class="cl-sub" id="cloudLoginSub">Sign in to continue</p>
     <form id="cloudLoginForm" autocomplete="on">
       <label>Email
-        <input id="cloudEmail" name="email" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+        <input id="cloudEmail" name="email" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
       </label>
       <label>Password
         <input id="cloudPass" name="password" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required>
@@ -1793,9 +1833,21 @@
       numSpan.textContent = idx + 1;
       numWrap.appendChild(rowCb);
       numWrap.appendChild(numSpan);
+      if (alreadyShipped){
+        var unlockBtn = document.createElement("button");
+        unlockBtn.className = "unlock-btn";
+        unlockBtn.type = "button";
+        unlockBtn.title = "Unlock this row (clears Date Shipped so it can be edited again - the warehouse is emailed when you do this)";
+        unlockBtn.setAttribute("aria-label", "Unlock row " + (idx + 1) + " - currently marked shipped");
+        unlockBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 7.5-2"></path></svg>';
+        unlockBtn.addEventListener("click", function(){ unshipRow(id); });
+        numWrap.appendChild(unlockBtn);
+      }
       numWrap.appendChild(delBtn);
       tdNum.appendChild(numWrap);
       tr.appendChild(tdNum);
+
+      if (alreadyShipped) tr.classList.add("row-shipped-locked");
 
       getShownCols().forEach(function(c){
         var td = document.createElement("td");
@@ -1810,11 +1862,22 @@
         input.dataset.field = c.key;
         if (c.key === "dateShipped" && r.dateReceived) input.min = r.dateReceived;
         if (c.key === "dateShipped") applyShipInputState(input, r);
+        // once a row has shipped, it's a record of what went out the door -
+        // still fully visible, just frozen (readOnly keeps it legible
+        // instead of greyed out the way disabled would look). Re-checked
+        // from the row's live data each render, not just at ship time, so
+        // clearing Date Shipped elsewhere unlocks it again immediately.
+        if (alreadyShipped){
+          input.readOnly = true;
+          input.tabIndex = -1;
+          input.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — locked from further edits.";
+        }
         if (AUTOCOMPLETE_KEYS.indexOf(c.key) !== -1){
           input.setAttribute("list", datalistId(c.key));
           input.addEventListener("blur", function(){ registerAutocompleteValue(c.key, input.value); });
         }
         input.addEventListener("input", function(){
+          if (alreadyShipped){ input.value = r[c.key] === undefined || r[c.key] === null ? "" : r[c.key]; return; }
           // nothing ships before it has been received and has a BarCode
           if (c.key === "dateShipped" && input.value && shipBlockReason(r)){
             showSnackbar("Can't ship yet — this item " + shipBlockReason(r) + " first.");
@@ -1970,6 +2033,22 @@
     renderRows();
     lastDeleted = {id: id, data: data};
     showSnackbar((data.barcode ? data.barcode + " " : "Row ") + "deleted");
+  }
+
+  // "Unlock" on an already-shipped row: clears Date Shipped so the row goes
+  // back to being a normal editable row. Overridden to a no-op by roles.js
+  // until cloud mode is confirmed on - offline/local-only use still gets
+  // the unlock itself, just without the warehouse email (nobody to email).
+  var notifyItemUnshipped = function(){};
+  function unshipRow(id){
+    var r = rows.get(id);
+    if (!r || !r.dateShipped) return;
+    var previousShipDate = r.dateShipped;
+    r.dateShipped = "";
+    persist();
+    renderRows();
+    showSnackbar((r.barcode ? r.barcode + " " : "Item ") + "unlocked — Date Shipped cleared");
+    notifyItemUnshipped(r, previousShipDate);
   }
 
   var snackTimer = null;
@@ -2136,13 +2215,28 @@
   // as a text box stays focused. On a table full of inputs that bar just gets
   // in the way while scrolling, so scrolling the page itself closes the
   // keyboard/that bar — the same field is still right there to tap back into.
+  //
+  // The tricky part: focusing an input near the edge of the screen makes the
+  // browser itself auto-scroll the page to keep it visible above the keyboard
+  // as it animates in - and that auto-scroll fires this same 'scroll' event.
+  // Without a guard, that scroll's own blur() fires right as the keyboard is
+  // opening and immediately closes it again - on iPad in particular, tapping
+  // a field could look like the keyboard trying to open and then instantly
+  // minimizing, with no chance to type anything. Skip the auto-blur when a
+  // table input was focused very recently, so that settling-in scroll is
+  // left alone; a scroll well after the field has already been focused for a
+  // while is a real user scroll and still blurs it as before.
+  var lastTableFocusAt = 0;
+  el.tbody.addEventListener('focusin', function(e){
+    if (e.target && e.target.tagName === 'INPUT') lastTableFocusAt = Date.now();
+  });
   var scrollBlurTimer = null;
   window.addEventListener('scroll', function(){
     el.toolbarCard.classList.toggle('is-stuck', window.scrollY > 2);
     clearTimeout(scrollBlurTimer);
     scrollBlurTimer = setTimeout(function(){
       var ae = document.activeElement;
-      if (ae && ae.tagName === 'INPUT' && el.tbody.contains(ae)) ae.blur();
+      if (ae && ae.tagName === 'INPUT' && el.tbody.contains(ae) && (Date.now() - lastTableFocusAt) > 500) ae.blur();
     }, 120);
   }, {passive: true});
   updateGridHeight();
@@ -5434,12 +5528,23 @@
       el.importFile.click();
     });
 
+    // A hardcoded convenience: signing in as "mkabatsky" (no @, easier to
+    // remember/type than a full address) resolves to that one account's
+    // real email before ever reaching Supabase - which always needs a real
+    // email for password sign-in, so this isn't a separate username system,
+    // just a memorable alias for a single specific account.
+    var MASTER_USERNAME = "mkabatsky";
+    var MASTER_USERNAME_EMAIL = "mkabatsky@gmail.com";
+    function resolveSignInEmail(v){
+      v = String(v || "").trim();
+      return v.toLowerCase() === MASTER_USERNAME ? MASTER_USERNAME_EMAIL : v;
+    }
     var form = cloudEl("cloudLoginForm"), errEl = cloudEl("cloudLoginErr"), btn = cloudEl("cloudLoginBtn");
     form.addEventListener("submit", function(ev){
       ev.preventDefault();
       errEl.textContent = "";
       btn.disabled = true; btn.textContent = "Signing in...";
-      cloud.sb.auth.signInWithPassword({email: cloudEl("cloudEmail").value.trim(), password: cloudEl("cloudPass").value}).then(function(r){
+      cloud.sb.auth.signInWithPassword({email: resolveSignInEmail(cloudEl("cloudEmail").value), password: cloudEl("cloudPass").value}).then(function(r){
         btn.disabled = false; btn.textContent = "Sign in";
         if (r.error){
           errEl.textContent = /invalid/i.test(r.error.message) ? "Wrong email or password." : r.error.message;
@@ -5687,6 +5792,27 @@
         };
       })
     }).catch(function(e){ console.warn("items-shipped email failed", e); });
+  };
+
+  // ---------- item-unshipped email ----------
+  // Fires once per "Unlock" click on a shipped row (see unshipRow in the
+  // base app) - the row may already be reflected as shipped elsewhere (a
+  // printed packing slip, a delivery record), so the warehouse gets told
+  // its status just changed back, not just that the row is editable again.
+  notifyItemUnshipped = function(row, previousShipDate){
+    if (!cloud.jobId || !cloud.sb || !row) return;
+    invokeFn("notify-item-unshipped", {
+      jobId: cloud.jobId,
+      previousShipDate: previousShipDate || "",
+      item: {
+        barcode: row.barcode,
+        manufacturer: row.manufacturer,
+        model: row.model,
+        deviceType: row.deviceType,
+        totalQty: row.totalQty,
+        serialNumber: row.serialNumber
+      }
+    }).catch(function(e){ console.warn("item-unshipped email failed", e); });
   };
 
   // ---------- delivery request modal (tech role) ----------
@@ -5951,6 +6077,21 @@
   function renderMuList(){
     var list = cloudEl("muList");
     list.innerHTML = muUsers.map(function(u){
+      // the master account: no role select, no job select, no Save/Delete -
+      // there's nothing here that can actually be changed, so there's
+      // nothing to offer (the real enforcement is server-side in
+      // admin-users either way, this just keeps the screen from offering
+      // controls that would only fail).
+      if (u.isMaster){
+        return (
+          '<div class="mu-row" data-id="' + u.id + '">' +
+            '<span class="mu-email">' + escHtml(u.email) +
+              ' <span class="mu-master-badge" title="The master account - can\'t be deleted or have its role changed, by anyone.">Master</span>' +
+            '</span>' +
+            '<select class="mu-role" disabled><option selected>Staff (full access)</option></select>' +
+          '</div>'
+        );
+      }
       var kind = muKind(u);
       var jobShown = muKindNeedsJob(kind);
       return (
