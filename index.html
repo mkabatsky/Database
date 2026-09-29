@@ -240,7 +240,7 @@
   .modal-backdrop[hidden]{display:none;}
   .modal-panel{
     background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
-    width:100%;max-width:420px;max-height:min(600px, 86vh);display:flex;flex-direction:column;
+    width:100%;max-width:420px;max-height:min(600px, 86vh);max-height:min(600px, 86dvh);display:flex;flex-direction:column;
     padding:18px;gap:12px;
   }
   .modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -285,13 +285,13 @@
   .rownum{padding:8px 10px;color:var(--ink-muted);font-size:12.5px;display:flex;align-items:center;gap:6px;}
 
   /* ── Labels modal ── */
-  .label-modal-panel{max-width:660px;max-height:min(720px, 90vh);}
+  .label-modal-panel{max-width:660px;max-height:min(720px, 90vh);max-height:min(720px, 90dvh);}
   .labels-preview-scroll{overflow-y:auto;flex:1;min-height:120px;}
   .labels-grid{display:flex;flex-direction:column;gap:16px;}
   .no-selection-note{padding:24px 10px;text-align:center;color:var(--ink-muted);font-size:13px;}
 
   /* ── Search Files modal ── */
-  .search-modal-panel{max-width:560px;max-height:min(640px, 88vh);}
+  .search-modal-panel{max-width:560px;max-height:min(640px, 88vh);max-height:min(640px, 88dvh);}
   .search-folder-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .search-folder-row .hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .search-query-row{display:flex;align-items:center;gap:8px;}
@@ -337,7 +337,7 @@
   .lc-missing{color:#a32d2d;}
 
   /* ── Packing slip modal ── */
-  .packing-slip-modal-panel{width:720px;max-width:96vw;max-height:min(1000px, 94vh);}
+  .packing-slip-modal-panel{width:720px;max-width:96vw;max-height:min(1000px, 94vh);max-height:min(1000px, 94dvh);}
   .ps-ship-date-field{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-muted);}
   .ps-ship-date-field input{
     border:1px solid var(--border);border-radius:6px;padding:6px 8px;
@@ -406,7 +406,7 @@
 
   /* barcode / QR scanner window */
   .scan-btn{gap:7px;}
-  .scan-modal-panel{max-width:540px;max-height:min(820px, 96vh);overflow:auto;}
+  .scan-modal-panel{max-width:540px;max-height:min(820px, 96vh);max-height:min(820px, 96dvh);overflow:auto;}
   #scanModeGroup{width:100%;flex:none;}
   #scanModeGroup button{flex:1;justify-content:center;}
   .scan-view{position:relative;background:#000;border-radius:10px;overflow:hidden;min-height:170px;flex:none;}
@@ -559,7 +559,7 @@
   .cloud-card .cl-go:disabled{opacity:.6;}
   .cloud-card .cl-err{min-height:20px;font-size:13.5px;color:#b3261e;font-weight:600;margin-bottom:8px;}
   .cloud-card .cl-foot{margin-top:12px;font-size:12px;color:#6b7686;text-align:center;line-height:1.5;}
-  .cloud-jobs-panel{max-width:560px;max-height:min(760px,94vh);overflow:auto;}
+  .cloud-jobs-panel{max-width:560px;max-height:min(760px,94vh);max-height:min(760px,94dvh);overflow:auto;}
   .item-find{display:flex;gap:8px;flex-wrap:wrap;flex:none;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--border);}
   .item-find input{flex:1;min-width:150px;border:1px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;}
   .find-results{display:flex;flex-direction:column;gap:8px;flex:none;max-height:260px;overflow:auto;margin-bottom:4px;}
@@ -638,7 +638,10 @@
   .delivery-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin:10px 0 14px;}
   .delivery-fields .field-wide{grid-column:1 / -1;}
   .delivery-fields label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);}
-  .delivery-fields input{font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;}
+  /* 16px (not 15px) so this beats the base app's own coarse-pointer/16px
+     anti-zoom rule on a cascade tie instead of quietly losing to it - at
+     15px, focusing these on iPhone Safari would auto-zoom the page. */
+  .delivery-fields input{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;}
   .delivery-item-list{max-height:220px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
   .delivery-item-list table{width:100%;border-collapse:collapse;font-size:12.5px;}
   .delivery-item-list th, .delivery-item-list td{padding:5px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
@@ -664,9 +667,21 @@
   .mu-new h3{margin:0 0 10px;font-size:14px;}
   .mu-new-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:12px;}
   .mu-new-fields label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);}
-  .mu-new-fields input, .mu-new-fields select{font:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
+  /* 16px, same reasoning as .delivery-fields input above */
+  .mu-new-fields input, .mu-new-fields select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
   .mu-new-fields label.mu-new-job{display:none;}
   .mu-new-fields label.mu-new-job.show{display:flex;}
+
+  /* phones and portrait tablets: same breakpoint the base app uses to
+     switch its own forms to one column - these two newer forms (added
+     after that base layout) hadn't been given the same treatment, so a
+     phone number field or a date/time picker was getting squeezed into
+     half of a 360px-wide screen. */
+  @media (max-width:820px){
+    .delivery-fields{grid-template-columns:1fr;}
+    .mu-new-fields{grid-template-columns:1fr;}
+    .mu-new-fields label.mu-new-job.show{display:flex;} /* keep the show/hide toggle working at 1 column too */
+  }
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
