@@ -27,7 +27,6 @@
     --danger-ink:#ffffff;
     --success:#3a7d44;
     --focus:#b8720f;
-    --shipped-tint:#e6f3e8;
     --shadow:0 1px 2px rgba(20,26,33,.06),0 4px 14px rgba(20,26,33,.06);
   }
   @media (prefers-color-scheme: dark){
@@ -44,7 +43,6 @@
       --danger-ink:#1a0908;
       --success:#5cba69;
       --focus:#e0a032;
-      --shipped-tint:#1c2b20;
       --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
     }
   }
@@ -621,17 +619,12 @@
      removed, just hidden for now. Delete this rule to bring them back. */
   #scanBtn, #searchFilesBtn{display:none !important;}
 
-  /* a shipped row's fields are readOnly (see renderRows) - shaded at the
-     row level (not per-input) so the whole row reads as one consistent
-     muted block instead of a patchwork of separately-tinted boxes sitting
-     on a differently-colored row underneath them. Needs !important because
-     it's competing with the even/odd zebra-stripe rule at the same
-     specificity, and the sticky first column keeps its own separate
-     background (needed so scrolled content doesn't show through it),
-     so it needs the same override repeated on it specifically. */
-  tr.row-shipped-locked{background:var(--shipped-tint) !important;}
-  tr.row-shipped-locked td:first-child{background:var(--shipped-tint) !important;}
-  tr.row-shipped-locked td input{background:transparent;color:var(--ink);font-weight:600;cursor:default;}
+  /* a shipped row's fields are readOnly (see renderRows) - no background
+     tint or text-style change at all, on purpose: the green checkmark and
+     the Unlock icon in the row-number column are the only shipped
+     indicator. .row-shipped-locked itself is still applied to the <tr> for
+     anything JS needs it for, it just carries no styling of its own here. */
+  tr.row-shipped-locked td input{cursor:default;}
 
   /* =================== roles: viewer / tech =================== */
   /* The real enforcement is server-side (RLS) and persist() being turned
