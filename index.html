@@ -289,6 +289,7 @@
   .rownum-head input[type="checkbox"]{width:14px;height:14px;min-width:0;flex:none;accent-color:var(--accent);}
   .rownum input[type="checkbox"]:disabled{accent-color:var(--ink-muted);opacity:.4;cursor:not-allowed;}
   .rownum{padding:8px 10px;color:var(--ink-muted);font-size:12.5px;display:flex;align-items:center;gap:6px;}
+  .shipped-check{width:14px;height:14px;min-width:0;flex:none;display:inline-flex;align-items:center;justify-content:center;color:var(--success);}
 
   /* ── Labels modal ── */
   .label-modal-panel{max-width:660px;max-height:min(720px, 90vh);max-height:min(720px, 90dvh);}
@@ -527,6 +528,8 @@
     td input[type="date"]{min-height:44px;}
     .rownum{padding:0 !important;gap:12px;font-size:14px;font-weight:600;}
     .rownum input[type="checkbox"]{width:26px;height:26px;}
+    .shipped-check{width:26px;height:26px;}
+    .shipped-check svg{width:18px;height:18px;}
     .del-btn{margin-left:auto;}
     tfoot{display:block;margin-top:4px;}
     tfoot tr{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;}
@@ -616,10 +619,17 @@
      removed, just hidden for now. Delete this rule to bring them back. */
   #scanBtn, #searchFilesBtn{display:none !important;}
 
-  /* a shipped row's fields are readOnly (see renderRows) - styled so it
-     still reads clearly rather than looking greyed-out/broken like a
-     disabled input would. */
-  tr.row-shipped-locked td input{background:var(--surface-alt);cursor:default;}
+  /* a shipped row's fields are readOnly (see renderRows) - shaded at the
+     row level (not per-input) so the whole row reads as one consistent
+     muted block instead of a patchwork of separately-tinted boxes sitting
+     on a differently-colored row underneath them. Needs !important because
+     it's competing with the even/odd zebra-stripe rule at the same
+     specificity, and the sticky first column keeps its own separate
+     background (needed so scrolled content doesn't show through it),
+     so it needs the same override repeated on it specifically. */
+  tr.row-shipped-locked{background:var(--surface-alt) !important;}
+  tr.row-shipped-locked td:first-child{background:var(--surface-alt) !important;}
+  tr.row-shipped-locked td input{background:transparent;color:var(--ink-muted);cursor:default;}
 
   /* =================== roles: viewer / tech =================== */
   /* The real enforcement is server-side (RLS) and persist() being turned
@@ -1810,15 +1820,23 @@
       var tdNum = document.createElement("td");
       var numWrap = document.createElement("div");
       numWrap.className = "rownum";
-      var rowCb = document.createElement("input");
-      rowCb.type = "checkbox";
       var alreadyShipped = !!(r.dateShipped && String(r.dateShipped).trim());
-      rowCb.checked = !alreadyShipped && selectedIds.has(id);
+      var rowCb;
       if (alreadyShipped){
-        rowCb.disabled = true;
-        rowCb.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another packing slip or label run.";
-        rowCb.setAttribute("aria-label", "Row " + (idx + 1) + " already shipped — cannot be selected");
+        // a shipped row's checkbox can never be selected (nothing left to do
+        // with it), so it's swapped for a plain checkmark instead of a
+        // greyed-out, disabled-looking box in that same spot - a clear
+        // "this one's done" signal at a glance, not just a dead control.
+        rowCb = document.createElement("span");
+        rowCb.className = "shipped-check";
+        rowCb.setAttribute("role", "img");
+        rowCb.title = "Shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another packing slip or label run.";
+        rowCb.setAttribute("aria-label", "Row " + (idx + 1) + " already shipped");
+        rowCb.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
       } else {
+        rowCb = document.createElement("input");
+        rowCb.type = "checkbox";
+        rowCb.checked = selectedIds.has(id);
         rowCb.setAttribute("aria-label", "Select row " + (idx + 1) + " for labels");
         rowCb.addEventListener("change", function(){ setRowSelected(id, rowCb.checked); });
       }
