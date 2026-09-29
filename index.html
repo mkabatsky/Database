@@ -27,6 +27,7 @@
     --danger-ink:#ffffff;
     --success:#3a7d44;
     --focus:#b8720f;
+    --shipped-tint:#e6f3e8;
     --shadow:0 1px 2px rgba(20,26,33,.06),0 4px 14px rgba(20,26,33,.06);
   }
   @media (prefers-color-scheme: dark){
@@ -43,6 +44,7 @@
       --danger-ink:#1a0908;
       --success:#5cba69;
       --focus:#e0a032;
+      --shipped-tint:#1c2b20;
       --shadow:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);
     }
   }
@@ -627,8 +629,8 @@
      specificity, and the sticky first column keeps its own separate
      background (needed so scrolled content doesn't show through it),
      so it needs the same override repeated on it specifically. */
-  tr.row-shipped-locked{background:var(--surface-alt) !important;}
-  tr.row-shipped-locked td:first-child{background:var(--surface-alt) !important;}
+  tr.row-shipped-locked{background:var(--shipped-tint) !important;}
+  tr.row-shipped-locked td:first-child{background:var(--shipped-tint) !important;}
   tr.row-shipped-locked td input{background:transparent;color:var(--ink-muted);cursor:default;}
 
   /* =================== roles: viewer / tech =================== */
