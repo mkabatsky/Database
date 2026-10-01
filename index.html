@@ -648,7 +648,8 @@
   body.role-viewer .unlock-btn, body.role-tech .unlock-btn,
   body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn,
   body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn,
-  body.role-viewer #pendingDeliveriesBtn, body.role-tech #pendingDeliveriesBtn{
+  body.role-viewer #pendingDeliveriesBtn, body.role-tech #pendingDeliveriesBtn,
+  body.role-viewer #jobsDashboardBtn, body.role-tech #jobsDashboardBtn{
     display:none !important;
   }
   /* only hide the Jobs picker when this account is pinned to one job - a
@@ -766,6 +767,19 @@
   .pd-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
   .pd-slip-hint{font-size:12px;color:var(--ink-muted);font-style:italic;align-self:center;}
 
+  /* =================== jobs dashboard (staff only) =================== */
+  .modal-backdrop#jobsDashboardBackdrop[hidden]{display:none;}
+  .jd-list{max-height:460px;overflow:auto;display:flex;flex-direction:column;gap:8px;}
+  .jd-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+  .jd-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  .jd-job{font-weight:700;}
+  .jd-address{font-size:12.5px;color:var(--ink-muted);margin:2px 0 8px;}
+  .jd-stats{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12.5px;color:var(--ink-muted);}
+  .jd-stat b{color:var(--ink);font-weight:700;}
+  .jd-stat.jd-open-requests b{color:#8a5a00;}
+  .jd-open-btn{padding:6px 11px;font-size:12.5px;}
+  .jd-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
+
   /* =================== equipment on an open delivery request =================== */
   input[data-field="barcode"].item-requested{
     background:#fff4e0 !important;
@@ -794,7 +808,7 @@
       </div>
     </div>
     <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Saved on this device</span></div>
-    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="pendingDeliveriesBtn" type="button">Deliveries</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
+    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="jobsDashboardBtn" type="button">Dashboard</button><button id="pendingDeliveriesBtn" type="button">Deliveries</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
     <span id="roleBanner"></span>
   </div>
 
@@ -1077,6 +1091,20 @@
     </div>
     <div class="pd-list" id="pdList"></div>
     <div class="pd-msg" id="pdMsg" aria-live="polite"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="jobsDashboardBackdrop" hidden="">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="jobsDashboardTitle">
+    <div class="modal-head">
+      <h2 id="jobsDashboardTitle">Jobs dashboard</h2>
+      <button class="icon-btn" id="jobsDashboardCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub">Full-access staff only. Every active job's progress at a glance, busiest first.</p>
+    <div class="jd-list" id="jdList"></div>
+    <div class="jd-msg" id="jdMsg" aria-live="polite"></div>
   </div>
 </div>
 <div id="packingSlipPrintRoot"><div id="packingSlipPrintDoc"></div></div>
@@ -6671,6 +6699,115 @@
   if (pendingDeliveriesCloseBtnEl) pendingDeliveriesCloseBtnEl.addEventListener("click", closePendingDeliveriesModal);
   var pendingDeliveriesBackdropEl = cloudEl("pendingDeliveriesBackdrop");
   if (pendingDeliveriesBackdropEl) pendingDeliveriesBackdropEl.addEventListener("click", function(ev){ if (ev.target === pendingDeliveriesBackdropEl) closePendingDeliveriesModal(); });
+
+  // ---------- jobs dashboard (staff only) ----------
+  // Same three-way split as the main table's own All/Not Received/
+  // Received/Shipped filter (matchesStatusFilter) - "received" here means
+  // arrived but not yet shipped, so the numbers mean the same thing they
+  // do inside a job, not a second, different definition of "received."
+  function jdStatusCounts(rows){
+    var total = 0, received = 0, shipped = 0;
+    rows.forEach(function(r){
+      total++;
+      var d = r.data || {};
+      if (isIsoDateString(d.dateShipped)) shipped++;
+      else if (isIsoDateString(d.dateReceived)) received++;
+    });
+    return {total: total, received: received, shipped: shipped, remaining: total - shipped};
+  }
+
+  function jdMsg(text, kind){
+    var m = cloudEl("jdMsg");
+    m.textContent = text || "";
+    m.className = "jd-msg" + (kind ? " " + kind : "");
+  }
+
+  // One query per table across EVERY job, aggregated client-side, rather
+  // than one query per job - keeps this to 3 requests total regardless of
+  // how many jobs exist.
+  function loadJobsDashboard(){
+    var list = cloudEl("jdList");
+    list.textContent = "Loading...";
+    jdMsg("");
+    return Promise.all([
+      cloud.sb.from("eq_jobs").select("id,name,meta").eq("deleted", false),
+      cloud.sb.from("eq_rows").select("job_id,data").eq("deleted", false),
+      cloud.sb.from("eq_delivery_requests").select("job_id").eq("status", "submitted")
+    ]).then(function(results){
+      var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2];
+      if (jobsRes.error){ jdMsg("Couldn't load: " + jobsRes.error.message, "bad"); list.textContent = ""; return; }
+      var rowsByJob = {}, openReqByJob = {};
+      (rowsRes.data || []).forEach(function(r){
+        (rowsByJob[r.job_id] = rowsByJob[r.job_id] || []).push(r);
+      });
+      (reqsRes.data || []).forEach(function(r){
+        openReqByJob[r.job_id] = (openReqByJob[r.job_id] || 0) + 1;
+      });
+      renderJobsDashboard(jobsRes.data || [], rowsByJob, openReqByJob);
+    }).catch(function(e){
+      jdMsg("Couldn't load: " + (e && e.message ? e.message : e), "bad");
+      list.textContent = "";
+    });
+  }
+
+  function renderJobsDashboard(jobs, rowsByJob, openReqByJob){
+    var list = cloudEl("jdList");
+    if (!jobs.length){ list.innerHTML = ""; jdMsg("No active jobs yet."); return; }
+    jdMsg("");
+    var cards = jobs.map(function(j){
+      var stats = jdStatusCounts(rowsByJob[j.id] || []);
+      stats.openRequests = openReqByJob[j.id] || 0;
+      return {job: j, stats: stats};
+    });
+    // most remaining-to-ship first, so whatever job needs the most
+    // attention surfaces at the top instead of being buried in whatever
+    // order the database happens to return
+    cards.sort(function(a, b){ return b.stats.remaining - a.stats.remaining; });
+    list.innerHTML = cards.map(function(c){
+      var j = c.job, s = c.stats;
+      var jobMeta = j.meta || {};
+      var jobName = jobMeta.project || j.name || "Untitled job";
+      var address = jobMeta.address || "";
+      return '<div class="jd-card">' +
+        '<div class="jd-card-head"><span class="jd-job">' + escHtml(jobName) + '</span>' +
+          '<button type="button" class="jd-open-btn" data-jd-open="' + j.id + '">Open</button></div>' +
+        (address ? '<div class="jd-address">' + escHtml(address) + '</div>' : '') +
+        '<div class="jd-stats">' +
+          '<span class="jd-stat">Total <b>' + s.total + '</b></span>' +
+          '<span class="jd-stat">Received <b>' + s.received + '</b></span>' +
+          '<span class="jd-stat">Shipped <b>' + s.shipped + '</b></span>' +
+          '<span class="jd-stat">Remaining <b>' + s.remaining + '</b></span>' +
+          '<span class="jd-stat jd-open-requests">Open requests <b>' + s.openRequests + '</b></span>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function openJobsDashboardModal(){
+    cloudEl("jobsDashboardBackdrop").hidden = false;
+    loadJobsDashboard();
+  }
+  function closeJobsDashboardModal(){ cloudEl("jobsDashboardBackdrop").hidden = true; }
+
+  document.addEventListener("click", function(ev){
+    var jdOpenBtn = ev.target.closest && ev.target.closest("[data-jd-open]");
+    if (!jdOpenBtn) return;
+    var jobId = jdOpenBtn.dataset.jdOpen;
+    jdOpenBtn.disabled = true;
+    cloud.sb.from("eq_jobs").select("id,name,meta").eq("id", jobId).maybeSingle().then(function(jr){
+      jdOpenBtn.disabled = false;
+      if (jr.error || !jr.data){ jdMsg("Couldn't open that job - it may have been deleted.", "bad"); return; }
+      closeJobsDashboardModal();
+      openJob(jr.data);
+    });
+  });
+
+  var jobsDashboardBtnEl = cloudEl("jobsDashboardBtn");
+  if (jobsDashboardBtnEl) jobsDashboardBtnEl.addEventListener("click", openJobsDashboardModal);
+  var jobsDashboardCloseBtnEl = cloudEl("jobsDashboardCloseBtn");
+  if (jobsDashboardCloseBtnEl) jobsDashboardCloseBtnEl.addEventListener("click", closeJobsDashboardModal);
+  var jobsDashboardBackdropEl = cloudEl("jobsDashboardBackdrop");
+  if (jobsDashboardBackdropEl) jobsDashboardBackdropEl.addEventListener("click", function(ev){ if (ev.target === jobsDashboardBackdropEl) closeJobsDashboardModal(); });
 
   // installable app: works offline once opened over https
   // a scan from an iOS/iPadOS Shortcut, another scanner app's "open URL" action, or any
