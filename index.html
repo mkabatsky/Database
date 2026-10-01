@@ -752,6 +752,13 @@
   .pd-status-badge.fulfilled{background:#e6f3e8;color:#1f6b40;}
   .pd-status-badge.cancelled{background:#f3e1e1;color:#a53f3f;}
   .pd-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
+  .pd-slip-hint{font-size:12px;color:var(--ink-muted);font-style:italic;align-self:center;}
+
+  /* =================== equipment on an open delivery request =================== */
+  input[data-field="barcode"].item-requested{
+    background:#fff4e0 !important;
+    border-color:#d9a441 !important;
+  }
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
@@ -986,7 +993,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Sends the warehouse a pick slip (PDF + HTML) and this list, by email, for the items checked in the table.</p>
+    <p class="modal-sub">Sends the warehouse a pick slip (PDF) and this list, by email, for the items checked in the table.</p>
     <div class="delivery-item-list">
       <table>
         <thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>
@@ -5837,6 +5844,31 @@
     }
   }
 
+  // A notification email links straight to its job (?job=<uuid>) instead of
+  // making whoever opens it hunt for it in the Jobs list. Read once at boot,
+  // before sign-in even resolves - cloudBoot()'s sign-in chain is async, so
+  // this capture happily outlives the wait and is still there once resume()
+  // actually runs. Stripped from the address bar immediately so reloading
+  // the page later doesn't keep reopening it.
+  var urlJobId = (function(){
+    try{
+      var params = new URLSearchParams(location.search);
+      var id = params.get("job");
+      if (id) history.replaceState(null, "", location.pathname + location.hash);
+      return id;
+    }catch(e){ return null; }
+  })();
+  // Resolves the linked job the same way the role check below does (through
+  // RLS) - a locked viewer/tech's own job always wins over a stray link, and
+  // a link to a job this account genuinely can't see just quietly falls
+  // through to the normal picker instead of erroring.
+  function openUrlJobOrElse(fallback){
+    return cloud.sb.from("eq_jobs").select("id,name,meta").eq("id", urlJobId).maybeSingle().then(function(jr){
+      if (jr.error || !jr.data) return fallback();
+      return openJob(jr.data);
+    }).catch(fallback);
+  }
+
   var legacyResume = resume;
   function rolesResume(){
     return cloud.sb.from("eq_profiles").select("role,job_id").eq("id", cloud.user.id).maybeSingle().then(function(pr){
@@ -5851,7 +5883,7 @@
         // submits against whichever job is currently open (cloud.jobId),
         // not a fixed per-account one.
         applyRoleUi(role, false);
-        return legacyResume();
+        return urlJobId ? openUrlJobOrElse(legacyResume) : legacyResume();
       }
       if ((role === "viewer" || role === "tech") && jobId){
         applyRoleUi(role, true);
@@ -5864,13 +5896,13 @@
         });
       }
       applyRoleUi("staff");
-      return legacyResume();
+      return urlJobId ? openUrlJobOrElse(legacyResume) : legacyResume();
     }).catch(function(){
       // eq_profiles missing/unreachable (e.g. offline, or the SQL migration
       // for this feature hasn't been run yet) - fall back to normal
       // full-access behavior so nothing breaks for existing accounts
       applyRoleUi("staff");
-      return legacyResume();
+      return urlJobId ? openUrlJobOrElse(legacyResume) : legacyResume();
     });
   }
   resume = rolesResume;
@@ -6035,37 +6067,6 @@
     ];
   }
 
-  // A clean, self-contained HTML document (own inline styles, not dependent
-  // on the app's stylesheet) - this is what actually goes out as the
-  // pick-slip.html attachment, so it has to look right opened on its own.
-  function buildDeliveryHtmlDoc(selRows, contact, dateIso, time){
-    var rowsHtml = selRows.map(function(r){
-      var qty = (r.totalQty === "" || r.totalQty == null) ? "" : String(r.totalQty);
-      return "<tr>" +
-        "<td>" + escHtml(r.barcode) + "</td>" +
-        "<td>" + escHtml(r.manufacturer) + "</td>" +
-        "<td>" + escHtml(r.model) + "</td>" +
-        "<td>" + escHtml(r.deviceType) + "</td>" +
-        "<td style='text-align:center'>" + escHtml(qty) + "</td>" +
-        "<td>" + escHtml(r.serialNumber) + "</td>" +
-      "</tr>";
-    }).join("");
-    var infoHtml = deliveryInfoFields(contact, dateIso, time)
-      .map(function(f){ return "<b>" + escHtml(f[0]) + ":</b> " + escHtml(f[1]); })
-      .join("<br>");
-    return "<!DOCTYPE html><html><head><meta charset='utf-8'><title>Delivery Request</title>" +
-      "<style>body{font:14px/1.4 -apple-system,Arial,sans-serif;color:#1a2530;padding:24px;}" +
-      "h1{font-size:20px;margin:0 0 14px;}" +
-      ".table-wrap{overflow-x:auto;}" +
-      "table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:6px 8px;font-size:13px;text-align:left;white-space:nowrap;}" +
-      "th{background:#eee;}.info{margin:0 0 16px;font-size:13.5px;}</style></head><body>" +
-      "<h1>Delivery Request Pick Slip</h1>" +
-      "<p class='info'>" + infoHtml + "</p>" +
-      "<div class='table-wrap'><table><thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>" +
-      "<tbody>" + rowsHtml + "</tbody></table></div>" +
-      "</body></html>";
-  }
-
   function buildDeliveryPdfBase64(selRows, contact, dateIso, time){
     if (typeof window.jspdf === "undefined") return "";
     var jsPDFCtor = window.jspdf.jsPDF;
@@ -6145,9 +6146,8 @@
       return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber};
     });
     var pdfBase64 = buildDeliveryPdfBase64(selRows, contact, dateIso, time);
-    var html = buildDeliveryHtmlDoc(selRows, contact, dateIso, time);
 
-    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, pdfBase64: pdfBase64, html: html}).then(function(res){
+    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, pdfBase64: pdfBase64}).then(function(res){
       btn.disabled = false;
       if (res.error){
         deliveryMsg("Couldn't submit: " + res.error.message, "bad");
@@ -6164,6 +6164,7 @@
         return;
       }
       deliveryMsg("Delivery request sent to the warehouse.", "good");
+      requestedBarcodesJobId = null; refreshRequestedBarcodesIfNeeded();
       setTimeout(closeDeliveryRequestModal, 1400);
     }).catch(function(e){
       btn.disabled = false;
@@ -6388,8 +6389,50 @@
   var manageUsersBackdropEl = cloudEl("manageUsersBackdrop");
   if (manageUsersBackdropEl) manageUsersBackdropEl.addEventListener("click", function(ev){ if (ev.target === manageUsersBackdropEl) closeManageUsersModal(); });
 
+  // ---------- mark equipment that's on an open delivery request ----------
+  // Lets staff see, right in the main table, which rows already have a
+  // pending delivery request against them - and, from the Deliveries panel,
+  // jump straight to a packing slip / signature slip for exactly those rows
+  // (both already exist for shipped rows - see the Create Packing Slip /
+  // Export Signable Slip buttons in that modal; this just pre-selects the
+  // right rows and opens it, rather than building a second slip format).
+  var requestedBarcodes = new Set();
+  var requestedBarcodesJobId = null; // which job the set above belongs to
+  var REQUESTED_TITLE = "Requested for an upcoming delivery - see the Deliveries panel.";
+
+  function refreshRequestedBarcodesIfNeeded(){
+    if (cloud.jobId === requestedBarcodesJobId) return;
+    requestedBarcodesJobId = cloud.jobId;
+    if (!cloud.jobId){ requestedBarcodes = new Set(); return; }
+    cloud.sb.from("eq_delivery_requests").select("items").eq("job_id", cloud.jobId).eq("status", "submitted").then(function(r){
+      var set = new Set();
+      (r.data || []).forEach(function(req){
+        (req.items || []).forEach(function(it){ if (it && it.barcode) set.add(String(it.barcode).trim()); });
+      });
+      requestedBarcodes = set;
+      decorateRequestedRows();
+    });
+  }
+
+  function decorateRequestedRows(){
+    Array.prototype.forEach.call(document.querySelectorAll('input[data-field="barcode"]'), function(inp){
+      var requested = !!(inp.value.trim() && requestedBarcodes.has(inp.value.trim()));
+      inp.classList.toggle("item-requested", requested);
+      if (requested) inp.title = REQUESTED_TITLE;
+      else if (inp.title === REQUESTED_TITLE) inp.title = "";
+    });
+  }
+
+  var realRenderRows = renderRows;
+  renderRows = function(){
+    realRenderRows();
+    refreshRequestedBarcodesIfNeeded();
+    decorateRequestedRows();
+  };
+
   // ---------- pending deliveries (staff only) ----------
   var pdStatus = "submitted";
+  var pdReqsCache = []; // last loaded list, so a card's buttons can look up its own request
 
   function pdFormatWhen(iso){
     var d = new Date(iso);
@@ -6416,6 +6459,7 @@
   }
 
   function renderPdList(reqs){
+    pdReqsCache = reqs;
     var list = cloudEl("pdList");
     if (!reqs.length){ list.innerHTML = ""; pdMsg("No " + pdStatus + " delivery requests."); return; }
     pdMsg("");
@@ -6426,8 +6470,13 @@
       }).join("");
       var actionsHtml = "";
       if (req.status === "submitted"){
-        actionsHtml = '<button type="button" class="primary" data-pd-action="fulfilled" data-pd-id="' + req.id + '">Mark fulfilled</button>' +
-          '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '">Cancel</button>';
+        actionsHtml = '<button type="button" class="primary" data-pd-action="fulfilled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Mark fulfilled</button>' +
+          '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>';
+        if (req.job_id === cloud.jobId){
+          actionsHtml += '<button type="button" data-pd-slip="' + req.id + '">Create packing slip</button>';
+        } else {
+          actionsHtml += '<span class="pd-slip-hint">Open ' + escHtml(jobName) + ' to create a packing slip for this</span>';
+        }
       }
       return '<div class="pd-card">' +
         '<div class="pd-card-head"><span class="pd-job">' + escHtml(jobName) + '</span><span class="pd-status-badge ' + req.status + '">' + escHtml(req.status) + '</span></div>' +
@@ -6446,6 +6495,27 @@
   }
   function closePendingDeliveriesModal(){ cloudEl("pendingDeliveriesBackdrop").hidden = true; }
 
+  // Pre-selects exactly the rows on this delivery request (matched by
+  // barcode) and opens the existing packing-slip modal, which already offers
+  // both "Print packing slip" and "Export signable slip" for whatever's
+  // selected - no separate slip format needed for delivery requests.
+  function openPackingSlipForRequest(req){
+    var barcodes = (req.items || []).map(function(it){ return it && it.barcode; }).filter(Boolean);
+    var matchedIds = order.filter(function(id){
+      var r = rows.get(id);
+      return r && r.barcode && barcodes.indexOf(r.barcode) !== -1;
+    });
+    if (!matchedIds.length){
+      pdMsg("None of this request's items are in the table anymore - they may have been deleted.", "bad");
+      return;
+    }
+    selectedIds.clear();
+    matchedIds.forEach(function(id){ selectedIds.add(id); });
+    renderRows();
+    closePendingDeliveriesModal();
+    openPackingSlipModal();
+  }
+
   document.addEventListener("click", function(ev){
     var filterBtn = ev.target.closest && ev.target.closest(".pd-filter button");
     if (filterBtn){
@@ -6455,14 +6525,22 @@
       loadPendingDeliveries();
       return;
     }
+    var slipBtn = ev.target.closest && ev.target.closest("[data-pd-slip]");
+    if (slipBtn){
+      var slipReq = pdReqsCache.filter(function(r){ return String(r.id) === slipBtn.dataset.pdSlip; })[0];
+      if (slipReq) openPackingSlipForRequest(slipReq);
+      return;
+    }
     var actionBtn = ev.target.closest && ev.target.closest(".pd-actions button[data-pd-action]");
     if (actionBtn){
       var newStatus = actionBtn.dataset.pdAction;
       var reqId = actionBtn.dataset.pdId;
+      var reqJobId = actionBtn.dataset.pdJob;
       if (newStatus === "cancelled" && !confirm("Cancel this delivery request?")) return;
       actionBtn.disabled = true;
       cloud.sb.from("eq_delivery_requests").update({status: newStatus}).eq("id", reqId).then(function(r){
         if (r.error){ pdMsg("Couldn't update: " + r.error.message, "bad"); actionBtn.disabled = false; return; }
+        if (reqJobId === cloud.jobId){ requestedBarcodesJobId = null; refreshRequestedBarcodesIfNeeded(); }
         loadPendingDeliveries();
       });
     }
