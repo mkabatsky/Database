@@ -117,6 +117,7 @@
   }
   .search-box input:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--focus);}
   .search-box svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--ink-muted);pointer-events:none;}
+  .search-scope{border:1px solid var(--border);border-radius:9px;padding:9px 10px;font:inherit;font-size:12.5px;background:var(--surface);color:var(--ink-muted);flex:none;}
   .spacer{flex:1;}
   .row-count{color:var(--ink-muted);font-size:12.5px;white-space:nowrap;}
   .status-filter{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;flex:none;}
@@ -646,7 +647,8 @@
   body.role-viewer .del-btn, body.role-tech .del-btn,
   body.role-viewer .unlock-btn, body.role-tech .unlock-btn,
   body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn,
-  body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn{
+  body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn,
+  body.role-viewer #pendingDeliveriesBtn, body.role-tech #pendingDeliveriesBtn{
     display:none !important;
   }
   /* only hide the Jobs picker when this account is pinned to one job - a
@@ -655,13 +657,15 @@
   body.locked-job #cloudJobsBtn{
     display:none !important;
   }
-  /* an unlocked viewer can open the Jobs list (to browse/switch jobs) but
-     the per-job Delete button there is still a write action, and so is
-     creating a new job */
-  body.role-viewer .job-row button:not(.primary){
+  /* an unlocked viewer or tech can open the Jobs list (to browse/switch
+     jobs) but the per-job Delete button there is still a write action, and
+     so is creating a new job */
+  body.role-viewer .job-row button:not(.primary),
+  body.role-tech .job-row button:not(.primary){
     display:none !important;
   }
-  body.role-viewer #cloudNewBtn, body.role-viewer #cloudNewName{
+  body.role-viewer #cloudNewBtn, body.role-viewer #cloudNewName,
+  body.role-tech #cloudNewBtn, body.role-tech #cloudNewName{
     display:none !important;
   }
   /* viewer never needs the row-selection checkboxes (nothing to select for);
@@ -727,6 +731,27 @@
     .mu-new-fields{grid-template-columns:1fr;}
     .mu-new-fields label.mu-new-job.show{display:flex;} /* keep the show/hide toggle working at 1 column too */
   }
+
+  /* =================== pending deliveries (staff only) =================== */
+  .modal-backdrop#pendingDeliveriesBackdrop[hidden]{display:none;}
+  .pd-filter{display:flex;gap:6px;margin-bottom:10px;}
+  .pd-filter button{border:1px solid var(--border);background:var(--surface);color:var(--ink-muted);padding:6px 12px;border-radius:999px;font-size:12.5px;font-weight:500;cursor:pointer;}
+  .pd-filter button.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .pd-list{max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px;}
+  .pd-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
+  .pd-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .pd-job{font-weight:700;}
+  .pd-when{font-size:12px;color:var(--ink-muted);font-family:monospace;}
+  .pd-who{font-size:12.5px;color:var(--ink-muted);margin:2px 0 6px;}
+  .pd-items{font-size:12.5px;max-height:120px;overflow:auto;margin:0 0 8px;padding-left:18px;}
+  .pd-items li{margin-bottom:2px;}
+  .pd-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .pd-actions button{padding:6px 11px;font-size:12.5px;}
+  .pd-status-badge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:99px;}
+  .pd-status-badge.submitted{background:#fff4e0;color:#8a5a00;}
+  .pd-status-badge.fulfilled{background:#e6f3e8;color:#1f6b40;}
+  .pd-status-badge.cancelled{background:#f3e1e1;color:#a53f3f;}
+  .pd-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
@@ -750,7 +775,7 @@
       </div>
     </div>
     <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Saved on this device</span></div>
-    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
+    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="pendingDeliveriesBtn" type="button">Deliveries</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
     <span id="roleBanner"></span>
   </div>
 
@@ -775,6 +800,10 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
           <input id="searchInput" type="text" placeholder="Find (barcode, model, serial, dates…)" autocomplete="off">
         </div>
+        <select id="searchScope" class="search-scope" title="Which fields to search">
+          <option value="">All fields</option>
+          <option value="mfrModelType">Mfr / Model / Device Type only</option>
+        </select>
         <button id="scanBtn" class="primary scan-btn" type="button" title="Scan a barcode or QR code with the camera"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path></svg>Scan</button>
         <button id="moreBtn" class="mob-only" type="button" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg><span class="more-label">More</span></button>
         <div class="status-filter" id="statusFilter" role="group" aria-label="Filter by shipment status">
@@ -957,7 +986,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Sends the warehouse a packing slip (PDF + HTML) and this list, by email, for the items checked in the table.</p>
+    <p class="modal-sub">Sends the warehouse a pick slip (PDF + HTML) and this list, by email, for the items checked in the table.</p>
     <div class="delivery-item-list">
       <table>
         <thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>
@@ -1002,13 +1031,33 @@
             <option value="staff">Staff (full access)</option>
             <option value="viewer-locked">Viewer - one job</option>
             <option value="viewer-any">Viewer - all jobs</option>
-            <option value="tech">Tech - one job (delivery requests)</option>
+            <option value="tech-locked">Tech - one job (delivery requests)</option>
+            <option value="tech-any">Tech - all jobs (delivery requests)</option>
           </select>
         </label>
         <label class="mu-new-job" id="muNewJobWrap">Job<select id="muNewJob"></select></label>
       </div>
       <button class="primary" id="muCreateBtn" type="button">Create user</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="pendingDeliveriesBackdrop" hidden="">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="pendingDeliveriesTitle">
+    <div class="modal-head">
+      <h2 id="pendingDeliveriesTitle">Deliveries</h2>
+      <button class="icon-btn" id="pendingDeliveriesCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub">Full-access staff only. Delivery requests submitted by techs, across every job.</p>
+    <div class="pd-filter" role="group" aria-label="Filter deliveries">
+      <button type="button" class="active" data-pd-status="submitted">Pending</button>
+      <button type="button" data-pd-status="fulfilled">Fulfilled</button>
+      <button type="button" data-pd-status="cancelled">Cancelled</button>
+    </div>
+    <div class="pd-list" id="pdList"></div>
+    <div class="pd-msg" id="pdMsg" aria-live="polite"></div>
   </div>
 </div>
 <div id="packingSlipPrintRoot"><div id="packingSlipPrintDoc"></div></div>
@@ -1222,6 +1271,13 @@
     {key:"dateShipped", label:"Date Shipped", type:"date", w:132},
     {key:"serialNumber", label:"Serial Number", type:"text", w:140, mono:true},
     {key:"macAddress", label:"MAC Address", type:"text", w:140, mono:true},
+    {key:"qtyReceived", label:"Qty Received", type:"number", w:84},
+    {key:"qtySent", label:"Qty Sent", type:"number", w:74},
+    // derived (Total QTY minus Qty Sent), recalculated in normalizeRowData()
+    // and on every edit to either of those two fields - never hand-typed,
+    // see the "computed" check in renderRows()
+    {key:"qtyRemaining", label:"Qty Remaining", type:"number", w:94, computed:true},
+    {key:"notes", label:"Notes", type:"text", w:160, wide:true},
   ];
 
   var META_FIELDS = [
@@ -1265,6 +1321,9 @@
       else if (c.type === "date") row[c.key] = sanitizeDate(raw);
       else row[c.key] = raw === undefined || raw === null ? "" : String(raw).trim();
     });
+    // always derived, never trusted from imported/pasted data - see the
+    // "computed" flag on this column in COLS
+    row.qtyRemaining = (Number(row.totalQty) || 0) - (Number(row.qtySent) || 0);
     return row;
   }
 
@@ -1281,6 +1340,7 @@
   var meta = {};
   var sortKey = null, sortDir = "asc";
   var searchTerm = "";
+  var searchScope = ""; // "" = all fields; see SEARCH_SCOPES
   var statusFilter = "all"; // "all" | "received" | "shipped" — which rows the table currently shows
   var lastDeleted = null;
   var saveTimer = null;
@@ -1359,6 +1419,7 @@
     colSummary: document.getElementById("colSummary"),
     rowCount: document.getElementById("rowCount"),
     searchInput: document.getElementById("searchInput"),
+    searchScope: document.getElementById("searchScope"),
     statusFilter: document.getElementById("statusFilter"),
     addRowBtn: document.getElementById("addRowBtn"),
     saveBtn: document.getElementById("saveBtn"),
@@ -1698,10 +1759,17 @@
   }
 
   // ---------- table body ----------
+  // "" (default) searches every column; "mfrModelType" narrows the same
+  // search box to just Manufacturer/Model/Device Type, so a keyword that
+  // happens to also appear in, say, Serial Number or Notes doesn't pull in
+  // unrelated rows.
+  var SEARCH_SCOPES = {mfrModelType: ["manufacturer", "model", "deviceType"]};
   function matchesSearch(row, term){
     if (!term) return true;
+    var keys = SEARCH_SCOPES[searchScope] || COLS.map(function(c){ return c.key; });
     for (var i = 0; i < COLS.length; i++){
       var c = COLS[i];
+      if (keys.indexOf(c.key) === -1) continue;
       var v = row[c.key];
       if (v === undefined || v === null || v === "") continue;
       if (String(v).toLowerCase().indexOf(term) !== -1) return true;
@@ -1856,6 +1924,16 @@
         unlockBtn.addEventListener("click", function(){ unshipRow(id); });
         numWrap.appendChild(unlockBtn);
       }
+      if (!alreadyShipped){
+        var splitBtn = document.createElement("button");
+        splitBtn.className = "unlock-btn";
+        splitBtn.type = "button";
+        splitBtn.title = "Split part of this row's Total QTY off into a new row";
+        splitBtn.setAttribute("aria-label", "Split row " + (idx + 1) + " into two rows");
+        splitBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v18M3 8l5-5 5 5M21 16l-5 5-5-5"/></svg>';
+        splitBtn.addEventListener("click", function(){ splitRow(id); });
+        numWrap.appendChild(splitBtn);
+      }
       numWrap.appendChild(delBtn);
       tdNum.appendChild(numWrap);
       tr.appendChild(tdNum);
@@ -1885,12 +1963,17 @@
           input.tabIndex = -1;
           input.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — locked from further edits.";
         }
+        if (c.computed){
+          input.readOnly = true;
+          input.tabIndex = -1;
+          input.title = "Total QTY minus Qty Sent — calculated automatically.";
+        }
         if (AUTOCOMPLETE_KEYS.indexOf(c.key) !== -1){
           input.setAttribute("list", datalistId(c.key));
           input.addEventListener("blur", function(){ registerAutocompleteValue(c.key, input.value); });
         }
         input.addEventListener("input", function(){
-          if (alreadyShipped){ input.value = r[c.key] === undefined || r[c.key] === null ? "" : r[c.key]; return; }
+          if (alreadyShipped || c.computed){ input.value = r[c.key] === undefined || r[c.key] === null ? "" : r[c.key]; return; }
           // nothing ships before it has been received and has a BarCode
           if (c.key === "dateShipped" && input.value && shipBlockReason(r)){
             showSnackbar("Can't ship yet — this item " + shipBlockReason(r) + " first.");
@@ -1905,6 +1988,11 @@
           }
           var v = c.type === "number" ? sanitizeNumber(input.value) : c.type === "date" ? sanitizeDate(input.value) : input.value;
           r[c.key] = v;
+          if (c.key === "totalQty" || c.key === "qtySent"){
+            r.qtyRemaining = (Number(r.totalQty) || 0) - (Number(r.qtySent) || 0);
+            var remInput = tr.querySelector('input[data-field="qtyRemaining"]');
+            if (remInput) remInput.value = r.qtyRemaining;
+          }
           if (c.key === "barcode" || c.key === "dateReceived"){
             var shipBox = tr.querySelector('input[data-field="dateShipped"]');
             if (shipBox) applyShipInputState(shipBox, r);
@@ -2048,6 +2136,40 @@
     showSnackbar((data.barcode ? data.barcode + " " : "Row ") + "deleted");
   }
 
+  // Splits part of a row's Total QTY off into a brand-new row right below
+  // it - everything else (Manufacturer, Model, dates, etc.) is duplicated,
+  // except: BarCode is left blank on the new row (a stack that's being
+  // split hasn't been individually labeled as its own item yet - use
+  // Labels to give it one), and Qty Sent/Qty Received reset to blank there
+  // too (whatever was already sent/received belongs to the ORIGINAL row's
+  // remaining quantity, not to a portion that's only just being split off).
+  function splitRow(id){
+    var r = rows.get(id);
+    if (!r) return;
+    var total = Number(r.totalQty) || 0;
+    if (total < 2){
+      showSnackbar("Nothing to split — Total QTY needs to be 2 or more first.");
+      return;
+    }
+    var answer = window.prompt("Split how many of the " + total + " into a new row? (1-" + (total - 1) + ")", Math.floor(total / 2));
+    if (answer === null) return; // cancelled
+    var moveQty = Number(answer);
+    if (!Number.isFinite(moveQty) || moveQty <= 0 || moveQty >= total){
+      showSnackbar("Enter a whole number between 1 and " + (total - 1) + ".");
+      return;
+    }
+    var newData = normalizeRowData(Object.assign({}, r, {totalQty: moveQty, qtySent: "", qtyReceived: "", barcode: ""}));
+    var newId = nextId();
+    rows.set(newId, newData);
+    var idx = order.indexOf(id);
+    order.splice(idx + 1, 0, newId);
+    r.totalQty = total - moveQty;
+    r.qtyRemaining = (Number(r.totalQty) || 0) - (Number(r.qtySent) || 0);
+    persist();
+    renderRows();
+    showSnackbar("Split " + moveQty + " into a new row — " + (total - moveQty) + " remain on this one.");
+  }
+
   // "Unlock" on an already-shipped row: clears Date Shipped so the row goes
   // back to being a normal editable row. Overridden to a no-op by roles.js
   // until cloud mode is confirmed on - offline/local-only use still gets
@@ -2090,6 +2212,10 @@
       searchTerm = el.searchInput.value;
       renderRows();
     }, 120);
+  });
+  el.searchScope.addEventListener("change", function(){
+    searchScope = el.searchScope.value;
+    renderRows();
   });
 
   el.addRowBtn.addEventListener("click", addRow);
@@ -3865,6 +3991,20 @@
   }
 
   function importEquipmentFile(file){
+    // Cloud mode, no job open yet: create one automatically (named after
+    // the file) instead of making the person go create a job first just to
+    // come back and import - mirrors how "Upload this device's list" on
+    // sign-in already creates a job from a payload.
+    if (typeof cloud !== "undefined" && cloud.on && !cloud.jobId){
+      var jobName = file.name.replace(/\.[^.]+$/, "").trim() || "Imported list";
+      createJob(jobName).then(function(){
+        return importFileObject(file).then(function(count){
+          refreshUiAfterImport();
+          showSnackbar("Created job \"" + jobName + "\" and imported " + count + " row" + (count === 1 ? "" : "s") + ".");
+        });
+      }).catch(function(err){ showSnackbar((err && err.message) || "Couldn't import that file."); });
+      return;
+    }
     var hasExisting = order.length > 0;
     if (hasExisting && !window.confirm("Importing will replace the " + order.length + " row(s) currently in this table. Continue?")){
       return;
@@ -5521,8 +5661,10 @@
     el.importBtn.parentNode.replaceChild(ib, el.importBtn);
     el.importBtn = ib;
     ib.addEventListener("click", function(){
-      if (!cloud.jobId){ showSnackbar("Open a job first."); return; }
-      if (!confirm("Importing replaces the whole list in this job, for everyone who has it open. Continue?")) return;
+      // no job open yet: importEquipmentFile() below creates one
+      // automatically, named after the file, so there's nothing to
+      // replace/confirm here
+      if (cloud.jobId && !confirm("Importing replaces the whole list in this job, for everyone who has it open. Continue?")) return;
       el.importFile.click();
     });
 
@@ -5690,7 +5832,7 @@
     var banner = cloudEl("roleBanner");
     if (banner){
       banner.textContent = role === "viewer" ? (locked ? "Viewer — read only" : "Viewer — read only (all jobs)")
-        : role === "tech" ? "Tech — request deliveries only"
+        : role === "tech" ? (locked ? "Tech — request deliveries only" : "Tech — request deliveries only (all jobs)")
         : "";
     }
   }
@@ -5702,8 +5844,12 @@
       var jobId = pr.data && pr.data.job_id;
       cloud.role = role;
 
-      if (role === "viewer" && !jobId){
-        // read-only, but can browse/open any job - same navigation as staff
+      if ((role === "viewer" || role === "tech") && !jobId){
+        // read-only viewer, or an unlocked tech - either way can browse/open
+        // any job, same navigation as staff. A tech still can't request
+        // delivery until they've actually opened a job - Request Delivery
+        // submits against whichever job is currently open (cloud.jobId),
+        // not a fixed per-account one.
         applyRoleUi(role, false);
         return legacyResume();
       }
@@ -5716,13 +5862,6 @@
           }
           return openJob(jr.data);
         });
-      }
-      if (role === "tech" && !jobId){
-        // a tech needs a job to submit delivery requests against - this
-        // shouldn't normally happen, but fail clearly rather than guess
-        applyRoleUi(role, true);
-        cloudStatus("bad", "No job is assigned to this account yet — contact your administrator.");
-        return;
       }
       applyRoleUi("staff");
       return legacyResume();
@@ -5898,7 +6037,7 @@
 
   // A clean, self-contained HTML document (own inline styles, not dependent
   // on the app's stylesheet) - this is what actually goes out as the
-  // packing-slip.html attachment, so it has to look right opened on its own.
+  // pick-slip.html attachment, so it has to look right opened on its own.
   function buildDeliveryHtmlDoc(selRows, contact, dateIso, time){
     var rowsHtml = selRows.map(function(r){
       var qty = (r.totalQty === "" || r.totalQty == null) ? "" : String(r.totalQty);
@@ -5920,7 +6059,7 @@
       ".table-wrap{overflow-x:auto;}" +
       "table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:6px 8px;font-size:13px;text-align:left;white-space:nowrap;}" +
       "th{background:#eee;}.info{margin:0 0 16px;font-size:13.5px;}</style></head><body>" +
-      "<h1>Delivery Request Packing Slip</h1>" +
+      "<h1>Delivery Request Pick Slip</h1>" +
       "<p class='info'>" + infoHtml + "</p>" +
       "<div class='table-wrap'><table><thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>" +
       "<tbody>" + rowsHtml + "</tbody></table></div>" +
@@ -5936,7 +6075,7 @@
     var pageW = doc.internal.pageSize.getWidth();
 
     doc.setFontSize(16);
-    doc.text("Delivery Request Packing Slip", pageW / 2, 32, {align: "center"});
+    doc.text("Delivery Request Pick Slip", pageW / 2, 32, {align: "center"});
 
     doc.setFontSize(9.5);
     var fields = deliveryInfoFields(contact, dateIso, time);
@@ -6050,14 +6189,15 @@
 
   function muKind(u){
     if (u.role === "viewer") return u.jobId ? "viewer-locked" : "viewer-any";
-    if (u.role === "tech") return "tech";
+    if (u.role === "tech") return u.jobId ? "tech-locked" : "tech-any";
     return "staff";
   }
-  function muKindNeedsJob(kind){ return kind === "viewer-locked" || kind === "tech"; }
+  function muKindNeedsJob(kind){ return kind === "viewer-locked" || kind === "tech-locked"; }
   function muRoleAndJob(kind, jobId){
     if (kind === "viewer-locked") return {role: "viewer", jobId: jobId || null};
     if (kind === "viewer-any") return {role: "viewer", jobId: null};
-    if (kind === "tech") return {role: "tech", jobId: jobId || null};
+    if (kind === "tech-locked") return {role: "tech", jobId: jobId || null};
+    if (kind === "tech-any") return {role: "tech", jobId: null};
     return {role: "staff", jobId: null};
   }
   function muJobOptionsHtml(selectedId){
@@ -6099,7 +6239,8 @@
             '<option value="staff"' + (kind === "staff" ? " selected" : "") + '>Staff (full access)</option>' +
             '<option value="viewer-locked"' + (kind === "viewer-locked" ? " selected" : "") + '>Viewer - one job</option>' +
             '<option value="viewer-any"' + (kind === "viewer-any" ? " selected" : "") + '>Viewer - all jobs</option>' +
-            '<option value="tech"' + (kind === "tech" ? " selected" : "") + '>Tech - one job</option>' +
+            '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>Tech - one job</option>' +
+            '<option value="tech-any"' + (kind === "tech-any" ? " selected" : "") + '>Tech - all jobs</option>' +
           '</select>' +
           '<select class="mu-job" style="' + (jobShown ? "" : "display:none") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
           '<button type="button" class="mu-save primary">Save</button>' +
@@ -6246,6 +6387,93 @@
   if (manageUsersCloseBtnEl) manageUsersCloseBtnEl.addEventListener("click", closeManageUsersModal);
   var manageUsersBackdropEl = cloudEl("manageUsersBackdrop");
   if (manageUsersBackdropEl) manageUsersBackdropEl.addEventListener("click", function(ev){ if (ev.target === manageUsersBackdropEl) closeManageUsersModal(); });
+
+  // ---------- pending deliveries (staff only) ----------
+  var pdStatus = "submitted";
+
+  function pdFormatWhen(iso){
+    var d = new Date(iso);
+    if (isNaN(d)) return "";
+    return d.toLocaleDateString(undefined, {month: "short", day: "numeric"}) + " " + d.toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"});
+  }
+
+  function pdMsg(text, kind){
+    var m = cloudEl("pdMsg");
+    m.textContent = text || "";
+    m.className = "pd-msg" + (kind ? " " + kind : "");
+  }
+
+  function loadPendingDeliveries(){
+    var list = cloudEl("pdList");
+    list.textContent = "Loading...";
+    return cloud.sb.from("eq_delivery_requests").select("*, eq_jobs(name)").eq("status", pdStatus).order("created_at", {ascending: false}).then(function(r){
+      if (r.error){ pdMsg("Couldn't load: " + r.error.message, "bad"); list.textContent = ""; return; }
+      renderPdList(r.data || []);
+    }).catch(function(e){
+      pdMsg("Couldn't load: " + (e && e.message ? e.message : e), "bad");
+      list.textContent = "";
+    });
+  }
+
+  function renderPdList(reqs){
+    var list = cloudEl("pdList");
+    if (!reqs.length){ list.innerHTML = ""; pdMsg("No " + pdStatus + " delivery requests."); return; }
+    pdMsg("");
+    list.innerHTML = reqs.map(function(req){
+      var jobName = (req.eq_jobs && req.eq_jobs.name) || "Untitled job";
+      var itemsHtml = (req.items || []).map(function(it){
+        return "<li>" + escHtml([it.barcode, it.manufacturer, it.model, it.deviceType].filter(Boolean).join(" - ")) + (it.totalQty != null ? " (qty " + escHtml(String(it.totalQty)) + ")" : "") + "</li>";
+      }).join("");
+      var actionsHtml = "";
+      if (req.status === "submitted"){
+        actionsHtml = '<button type="button" class="primary" data-pd-action="fulfilled" data-pd-id="' + req.id + '">Mark fulfilled</button>' +
+          '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '">Cancel</button>';
+      }
+      return '<div class="pd-card">' +
+        '<div class="pd-card-head"><span class="pd-job">' + escHtml(jobName) + '</span><span class="pd-status-badge ' + req.status + '">' + escHtml(req.status) + '</span></div>' +
+        '<div class="pd-when">' + escHtml(pdFormatWhen(req.created_at)) + (req.requested_date ? " - requested for " + escHtml(req.requested_date) + (req.requested_time ? " " + escHtml(req.requested_time) : "") : "") + '</div>' +
+        '<div class="pd-who">' + escHtml(req.requested_by_name || "") + (req.contact_phone ? " - " + escHtml(req.contact_phone) : "") + '</div>' +
+        '<ul class="pd-items">' + itemsHtml + '</ul>' +
+        (req.email_error ? '<div class="pd-msg bad">Email failed: ' + escHtml(req.email_error) + '</div>' : '') +
+        '<div class="pd-actions">' + actionsHtml + '</div>' +
+      '</div>';
+    }).join("");
+  }
+
+  function openPendingDeliveriesModal(){
+    cloudEl("pendingDeliveriesBackdrop").hidden = false;
+    loadPendingDeliveries();
+  }
+  function closePendingDeliveriesModal(){ cloudEl("pendingDeliveriesBackdrop").hidden = true; }
+
+  document.addEventListener("click", function(ev){
+    var filterBtn = ev.target.closest && ev.target.closest(".pd-filter button");
+    if (filterBtn){
+      Array.prototype.forEach.call(document.querySelectorAll(".pd-filter button"), function(b){ b.classList.remove("active"); });
+      filterBtn.classList.add("active");
+      pdStatus = filterBtn.dataset.pdStatus;
+      loadPendingDeliveries();
+      return;
+    }
+    var actionBtn = ev.target.closest && ev.target.closest(".pd-actions button[data-pd-action]");
+    if (actionBtn){
+      var newStatus = actionBtn.dataset.pdAction;
+      var reqId = actionBtn.dataset.pdId;
+      if (newStatus === "cancelled" && !confirm("Cancel this delivery request?")) return;
+      actionBtn.disabled = true;
+      cloud.sb.from("eq_delivery_requests").update({status: newStatus}).eq("id", reqId).then(function(r){
+        if (r.error){ pdMsg("Couldn't update: " + r.error.message, "bad"); actionBtn.disabled = false; return; }
+        loadPendingDeliveries();
+      });
+    }
+  });
+
+  var pendingDeliveriesBtnEl = cloudEl("pendingDeliveriesBtn");
+  if (pendingDeliveriesBtnEl) pendingDeliveriesBtnEl.addEventListener("click", openPendingDeliveriesModal);
+  var pendingDeliveriesCloseBtnEl = cloudEl("pendingDeliveriesCloseBtn");
+  if (pendingDeliveriesCloseBtnEl) pendingDeliveriesCloseBtnEl.addEventListener("click", closePendingDeliveriesModal);
+  var pendingDeliveriesBackdropEl = cloudEl("pendingDeliveriesBackdrop");
+  if (pendingDeliveriesBackdropEl) pendingDeliveriesBackdropEl.addEventListener("click", function(ev){ if (ev.target === pendingDeliveriesBackdropEl) closePendingDeliveriesModal(); });
 
   // installable app: works offline once opened over https
   // a scan from an iOS/iPadOS Shortcut, another scanner app's "open URL" action, or any
