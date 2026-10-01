@@ -890,10 +890,6 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="4" width="10" height="4" rx="1"></rect><path d="M8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"></path><path d="M15 12h6m-3-3 3 3-3 3"></path></svg>
           Paste
         </button>
-        <button id="columnsBtn" class="mob-hide">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
-          Columns
-        </button>
       </div>
       <div class="mob-tools">
         <label><span>Sort by</span><select id="mobSort"><option value="">Row order</option><option value="barcode">BarCode</option><option value="manufacturer">Manufacturer</option><option value="model">Model</option><option value="deviceType">Device Type</option><option value="dateReceived">Date Received</option><option value="dateShipped">Date Shipped</option></select></label>
@@ -906,6 +902,10 @@
           Add row
         </button>
         <span class="spacer"></span>
+        <button id="columnsBtn" class="mob-hide">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
+          Columns
+        </button>
         <button id="exportXlsxBtn" class="mob-hide">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
           Export Excel
@@ -1314,16 +1314,16 @@
     {key:"model", label:"Model", type:"text", w:120},
     {key:"deviceType", label:"Device Type", type:"text", w:210, wide:true},
     {key:"totalQty", label:"Total QTY", type:"number", w:74},
-    {key:"dateReceived", label:"Date Received", type:"date", w:132},
-    {key:"dateShipped", label:"Date Shipped", type:"date", w:132},
-    {key:"serialNumber", label:"Serial Number", type:"text", w:140, mono:true},
-    {key:"macAddress", label:"MAC Address", type:"text", w:140, mono:true},
     {key:"qtyReceived", label:"Qty Received", type:"number", w:84},
     {key:"qtySent", label:"Qty Sent", type:"number", w:74},
     // derived (Total QTY minus Qty Sent), recalculated in normalizeRowData()
     // and on every edit to either of those two fields - never hand-typed,
     // see the "computed" check in renderRows()
     {key:"qtyRemaining", label:"Qty Remaining", type:"number", w:94, computed:true},
+    {key:"dateReceived", label:"Date Received", type:"date", w:132},
+    {key:"dateShipped", label:"Date Shipped", type:"date", w:132},
+    {key:"serialNumber", label:"Serial Number", type:"text", w:140, mono:true},
+    {key:"macAddress", label:"MAC Address", type:"text", w:140, mono:true},
     {key:"notes", label:"Notes", type:"text", w:160, wide:true},
   ];
 
@@ -6564,7 +6564,16 @@
         'var FULFILL_REQUEST_ID = ' + JSON.stringify(activeDeliveryRequestId) + ';\n' +
         'var FULFILL_URL = ' + JSON.stringify(fulfillUrl) + ';\n' +
         'function markDeliveryFulfilled(){\n' +
-        '  try{ fetch(FULFILL_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({requestId: FULFILL_REQUEST_ID})}).catch(function(){}); }catch(e){}\n' +
+        '  try{\n' +
+        // fetch() only rejects on a network failure - a 404 (function not
+        // deployed) or 401 ("Verify JWT with legacy secret" left on, which
+        // rejects this one outright since it has no Authorization header at
+        // all) resolves just fine and silently does nothing unless the
+        // status is checked here.
+        '    fetch(FULFILL_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({requestId: FULFILL_REQUEST_ID})})\n' +
+        '      .then(function(r){ if (!r.ok) r.text().then(function(t){ console.error("mark-delivery-fulfilled " + r.status + ":", t); }); })\n' +
+        '      .catch(function(e){ console.error("mark-delivery-fulfilled failed:", e); });\n' +
+        '  }catch(e){ console.error("mark-delivery-fulfilled failed:", e); }\n' +
         '}\n' +
         '<\/script>\n';
       html = html.replace("</head>", fulfillJs + "</head>");
