@@ -701,14 +701,26 @@
   /* =================== manage users modal =================== */
   .modal-backdrop#manageUsersBackdrop[hidden]{display:none;}
   .mu-list{max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
-  .mu-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px;}
+  /* Fixed column tracks (not content-sized) so every row's role/job/action
+     columns land in the same place regardless of email length or whether
+     that row even has a job select - the previous flex-wrap layout let a
+     long email push the job select onto its own line on SOME rows but not
+     others, which is what actually made the list look disorganized. */
+  .mu-row{
+    display:grid;grid-template-columns:minmax(150px,1.4fr) 148px 150px 68px 96px;
+    align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px;
+  }
   .mu-row:last-child{border-bottom:none;}
-  .mu-email{flex:1 1 200px;min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mu-email{min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .mu-master-badge{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:99px;background:var(--accent);color:#fff;vertical-align:middle;}
-  .mu-row select{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
-  .mu-row button{padding:6px 11px;font-size:12.5px;}
+  .mu-row select{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);width:100%;}
+  .mu-row button{padding:6px 11px;font-size:12.5px;white-space:nowrap;}
   .mu-row .mu-save{visibility:hidden;}
   .mu-row.mu-dirty .mu-save{visibility:visible;}
+  /* hidden (role doesn't need a job) keeps its grid cell reserved via
+     visibility, not display:none - that's what keeps the Save/Delete
+     buttons lined up with every other row's instead of sliding left */
+  .mu-job-hidden{visibility:hidden;pointer-events:none;}
   .mu-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-bottom:6px;}
   .mu-msg.bad{color:var(--danger);font-weight:600;}
   .mu-msg.good{color:var(--success);font-weight:600;}
@@ -5919,6 +5931,17 @@
         headers: token ? {Authorization: "Bearer " + token} : undefined,
         body: body
       });
+    }).then(function(res){
+      // supabase-js's own error.message for ANY non-2xx response is just the
+      // generic "Edge Function returned a non-2xx status code" - every
+      // function here always returns the real reason as {error: "..."} in
+      // the body, so read that and use it instead wherever possible (shows
+      // up wherever a caller does res.error.message, with no other changes).
+      if (!res.error || !res.error.context || typeof res.error.context.json !== "function") return res;
+      return res.error.context.clone().json().then(function(parsed){
+        if (parsed && parsed.error) res.error.message = String(parsed.error);
+        return res;
+      }).catch(function(){ return res; });
     });
   }
 
@@ -6243,7 +6266,7 @@
             '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>Tech - one job</option>' +
             '<option value="tech-any"' + (kind === "tech-any" ? " selected" : "") + '>Tech - all jobs</option>' +
           '</select>' +
-          '<select class="mu-job" style="' + (jobShown ? "" : "display:none") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
+          '<select class="mu-job' + (jobShown ? "" : " mu-job-hidden") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
           '<button type="button" class="mu-save primary">Save</button>' +
           '<button type="button" class="mu-delete">Delete login</button>' +
         '</div>'
@@ -6295,7 +6318,7 @@
     if (ev.target.classList.contains("mu-role")){
       var kind = ev.target.value;
       var jobSel = rowEl.querySelector(".mu-job");
-      jobSel.style.display = muKindNeedsJob(kind) ? "" : "none";
+      jobSel.classList.toggle("mu-job-hidden", !muKindNeedsJob(kind));
     }
     if (ev.target.classList.contains("mu-role") || ev.target.classList.contains("mu-job")){
       rowEl.classList.add("mu-dirty");
@@ -6414,20 +6437,115 @@
     });
   }
 
+  // A row keeps its dateShipped (and the "row-shipped-locked" class
+  // renderRows already puts on its <tr>) even after the delivery request
+  // it came from gets left sitting at "submitted" instead of being marked
+  // fulfilled - so shipped is checked here too, not just requestedBarcodes
+  // membership, or an already-shipped row would stay highlighted on both
+  // the tech and full-access views until someone remembers to close out
+  // the request.
   function decorateRequestedRows(){
     Array.prototype.forEach.call(document.querySelectorAll('input[data-field="barcode"]'), function(inp){
-      var requested = !!(inp.value.trim() && requestedBarcodes.has(inp.value.trim()));
+      var tr = inp.closest("tr");
+      var shipped = !!(tr && tr.classList.contains("row-shipped-locked"));
+      var requested = !shipped && !!(inp.value.trim() && requestedBarcodes.has(inp.value.trim()));
       inp.classList.toggle("item-requested", requested);
       if (requested) inp.title = REQUESTED_TITLE;
       else if (inp.title === REQUESTED_TITLE) inp.title = "";
     });
   }
 
+  // A fifth option alongside All / Not Received / Received / Shipped - the
+  // existing delegated click handler on #statusFilter already does
+  // everything needed once this button exists (sets statusFilter, toggles
+  // .active, calls renderRows()), so this only needs to add the button and
+  // teach matchesStatusFilter/getStatusFilterLabel what "requested" means.
+  function addRequestedFilterButton(){
+    var group = cloudEl("statusFilter");
+    if (!group || group.querySelector('[data-status="requested"]')) return;
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.status = "requested";
+    btn.title = "Show only equipment that's on an open delivery request";
+    btn.textContent = "For Delivery";
+    group.appendChild(btn);
+  }
+  addRequestedFilterButton();
+
+  var realMatchesStatusFilter = matchesStatusFilter;
+  matchesStatusFilter = function(row){
+    if (statusFilter !== "requested") return realMatchesStatusFilter(row);
+    var bc = row.barcode && String(row.barcode).trim();
+    return !isIsoDateString(row.dateShipped) && !!bc && requestedBarcodes.has(bc);
+  };
+  var realGetStatusFilterLabel = getStatusFilterLabel;
+  getStatusFilterLabel = function(){
+    return statusFilter === "requested" ? "Items For Delivery" : realGetStatusFilterLabel();
+  };
+
   var realRenderRows = renderRows;
   renderRows = function(){
     realRenderRows();
     refreshRequestedBarcodesIfNeeded();
     decorateRequestedRows();
+  };
+
+  // ---------- signable slip: map link + auto-fulfill on signing ----------
+  // Set right before opening the packing-slip modal from a specific
+  // delivery request (openPackingSlipForRequest below), and cleared the
+  // instant the plain "Create Packing Slip" toolbar button is used instead
+  // - so a signable slip exported from an unrelated, manually-selected
+  // packing slip never carries a stale request id into its "mark fulfilled"
+  // callback.
+  var activeDeliveryRequestId = null;
+  var packingSlipBtnEl = cloudEl("packingSlipBtn");
+  if (packingSlipBtnEl) packingSlipBtnEl.addEventListener("click", function(){ activeDeliveryRequestId = null; });
+
+  var realBuildSignablePackingSlipHTML = buildSignablePackingSlipHTML;
+  buildSignablePackingSlipHTML = function(selRows, shipDateIso){
+    var html = realBuildSignablePackingSlipHTML(selRows, shipDateIso);
+    var address = String(meta.address || "").trim();
+    if (address){
+      // Inline right next to the address value itself (inside the same
+      // ps-meta-address block makePackingSlipHTML already renders), not a
+      // separate paragraph elsewhere on the page - and hidden on an actual
+      // paper printout (@media print), since a tap target is useless there
+      // and would otherwise show up as stray underlined text on the slip a
+      // driver keeps.
+      var mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(address);
+      var mapsLink = ' <a class="maps-link" href="' + escHtml(mapsUrl) + '" target="_blank" rel="noopener">(Open in Google Maps)</a>';
+      html = html.replace(
+        '</span></div></div><table class="ps-table">',
+        '</span>' + mapsLink + '</div></div><table class="ps-table">'
+      );
+      html = html.replace(
+        "</head>",
+        '<style>.maps-link{font-size:11px;font-weight:400;}@media print{.maps-link{display:none;}}</style></head>'
+      );
+    }
+    if (activeDeliveryRequestId && CLOUD){
+      var fulfillUrl = CLOUD.url.replace(/\/+$/, "") + "/functions/v1/mark-delivery-fulfilled";
+      // Fires right after the "Signed slip sent" status is shown - i.e. only
+      // once EmailJS has confirmed the signed slip actually went out, never
+      // just from opening or signing the page. Best-effort: if this call
+      // fails (offline driver, function not yet deployed), the email itself
+      // already went through - staff just mark it fulfilled by hand like
+      // before, nothing is lost.
+      var fulfillJs =
+        '<script>\n' +
+        'var FULFILL_REQUEST_ID = ' + JSON.stringify(activeDeliveryRequestId) + ';\n' +
+        'var FULFILL_URL = ' + JSON.stringify(fulfillUrl) + ';\n' +
+        'function markDeliveryFulfilled(){\n' +
+        '  try{ fetch(FULFILL_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({requestId: FULFILL_REQUEST_ID})}).catch(function(){}); }catch(e){}\n' +
+        '}\n' +
+        '<\/script>\n';
+      html = html.replace("</head>", fulfillJs + "</head>");
+      html = html.replace(
+        'showStatus("Signed slip sent. Thank you!", true);',
+        'showStatus("Signed slip sent. Thank you!", true); markDeliveryFulfilled();'
+      );
+    }
+    return html;
   };
 
   // ---------- pending deliveries (staff only) ----------
@@ -6513,6 +6631,7 @@
     matchedIds.forEach(function(id){ selectedIds.add(id); });
     renderRows();
     closePendingDeliveriesModal();
+    activeDeliveryRequestId = req.id;
     openPackingSlipModal();
   }
 
