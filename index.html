@@ -117,7 +117,6 @@
   }
   .search-box input:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--focus);}
   .search-box svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--ink-muted);pointer-events:none;}
-  .search-scope{border:1px solid var(--border);border-radius:9px;padding:9px 10px;font:inherit;font-size:12.5px;background:var(--surface);color:var(--ink-muted);flex:none;}
   .spacer{flex:1;}
   .row-count{color:var(--ink-muted);font-size:12.5px;white-space:nowrap;}
   .status-filter{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;flex:none;}
@@ -212,12 +211,6 @@
     background:transparent;border:1px solid transparent;color:var(--ink-muted);
   }
   .del-btn:hover{background:var(--danger);border-color:var(--danger);color:var(--danger-ink);}
-  .unlock-btn{
-    width:26px;height:26px;padding:0;border-radius:6px;flex:none;
-    display:inline-flex;align-items:center;justify-content:center;
-    background:transparent;border:1px solid transparent;color:var(--ink-muted);
-  }
-  .unlock-btn:hover{background:var(--accent);border-color:var(--accent);color:#fff;}
 
   tfoot td{padding:9px 10px;font-weight:600;border-top:1px solid var(--border);background:var(--surface-alt);color:var(--ink-muted);font-size:12.5px;}
   tfoot td.total-qty{color:var(--ink);font-family:"IBM Plex Mono",monospace;text-align:center;}
@@ -247,7 +240,7 @@
   .modal-backdrop[hidden]{display:none;}
   .modal-panel{
     background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);
-    width:100%;max-width:420px;max-height:min(600px, 86vh);max-height:min(600px, 86dvh);display:flex;flex-direction:column;
+    width:100%;max-width:420px;max-height:min(600px, 86vh);display:flex;flex-direction:column;
     padding:18px;gap:12px;
   }
   .modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px;}
@@ -290,16 +283,15 @@
   .rownum-head input[type="checkbox"]{width:14px;height:14px;min-width:0;flex:none;accent-color:var(--accent);}
   .rownum input[type="checkbox"]:disabled{accent-color:var(--ink-muted);opacity:.4;cursor:not-allowed;}
   .rownum{padding:8px 10px;color:var(--ink-muted);font-size:12.5px;display:flex;align-items:center;gap:6px;}
-  .shipped-check{width:14px;height:14px;min-width:0;flex:none;display:inline-flex;align-items:center;justify-content:center;color:var(--success);}
 
   /* ── Labels modal ── */
-  .label-modal-panel{max-width:660px;max-height:min(720px, 90vh);max-height:min(720px, 90dvh);}
+  .label-modal-panel{max-width:660px;max-height:min(720px, 90vh);}
   .labels-preview-scroll{overflow-y:auto;flex:1;min-height:120px;}
   .labels-grid{display:flex;flex-direction:column;gap:16px;}
   .no-selection-note{padding:24px 10px;text-align:center;color:var(--ink-muted);font-size:13px;}
 
   /* ── Search Files modal ── */
-  .search-modal-panel{max-width:560px;max-height:min(640px, 88vh);max-height:min(640px, 88dvh);}
+  .search-modal-panel{max-width:560px;max-height:min(640px, 88vh);}
   .search-folder-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .search-folder-row .hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .search-query-row{display:flex;align-items:center;gap:8px;}
@@ -345,7 +337,7 @@
   .lc-missing{color:#a32d2d;}
 
   /* ── Packing slip modal ── */
-  .packing-slip-modal-panel{width:720px;max-width:96vw;max-height:min(1000px, 94vh);max-height:min(1000px, 94dvh);}
+  .packing-slip-modal-panel{width:720px;max-width:96vw;max-height:min(1000px, 94vh);}
   .ps-ship-date-field{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-muted);}
   .ps-ship-date-field input{
     border:1px solid var(--border);border-radius:6px;padding:6px 8px;
@@ -414,7 +406,7 @@
 
   /* barcode / QR scanner window */
   .scan-btn{gap:7px;}
-  .scan-modal-panel{max-width:540px;max-height:min(820px, 96vh);max-height:min(820px, 96dvh);overflow:auto;}
+  .scan-modal-panel{max-width:540px;max-height:min(820px, 96vh);overflow:auto;}
   #scanModeGroup{width:100%;flex:none;}
   #scanModeGroup button{flex:1;justify-content:center;}
   .scan-view{position:relative;background:#000;border-radius:10px;overflow:hidden;min-height:170px;flex:none;}
@@ -444,9 +436,11 @@
     button{min-height:44px;padding:9px 14px;font-size:14px;}
     .icon-btn{min-width:44px;min-height:44px;justify-content:center;}
     .del-btn{min-height:0;width:40px;height:40px;}
-    .unlock-btn{min-height:0;width:40px;height:40px;}
     .scroll-nav button{min-height:40px;min-width:44px;justify-content:center;}
-    .col-resize-handle{min-height:0;}
+    /* wider hit area for a finger (the visible divider line stays put -
+       see .col-resize-handle::after - this just widens what you can
+       actually touch to grab it) */
+    .col-resize-handle{min-height:0;width:18px;right:-5px;}
     .snackbar button{min-height:40px;}
     .status-filter button{min-height:44px;}
     .search-box input{font-size:16px;padding:11px 10px 11px 32px;}
@@ -457,13 +451,8 @@
     thead th button.sort-btn{padding:14px 10px;}
   }
 
-  /* phones (portrait or landscape) and portrait tablets: one card per item
-     instead of a wide table. A landscape phone is wide (an iPhone or a
-     Galaxy S25 rotated is typically 660-930px) but short - under ~430px
-     tall, versus 700px+ for an actual tablet in landscape - so a short
-     touchscreen viewport gets the same treatment as a narrow one here,
-     regardless of its width. */
-  @media (max-width:820px), (max-height:480px) and (pointer:coarse){
+  /* phones and portrait tablets: one card per item instead of a wide table */
+  @media (max-width:820px){
     body{padding-inline:10px;padding-block:10px calc(88px + env(safe-area-inset-bottom));}
     .wrap{gap:12px;}
     .sticky-header{position:static;margin-top:0;padding-top:0;padding-bottom:0;gap:12px;box-shadow:none !important;}
@@ -523,14 +512,12 @@
     tbody td::before{content:attr(data-label);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:var(--ink-muted);margin-bottom:4px;}
     tbody td:first-child{grid-column:1 / -1;}
     tbody td:first-child::before{display:none;}
-    tbody td[data-key="model"],tbody td[data-key="deviceType"]{grid-column:1 / -1;}
+    tbody td[data-key="model"],tbody td[data-key="deviceType"],tbody td[data-key="notes"]{grid-column:1 / -1;}
     td input{min-width:0 !important;width:100%;min-height:44px;font-size:16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);}
     td input[type="number"]{text-align:left;}
     td input[type="date"]{min-height:44px;}
     .rownum{padding:0 !important;gap:12px;font-size:14px;font-weight:600;}
     .rownum input[type="checkbox"]{width:26px;height:26px;}
-    .shipped-check{width:26px;height:26px;}
-    .shipped-check svg{width:18px;height:18px;}
     .del-btn{margin-left:auto;}
     tfoot{display:block;margin-top:4px;}
     tfoot tr{display:flex;justify-content:space-between;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px 16px;}
@@ -546,31 +533,45 @@
     .snackbar{bottom:calc(88px + env(safe-area-inset-bottom));max-width:calc(100vw - 24px);width:max-content;}
   }
 
-  /* Tablet-width portrait screens (iPad and similar, ~600-820px) get the
-     same card layout as the phone breakpoint above, but with room for more
-     fields per row, so each card is much shorter and more items fit on
-     screen at once - and a landscape phone (short but wide, see above)
-     qualifies for the exact same reason: there's width to spare even
-     though it still needs the phone breakpoint's card layout, full-screen
-     modals and bottom-pinned action bar. */
-  @media (min-width:600px) and (max-width:820px), (max-height:480px) and (pointer:coarse) and (min-width:560px){
+  /* Tablet-width portrait screens (iPad and similar, ~600-820px): same card
+     layout as the phone breakpoint above, but with room for more fields per
+     row, so each card is much shorter and more items fit on screen at once. */
+  @media (min-width:600px) and (max-width:820px){
     tbody tr{grid-template-columns:repeat(4, 1fr);}
     tbody td:first-child{grid-column:auto;position:static;}
     tbody td[data-key="model"]{grid-column:auto;}
-    tbody td[data-key="deviceType"]{grid-column:1 / -1;}
-    .meta-grid{grid-template-columns:repeat(2, 1fr);}
-    .meta-grid .field-wide{grid-column:1 / -1;}
+    tbody td[data-key="deviceType"],tbody td[data-key="notes"]{grid-column:1 / -1;}
   }
 
-  /* landscape phones specifically (a real tablet's pinned bottom bar isn't
-     competing with anywhere near as little vertical space): trim the fixed
-     header/footer chrome's height a bit to leave more room for content in
-     a viewport that's under ~430px tall to begin with. */
-  @media (max-height:480px) and (pointer:coarse) and (min-width:560px){
-    body{padding-block:10px calc(70px + env(safe-area-inset-bottom));}
-    .fab{width:48px;height:48px;bottom:calc(60px + env(safe-area-inset-bottom));}
-    .btn-group{padding:6px 10px calc(6px + env(safe-area-inset-bottom));}
-    .btn-group button{min-height:40px;}
+  /* Explicit "Table view" escape hatch from the card layout above, for a
+     tablet-width screen (most iPads in portrait fall in that 820px-and-
+     under range) where the card grid never had column headers or resize
+     handles to begin with - there was no "column" to expand. Toggled by
+     #tableViewBtn (see cloud.js/pwa boot wiring) and remembered per
+     device; off by default so the card layout - designed for touch - is
+     still what everyone sees unless they ask for the real table. */
+  @media (max-width:820px){
+    body.force-table-view .scroll-toolbar{display:flex;}
+    body.force-table-view .table-scroll{overflow:auto !important;max-height:60vh !important;}
+    body.force-table-view table{display:table;width:max-content;min-width:100%;}
+    body.force-table-view colgroup{display:table-column-group;}
+    body.force-table-view thead{display:table-header-group;}
+    body.force-table-view tbody{display:table-row-group;gap:0;}
+    body.force-table-view tbody tr{display:table-row !important;grid-template-columns:none;gap:0;padding:0;background:transparent !important;border:none;border-radius:0;box-shadow:none;}
+    body.force-table-view tbody tr:nth-child(even){background:var(--surface-alt);}
+    body.force-table-view tbody td{display:table-cell !important;position:static !important;padding:0 !important;border:none !important;border-bottom:1px solid var(--border) !important;background:transparent !important;min-width:0;}
+    body.force-table-view tbody td:first-child{grid-column:auto;position:sticky !important;left:0;background:var(--surface);z-index:1;border-right:1px solid var(--border);}
+    body.force-table-view tbody tr:nth-child(even) td:first-child{background:var(--surface-alt);}
+    body.force-table-view tbody td::before{display:none;}
+    body.force-table-view tbody td[data-key="model"],
+    body.force-table-view tbody td[data-key="deviceType"],
+    body.force-table-view tbody td[data-key="notes"]{grid-column:auto;}
+    body.force-table-view td input{min-height:40px;font-size:14px;padding:6px 8px;border-radius:6px;}
+    body.force-table-view tfoot{display:table-footer-group;margin-top:0;}
+    body.force-table-view tfoot tr{display:table-row;justify-content:normal;background:transparent !important;border:none !important;padding:0 !important;}
+    body.force-table-view tfoot td{display:table-cell !important;background:var(--surface-alt) !important;border-top:1px solid var(--border) !important;border-bottom:none !important;padding:9px 10px !important;}
+    body.force-table-view tfoot td:first-child,
+    body.force-table-view tfoot td.total-qty{display:table-cell !important;}
   }
 
   /* =================== CLOUD SYNC (Supabase) =================== */
@@ -592,7 +593,7 @@
   .cloud-card .cl-go:disabled{opacity:.6;}
   .cloud-card .cl-err{min-height:20px;font-size:13.5px;color:#b3261e;font-weight:600;margin-bottom:8px;}
   .cloud-card .cl-foot{margin-top:12px;font-size:12px;color:#6b7686;text-align:center;line-height:1.5;}
-  .cloud-jobs-panel{max-width:560px;max-height:min(760px,94vh);max-height:min(760px,94dvh);overflow:auto;}
+  .cloud-jobs-panel{max-width:560px;max-height:min(760px,94vh);overflow:auto;}
   .item-find{display:flex;gap:8px;flex-wrap:wrap;flex:none;padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid var(--border);}
   .item-find input{flex:1;min-width:150px;border:1px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;}
   .find-results{display:flex;flex-direction:column;gap:8px;flex:none;max-height:260px;overflow:auto;margin-bottom:4px;}
@@ -601,6 +602,7 @@
   .find-hit .fh-info{flex:1;min-width:0;}
   .find-hit .fh-item{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .find-hit .fh-job{font-size:12px;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .find-hit .fh-note{font-size:12px;color:var(--ink-muted);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .find-hit button{flex:none;padding:7px 12px;font-size:13px;}
   .find-msg{font-size:13px;color:var(--ink-muted);flex:none;}
   .find-msg.bad{color:var(--danger);font-weight:600;}
@@ -615,17 +617,6 @@
   .job-row button{padding:7px 12px;font-size:13px;}
   .job-msg{font-size:13px;color:var(--ink-muted);min-height:18px;flex:none;}
   .job-msg.bad{color:var(--danger);font-weight:600;}
-
-  /* TEMP (2026-09-29): Scan and Search Files hidden per request - not
-     removed, just hidden for now. Delete this rule to bring them back. */
-  #scanBtn, #searchFilesBtn{display:none !important;}
-
-  /* a shipped row's fields are readOnly (see renderRows) - no background
-     tint or text-style change at all, on purpose: the green checkmark and
-     the Unlock icon in the row-number column are the only shipped
-     indicator. .row-shipped-locked itself is still applied to the <tr> for
-     anything JS needs it for, it just carries no styling of its own here. */
-  tr.row-shipped-locked td input{cursor:default;}
 
   /* =================== roles: viewer / tech =================== */
   /* The real enforcement is server-side (RLS) and persist() being turned
@@ -649,7 +640,8 @@
   body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn,
   body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn,
   body.role-viewer #pendingDeliveriesBtn, body.role-tech #pendingDeliveriesBtn,
-  body.role-viewer #jobsDashboardBtn, body.role-tech #jobsDashboardBtn{
+  body.role-viewer #jobsDashboardBtn, body.role-tech #jobsDashboardBtn,
+  body.role-viewer #transferBtn, body.role-tech #transferBtn{
     display:none !important;
   }
   /* only hide the Jobs picker when this account is pinned to one job - a
@@ -780,6 +772,15 @@
   .jd-open-btn{padding:6px 11px;font-size:12.5px;}
   .jd-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
 
+  /* =================== transfer to another job (staff only) =================== */
+  .modal-backdrop#transferBackdrop[hidden]{display:none;}
+  .transfer-count{font-size:13.5px;font-weight:600;margin:0 0 10px;}
+  .transfer-field{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);margin-bottom:14px;}
+  .transfer-field select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
+  .transfer-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
+  .transfer-msg.bad{color:var(--danger);font-weight:600;}
+  .transfer-msg.good{color:var(--success);font-weight:600;}
+
   /* =================== equipment on an open delivery request =================== */
   input[data-field="barcode"].item-requested{
     background:#fff4e0 !important;
@@ -833,10 +834,6 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
           <input id="searchInput" type="text" placeholder="Find (barcode, model, serial, dates…)" autocomplete="off">
         </div>
-        <select id="searchScope" class="search-scope" title="Which fields to search">
-          <option value="">All fields</option>
-          <option value="mfrModelType">Mfr / Model / Device Type only</option>
-        </select>
         <button id="scanBtn" class="primary scan-btn" type="button" title="Scan a barcode or QR code with the camera"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"></path><path d="M7 12h10"></path></svg>Scan</button>
         <button id="moreBtn" class="mob-only" type="button" aria-expanded="false"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.8"></circle><circle cx="12" cy="12" r="1.8"></circle><circle cx="19" cy="12" r="1.8"></circle></svg><span class="more-label">More</span></button>
         <div class="status-filter" id="statusFilter" role="group" aria-label="Filter by shipment status">
@@ -875,11 +872,15 @@
           </button>
           <button id="packingSlipBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"></path><rect x="3" y="8" width="18" height="13" rx="2"></rect><path d="M9 12h6M9 16h6"></path></svg>
-            Create Packing Slip
+            Create Delivery Slip
           </button>
           <button id="deliveryRequestBtn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="1" y="3" width="15" height="13"></rect><path d="M16 8h4l3 3v5h-7V8z"></path><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle></svg>
             Request Delivery
+          </button>
+          <button id="transferBtn" class="mob-hide" title="Move the checked items to a different job (full-access staff only)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7h11M11 3l4 4-4 4"></path><path d="M20 17H9m4 4-4-4 4-4"></path></svg>
+            Transfer
           </button>
         </div>
         <button id="copyRowsBtn" class="mob-hide" title="Copy the checked rows (everything except BarCode, Date Received and Date Shipped, so pasted copies get their own barcode and dates later)">
@@ -890,11 +891,16 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="4" width="10" height="4" rx="1"></rect><path d="M8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"></path><path d="M15 12h6m-3-3 3 3-3 3"></path></svg>
           Paste
         </button>
+        <button id="columnsBtn" class="mob-hide">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
+          Columns
+        </button>
       </div>
       <div class="mob-tools">
         <label><span>Sort by</span><select id="mobSort"><option value="">Row order</option><option value="barcode">BarCode</option><option value="manufacturer">Manufacturer</option><option value="model">Model</option><option value="deviceType">Device Type</option><option value="dateReceived">Date Received</option><option value="dateShipped">Date Shipped</option></select></label>
         <button id="mobSelectAllBtn" type="button">Select all shown</button>
         <button id="mobClearSelBtn" type="button">Clear selection</button>
+        <button id="tableViewBtn" type="button" title="Switch to the full table with resizable columns, instead of the card layout">Table view</button>
       </div>
       <div class="toolbar-row toolbar-row-secondary">
         <button id="addRowBtn" class="primary">
@@ -902,10 +908,6 @@
           Add row
         </button>
         <span class="spacer"></span>
-        <button id="columnsBtn" class="mob-hide">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
-          Columns
-        </button>
         <button id="exportXlsxBtn" class="mob-hide">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 3v12m0 0 4-4m-4 4-4-4"></path><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"></path></svg>
           Export Excel
@@ -986,7 +988,7 @@
 <div class="modal-backdrop" id="packingSlipBackdrop" hidden="">
   <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="packingSlipTitle">
     <div class="modal-head">
-      <h2 id="packingSlipTitle">Create packing slip</h2>
+      <h2 id="packingSlipTitle">Create delivery slip</h2>
       <button class="icon-btn" id="packingSlipCloseBtn" title="Close" aria-label="Close" type="button">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
@@ -998,7 +1000,7 @@
         <input type="date" id="packingSlipDateShipped">
       </label>
       <button id="packingSlipFixDatesBtn" type="button" hidden="" title="These items have a Date Received later than the Date Shipped above (for example from an item labelled late in the evening under the old date handling)."></button>
-      <button class="primary" id="packingSlipPrintBtn" type="button">Print packing slip</button>
+      <button class="primary" id="packingSlipPrintBtn" type="button">Print delivery slip</button>
       <button id="packingSlipSignableBtn" type="button" title="Download a standalone page someone can open on their phone, sign, and submit — it emails the signed slip automatically">Export signable slip (mobile)</button>
       <button class="icon-btn" id="emailSettingsBtn" type="button" title="Email settings for the signable slip">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -1107,6 +1109,24 @@
     <div class="jd-msg" id="jdMsg" aria-live="polite"></div>
   </div>
 </div>
+
+<div class="modal-backdrop" id="transferBackdrop" hidden="">
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="transferTitle">
+    <div class="modal-head">
+      <h2 id="transferTitle">Transfer to another job</h2>
+      <button class="icon-btn" id="transferCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub">Full-access staff only. Moves the checked items out of this job and into the one you pick below - they'll no longer show up here.</p>
+    <p class="transfer-count" id="transferCount"></p>
+    <label class="transfer-field">Destination job<select id="transferJobSelect"></select></label>
+    <div class="modal-actions">
+      <button class="primary" id="transferConfirmBtn" type="button">Transfer</button>
+    </div>
+    <div class="transfer-msg" id="transferMsg" aria-live="polite"></div>
+  </div>
+</div>
 <div id="packingSlipPrintRoot"><div id="packingSlipPrintDoc"></div></div>
 
 <div class="modal-backdrop" id="emailSettingsBackdrop" hidden="">
@@ -1195,7 +1215,7 @@
     </div>
     <div class="status-filter" id="scanModeGroup" role="group" aria-label="What a scan does">
       <button type="button" class="active" data-mode="find" title="A scan goes into the Find bar and the list narrows to that item">Find in table</button>
-      <button type="button" data-mode="select" title="A scanned item that's in the table gets checked, ready for Labels or a packing slip">Select for shipping</button>
+      <button type="button" data-mode="select" title="A scanned item that's in the table gets checked, ready for Labels or a delivery slip">Select for shipping</button>
       <button type="button" data-mode="received" title="A scanned item that's in the table gets today's Date Received">Mark received today</button>
     </div>
     <div class="scan-view">
@@ -1231,7 +1251,7 @@
     <p class="cl-sub" id="cloudLoginSub">Sign in to continue</p>
     <form id="cloudLoginForm" autocomplete="on">
       <label>Email
-        <input id="cloudEmail" name="email" type="text" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+        <input id="cloudEmail" name="email" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required>
       </label>
       <label>Password
         <input id="cloudPass" name="password" type="password" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" required>
@@ -1274,13 +1294,14 @@
   <button id="snackbarUndo">Undo</button>
 </div>
 
-<script id="embeddedData" type="application/json">{"savedAt":"2026-09-21T14:45:43.304Z","meta":{},"columnVisible":{"barcode":true,"manufacturer":true,"model":true,"deviceType":true,"totalQty":true,"dateReceived":true,"dateShipped":true,"serialNumber":true,"macAddress":true},"columnWidths":{},"columnOrder":["barcode","manufacturer","model","deviceType","totalQty","dateReceived","dateShipped","serialNumber","macAddress"],"rows":[]}</script>
+<script id="embeddedData" type="application/json">{"savedAt":"2026-09-21T14:45:43.304Z","meta":{},"columnVisible":{"barcode":true,"manufacturer":true,"model":true,"deviceType":true,"totalQty":true,"dateReceived":true,"dateShipped":true,"serialNumber":true,"notes":true},"columnWidths":{},"columnOrder":["barcode","manufacturer","model","deviceType","totalQty","dateReceived","dateShipped","serialNumber","notes"],"rows":[]}</script>
 <script>
 (function(){
   "use strict";
 
   var notifyItemsReceived = function(){}; // overridden by roles.js once cloud mode is confirmed on
   var notifyItemsShipped = function(){}; // overridden by roles.js once cloud mode is confirmed on
+  var notifyItemUnshipped = function(){}; // overridden by roles.js once cloud mode is confirmed on
 
   // capture this exact page's pristine markup before any script below touches
   // the DOM — Save uses this to produce a new, self-contained HTML file with
@@ -1314,17 +1335,10 @@
     {key:"model", label:"Model", type:"text", w:120},
     {key:"deviceType", label:"Device Type", type:"text", w:210, wide:true},
     {key:"totalQty", label:"Total QTY", type:"number", w:74},
-    {key:"qtyReceived", label:"Qty Received", type:"number", w:84},
-    {key:"qtySent", label:"Qty Sent", type:"number", w:74},
-    // derived (Total QTY minus Qty Sent), recalculated in normalizeRowData()
-    // and on every edit to either of those two fields - never hand-typed,
-    // see the "computed" check in renderRows()
-    {key:"qtyRemaining", label:"Qty Remaining", type:"number", w:94, computed:true},
     {key:"dateReceived", label:"Date Received", type:"date", w:132},
     {key:"dateShipped", label:"Date Shipped", type:"date", w:132},
     {key:"serialNumber", label:"Serial Number", type:"text", w:140, mono:true},
-    {key:"macAddress", label:"MAC Address", type:"text", w:140, mono:true},
-    {key:"notes", label:"Notes", type:"text", w:160, wide:true},
+    {key:"notes", label:"Notes", type:"text", w:180},
   ];
 
   var META_FIELDS = [
@@ -1368,9 +1382,6 @@
       else if (c.type === "date") row[c.key] = sanitizeDate(raw);
       else row[c.key] = raw === undefined || raw === null ? "" : String(raw).trim();
     });
-    // always derived, never trusted from imported/pasted data - see the
-    // "computed" flag on this column in COLS
-    row.qtyRemaining = (Number(row.totalQty) || 0) - (Number(row.qtySent) || 0);
     return row;
   }
 
@@ -1387,7 +1398,6 @@
   var meta = {};
   var sortKey = null, sortDir = "asc";
   var searchTerm = "";
-  var searchScope = ""; // "" = all fields; see SEARCH_SCOPES
   var statusFilter = "all"; // "all" | "received" | "shipped" — which rows the table currently shows
   var lastDeleted = null;
   var saveTimer = null;
@@ -1466,7 +1476,6 @@
     colSummary: document.getElementById("colSummary"),
     rowCount: document.getElementById("rowCount"),
     searchInput: document.getElementById("searchInput"),
-    searchScope: document.getElementById("searchScope"),
     statusFilter: document.getElementById("statusFilter"),
     addRowBtn: document.getElementById("addRowBtn"),
     saveBtn: document.getElementById("saveBtn"),
@@ -1806,17 +1815,10 @@
   }
 
   // ---------- table body ----------
-  // "" (default) searches every column; "mfrModelType" narrows the same
-  // search box to just Manufacturer/Model/Device Type, so a keyword that
-  // happens to also appear in, say, Serial Number or Notes doesn't pull in
-  // unrelated rows.
-  var SEARCH_SCOPES = {mfrModelType: ["manufacturer", "model", "deviceType"]};
   function matchesSearch(row, term){
     if (!term) return true;
-    var keys = SEARCH_SCOPES[searchScope] || COLS.map(function(c){ return c.key; });
     for (var i = 0; i < COLS.length; i++){
       var c = COLS[i];
-      if (keys.indexOf(c.key) === -1) continue;
       var v = row[c.key];
       if (v === undefined || v === null || v === "") continue;
       if (String(v).toLowerCase().indexOf(term) !== -1) return true;
@@ -1930,23 +1932,15 @@
       var tdNum = document.createElement("td");
       var numWrap = document.createElement("div");
       numWrap.className = "rownum";
+      var rowCb = document.createElement("input");
+      rowCb.type = "checkbox";
       var alreadyShipped = !!(r.dateShipped && String(r.dateShipped).trim());
-      var rowCb;
+      rowCb.checked = !alreadyShipped && selectedIds.has(id);
       if (alreadyShipped){
-        // a shipped row's checkbox can never be selected (nothing left to do
-        // with it), so it's swapped for a plain checkmark instead of a
-        // greyed-out, disabled-looking box in that same spot - a clear
-        // "this one's done" signal at a glance, not just a dead control.
-        rowCb = document.createElement("span");
-        rowCb.className = "shipped-check";
-        rowCb.setAttribute("role", "img");
-        rowCb.title = "Shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another packing slip or label run.";
-        rowCb.setAttribute("aria-label", "Row " + (idx + 1) + " already shipped");
-        rowCb.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+        rowCb.disabled = true;
+        rowCb.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another delivery slip or label run.";
+        rowCb.setAttribute("aria-label", "Row " + (idx + 1) + " already shipped — cannot be selected");
       } else {
-        rowCb = document.createElement("input");
-        rowCb.type = "checkbox";
-        rowCb.checked = selectedIds.has(id);
         rowCb.setAttribute("aria-label", "Select row " + (idx + 1) + " for labels");
         rowCb.addEventListener("change", function(){ setRowSelected(id, rowCb.checked); });
       }
@@ -1961,31 +1955,9 @@
       numSpan.textContent = idx + 1;
       numWrap.appendChild(rowCb);
       numWrap.appendChild(numSpan);
-      if (alreadyShipped){
-        var unlockBtn = document.createElement("button");
-        unlockBtn.className = "unlock-btn";
-        unlockBtn.type = "button";
-        unlockBtn.title = "Unlock this row (clears Date Shipped so it can be edited again - the warehouse is emailed when you do this)";
-        unlockBtn.setAttribute("aria-label", "Unlock row " + (idx + 1) + " - currently marked shipped");
-        unlockBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 7.5-2"></path></svg>';
-        unlockBtn.addEventListener("click", function(){ unshipRow(id); });
-        numWrap.appendChild(unlockBtn);
-      }
-      if (!alreadyShipped){
-        var splitBtn = document.createElement("button");
-        splitBtn.className = "unlock-btn";
-        splitBtn.type = "button";
-        splitBtn.title = "Split part of this row's Total QTY off into a new row";
-        splitBtn.setAttribute("aria-label", "Split row " + (idx + 1) + " into two rows");
-        splitBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3v18M3 8l5-5 5 5M21 16l-5 5-5-5"/></svg>';
-        splitBtn.addEventListener("click", function(){ splitRow(id); });
-        numWrap.appendChild(splitBtn);
-      }
       numWrap.appendChild(delBtn);
       tdNum.appendChild(numWrap);
       tr.appendChild(tdNum);
-
-      if (alreadyShipped) tr.classList.add("row-shipped-locked");
 
       getShownCols().forEach(function(c){
         var td = document.createElement("td");
@@ -2000,27 +1972,11 @@
         input.dataset.field = c.key;
         if (c.key === "dateShipped" && r.dateReceived) input.min = r.dateReceived;
         if (c.key === "dateShipped") applyShipInputState(input, r);
-        // once a row has shipped, it's a record of what went out the door -
-        // still fully visible, just frozen (readOnly keeps it legible
-        // instead of greyed out the way disabled would look). Re-checked
-        // from the row's live data each render, not just at ship time, so
-        // clearing Date Shipped elsewhere unlocks it again immediately.
-        if (alreadyShipped){
-          input.readOnly = true;
-          input.tabIndex = -1;
-          input.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — locked from further edits.";
-        }
-        if (c.computed){
-          input.readOnly = true;
-          input.tabIndex = -1;
-          input.title = "Total QTY minus Qty Sent — calculated automatically.";
-        }
         if (AUTOCOMPLETE_KEYS.indexOf(c.key) !== -1){
           input.setAttribute("list", datalistId(c.key));
           input.addEventListener("blur", function(){ registerAutocompleteValue(c.key, input.value); });
         }
         input.addEventListener("input", function(){
-          if (alreadyShipped || c.computed){ input.value = r[c.key] === undefined || r[c.key] === null ? "" : r[c.key]; return; }
           // nothing ships before it has been received and has a BarCode
           if (c.key === "dateShipped" && input.value && shipBlockReason(r)){
             showSnackbar("Can't ship yet — this item " + shipBlockReason(r) + " first.");
@@ -2035,11 +1991,6 @@
           }
           var v = c.type === "number" ? sanitizeNumber(input.value) : c.type === "date" ? sanitizeDate(input.value) : input.value;
           r[c.key] = v;
-          if (c.key === "totalQty" || c.key === "qtySent"){
-            r.qtyRemaining = (Number(r.totalQty) || 0) - (Number(r.qtySent) || 0);
-            var remInput = tr.querySelector('input[data-field="qtyRemaining"]');
-            if (remInput) remInput.value = r.qtyRemaining;
-          }
           if (c.key === "barcode" || c.key === "dateReceived"){
             var shipBox = tr.querySelector('input[data-field="dateShipped"]');
             if (shipBox) applyShipInputState(shipBox, r);
@@ -2062,7 +2013,7 @@
               if (rowCbEl){
                 rowCbEl.checked = false;
                 rowCbEl.disabled = true;
-                rowCbEl.title = "Already shipped on " + formatDateForMsg(v) + " — can't be added to another packing slip or label run.";
+                rowCbEl.title = "Already shipped on " + formatDateForMsg(v) + " — can't be added to another delivery slip or label run.";
               }
               updateSelectionUI();
             } else if (rowCbEl && rowCbEl.disabled){
@@ -2140,7 +2091,7 @@
 
     el.packingSlipBtn.textContent = "";
     var psSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"></path><rect x="3" y="8" width="18" height="13" rx="2"></rect><path d="M9 12h6M9 16h6"></path></svg>';
-    el.packingSlipBtn.innerHTML = psSvg + (selectedIds.size ? " Create Packing Slip (" + selectedIds.size + ")" : " Create Packing Slip");
+    el.packingSlipBtn.innerHTML = psSvg + (selectedIds.size ? " Create Delivery Slip (" + selectedIds.size + ")" : " Create Delivery Slip");
     el.packingSlipBtn.disabled = selectedIds.size === 0;
 
     el.copyRowsBtn.textContent = "";
@@ -2183,56 +2134,6 @@
     showSnackbar((data.barcode ? data.barcode + " " : "Row ") + "deleted");
   }
 
-  // Splits part of a row's Total QTY off into a brand-new row right below
-  // it - everything else (Manufacturer, Model, dates, etc.) is duplicated,
-  // except: BarCode is left blank on the new row (a stack that's being
-  // split hasn't been individually labeled as its own item yet - use
-  // Labels to give it one), and Qty Sent/Qty Received reset to blank there
-  // too (whatever was already sent/received belongs to the ORIGINAL row's
-  // remaining quantity, not to a portion that's only just being split off).
-  function splitRow(id){
-    var r = rows.get(id);
-    if (!r) return;
-    var total = Number(r.totalQty) || 0;
-    if (total < 2){
-      showSnackbar("Nothing to split — Total QTY needs to be 2 or more first.");
-      return;
-    }
-    var answer = window.prompt("Split how many of the " + total + " into a new row? (1-" + (total - 1) + ")", Math.floor(total / 2));
-    if (answer === null) return; // cancelled
-    var moveQty = Number(answer);
-    if (!Number.isFinite(moveQty) || moveQty <= 0 || moveQty >= total){
-      showSnackbar("Enter a whole number between 1 and " + (total - 1) + ".");
-      return;
-    }
-    var newData = normalizeRowData(Object.assign({}, r, {totalQty: moveQty, qtySent: "", qtyReceived: "", barcode: ""}));
-    var newId = nextId();
-    rows.set(newId, newData);
-    var idx = order.indexOf(id);
-    order.splice(idx + 1, 0, newId);
-    r.totalQty = total - moveQty;
-    r.qtyRemaining = (Number(r.totalQty) || 0) - (Number(r.qtySent) || 0);
-    persist();
-    renderRows();
-    showSnackbar("Split " + moveQty + " into a new row — " + (total - moveQty) + " remain on this one.");
-  }
-
-  // "Unlock" on an already-shipped row: clears Date Shipped so the row goes
-  // back to being a normal editable row. Overridden to a no-op by roles.js
-  // until cloud mode is confirmed on - offline/local-only use still gets
-  // the unlock itself, just without the warehouse email (nobody to email).
-  var notifyItemUnshipped = function(){};
-  function unshipRow(id){
-    var r = rows.get(id);
-    if (!r || !r.dateShipped) return;
-    var previousShipDate = r.dateShipped;
-    r.dateShipped = "";
-    persist();
-    renderRows();
-    showSnackbar((r.barcode ? r.barcode + " " : "Item ") + "unlocked — Date Shipped cleared");
-    notifyItemUnshipped(r, previousShipDate);
-  }
-
   var snackTimer = null;
   function showSnackbar(msg){
     el.snackbarMsg.textContent = msg;
@@ -2259,10 +2160,6 @@
       searchTerm = el.searchInput.value;
       renderRows();
     }, 120);
-  });
-  el.searchScope.addEventListener("change", function(){
-    searchScope = el.searchScope.value;
-    renderRows();
   });
 
   el.addRowBtn.addEventListener("click", addRow);
@@ -2401,28 +2298,13 @@
   // as a text box stays focused. On a table full of inputs that bar just gets
   // in the way while scrolling, so scrolling the page itself closes the
   // keyboard/that bar — the same field is still right there to tap back into.
-  //
-  // The tricky part: focusing an input near the edge of the screen makes the
-  // browser itself auto-scroll the page to keep it visible above the keyboard
-  // as it animates in - and that auto-scroll fires this same 'scroll' event.
-  // Without a guard, that scroll's own blur() fires right as the keyboard is
-  // opening and immediately closes it again - on iPad in particular, tapping
-  // a field could look like the keyboard trying to open and then instantly
-  // minimizing, with no chance to type anything. Skip the auto-blur when a
-  // table input was focused very recently, so that settling-in scroll is
-  // left alone; a scroll well after the field has already been focused for a
-  // while is a real user scroll and still blurs it as before.
-  var lastTableFocusAt = 0;
-  el.tbody.addEventListener('focusin', function(e){
-    if (e.target && e.target.tagName === 'INPUT') lastTableFocusAt = Date.now();
-  });
   var scrollBlurTimer = null;
   window.addEventListener('scroll', function(){
     el.toolbarCard.classList.toggle('is-stuck', window.scrollY > 2);
     clearTimeout(scrollBlurTimer);
     scrollBlurTimer = setTimeout(function(){
       var ae = document.activeElement;
-      if (ae && ae.tagName === 'INPUT' && el.tbody.contains(ae) && (Date.now() - lastTableFocusAt) > 500) ae.blur();
+      if (ae && ae.tagName === 'INPUT' && el.tbody.contains(ae)) ae.blur();
     }, 120);
   }, {passive: true});
   updateGridHeight();
@@ -2888,7 +2770,7 @@
     return "" +
       '<div class="packing-slip-doc">' +
         '<div class="ps-header">' +
-          '<div><div class="ps-title">Packing Slip</div><div class="ps-date">Date Shipped: ' + escHtml(dateStr) + "</div></div>" +
+          '<div><div class="ps-title">Delivery Slip</div><div class="ps-date">Date Shipped: ' + escHtml(dateStr) + "</div></div>" +
           '<div class="ps-badge">AU</div>' +
         "</div>" +
         '<div class="ps-meta-grid">' +
@@ -2917,7 +2799,7 @@
   function renderPackingSlipPreview(){
     var selRows = getSelectedRows();
     if (!selRows.length){
-      el.packingSlipPreview.innerHTML = '<div class="no-selection-note">Select one or more rows in the table (checkbox in the # column), then reopen Create Packing Slip.</div>';
+      el.packingSlipPreview.innerHTML = '<div class="no-selection-note">Select one or more rows in the table (checkbox in the # column), then reopen Create Delivery Slip.</div>';
       el.packingSlipSub.textContent = "No items selected yet.";
       el.packingSlipPrintBtn.disabled = true;
       el.packingSlipSignableBtn.disabled = true;
@@ -3084,7 +2966,7 @@
 '<head>\n' +
 '<meta charset="UTF-8">\n' +
 '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">\n' +
-'<title>Packing Slip — Sign &amp; Submit</title>\n' +
+'<title>Delivery Slip — Sign &amp; Submit</title>\n' +
 '<style>\n' +
 '*{box-sizing:border-box;}\n' +
 'body{margin:0;padding:16px;font-family:Arial,"Helvetica Neue",sans-serif;background:#eef1f5;color:#1a1a18;}\n' +
@@ -3116,14 +2998,31 @@
 '.field input[type=text],.field input[type=date]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:16px;font:inherit;-webkit-user-select:text;user-select:text;}\n' +
 '#signedDate:disabled{opacity:1;-webkit-text-fill-color:#1a1a18;color:#1a1a18;background:#eef0f3;}\n' +
 '#sigCanvas.sig-highlight{border-color:#b8720f;border-style:solid;box-shadow:0 0 0 3px rgba(184,114,15,.25);}\n' +
+'.sig-debug{margin-top:6px;font-family:monospace;font-size:10.5px;color:#666;background:#f4f5f7;border-radius:6px;padding:6px 8px;white-space:pre-wrap;word-break:break-all;max-height:110px;overflow:auto;}\n' +
 '#sigCanvas{width:100%;height:180px;border:2px dashed #99a3b0;border-radius:8px;touch-action:none;background:#fff;display:block;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}\n' +
 '.sign-actions{display:flex;justify-content:flex-end;margin-top:8px;}\n' +
-'button{font:inherit;font-size:15px;padding:10px 16px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;touch-action:manipulation;}\n' +
+'button{font:inherit;font-size:15px;padding:10px 16px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;touch-action:manipulation;min-height:44px;}\n' +
 'button.primary{width:100%;margin-top:8px;background:#b8720f;color:#fff;border-color:#b8720f;font-weight:700;font-size:16px;padding:13px 16px;}\n' +
 'button:disabled{opacity:.5;cursor:not-allowed;}\n' +
 '#statusMsg{margin-top:14px;font-size:14px;padding:10px 12px;border-radius:6px;display:none;}\n' +
 '#statusMsg.ok{background:#e6f4ea;color:#1e7a34;display:block;}\n' +
 '#statusMsg.err{background:#fdecea;color:#b3261e;display:block;}\n' +
+// Sized around an 8" rugged delivery tablet (e.g. Samsung Galaxy Tab
+// Active5), used one-handed in portrait, often outdoors/gloved: bigger
+// tap targets and a taller, easier-to-fill signature pad than the plain
+// desktop-preview sizing above, without needing a phone-sized layout.
+'@media (min-width:500px) and (max-width:900px){\n' +
+'  body{padding:14px;}\n' +
+'  .packing-slip-doc{padding:16px;}\n' +
+'  .ps-table{font-size:12.5px;}\n' +
+'  .ps-table th{font-size:10.5px;padding:7px 8px;}\n' +
+'  .ps-table td{padding:7px 8px;}\n' +
+'  .sign-card{padding:16px;}\n' +
+'  .field input[type=text],.field input[type=date]{padding:13px;font-size:16px;}\n' +
+'  #sigCanvas{height:240px;}\n' +
+'  button{min-height:48px;font-size:16px;}\n' +
+'  button.primary{min-height:54px;font-size:17px;}\n' +
+'}\n' +
 '</style>\n' +
 '</head>\n' +
 '<body>\n' +
@@ -3132,7 +3031,7 @@
 '  <h2>Sign to confirm receipt</h2>\n' +
 '  <div class="field"><label for="signerName">Signed by (name)</label><input type="text" id="signerName" placeholder="Full name" autocomplete="name" enterkeyhint="done"></div>\n' +
 '  <div class="field"><label for="signedDate">Date</label><input type="date" id="signedDate" value="' + todayIso + '" disabled></div>\n' +
-'  <div class="field"><label>Signature</label><canvas id="sigCanvas"></canvas><div class="sign-actions"><button type="button" id="clearBtn">Clear</button></div></div>\n' +
+'  <div class="field"><label>Signature</label><canvas id="sigCanvas"></canvas><div class="sign-actions"><button type="button" id="clearBtn">Clear</button></div><div id="sigDebug" class="sig-debug"></div></div>\n' +
 '  <button type="button" id="submitBtn" class="primary">Submit signed slip</button>\n' +
 '  <div id="statusMsg"></div>\n' +
 '</div>\n' +
@@ -3159,6 +3058,14 @@
 '    }, 0);\n' +
 '  });\n' +
 '  var hasSignature = false, drawing = false;\n' +
+'  var sigDebugEl = document.getElementById("sigDebug");\n' +
+'  var sigDebugLines = [];\n' +
+'  function sigDebug(line){\n' +
+'    sigDebugLines.push(line);\n' +
+'    if (sigDebugLines.length > 8) sigDebugLines.shift();\n' +
+'    sigDebugEl.textContent = sigDebugLines.join("\\n");\n' +
+'  }\n' +
+'  sigDebug("PointerEvent: " + (!!window.PointerEvent) + " | dpr: " + (window.devicePixelRatio||1) + " | UA: " + navigator.userAgent.slice(0,60));\n' +
 '  function fitCanvas(preserve){\n' +
 '    var rect = canvas.getBoundingClientRect();\n' +
 '    if (rect.width < 10 || rect.height < 10){\n' +
@@ -3223,19 +3130,25 @@
 '  // can cancel the pointer stroke the instant it starts (a pointercancel right\n' +
 '  // after pointerdown) when both event models are listening on the same canvas.\n' +
 '  if (window.PointerEvent){\n' +
+'    var sigMoveCount = 0;\n' +
 '    canvas.addEventListener("pointerdown", function(e){\n' +
+'      var rect = canvas.getBoundingClientRect();\n' +
+'      sigMoveCount = 0;\n' +
+'      sigDebug("down type=" + e.pointerType + " canvasBox=" + Math.round(rect.width) + "x" + Math.round(rect.height) + " bufferPx=" + canvas.width + "x" + canvas.height);\n' +
 '      var p = pos(e.clientX, e.clientY);\n' +
 '      beginStroke(p.x, p.y);\n' +
 '      if (canvas.setPointerCapture){ try { canvas.setPointerCapture(e.pointerId); } catch(err){} }\n' +
 '      e.preventDefault();\n' +
 '    });\n' +
 '    canvas.addEventListener("pointermove", function(e){\n' +
+'      sigMoveCount++;\n' +
+'      if (sigMoveCount === 1 || sigMoveCount % 10 === 0) sigDebug("move #" + sigMoveCount + " drawing=" + drawing);\n' +
 '      var p = pos(e.clientX, e.clientY);\n' +
 '      continueStroke(p.x, p.y);\n' +
 '      e.preventDefault();\n' +
 '    });\n' +
 '    ["pointerup","pointercancel"].forEach(function(ev){\n' +
-'      canvas.addEventListener(ev, function(e){ endStroke(); });\n' +
+'      canvas.addEventListener(ev, function(e){ sigDebug(ev + " after " + sigMoveCount + " moves"); endStroke(); });\n' +
 '    });\n' +
 '  } else {\n' +
 '    // only reached on a browser with no Pointer Event support at all\n' +
@@ -3286,7 +3199,7 @@
 '  function buildEmailHeader(){\n' +
 '    var f = "font-family:Arial,sans-serif;";\n' +
 '    return "<div style=\\"" + f + "\\">" +\n' +
-'      "<h2 style=\\"margin:0 0 4px;color:#1a3a6b;\\">Packing Slip</h2>" +\n' +
+'      "<h2 style=\\"margin:0 0 4px;color:#1a3a6b;\\">Delivery Slip</h2>" +\n' +
 '      "<div style=\\"color:#666;font-size:12px;margin-bottom:10px;\\">Date Shipped: " + escapeHtml(SLIP_META.dateShipped) + "</div>" +\n' +
 '      "<div style=\\"font-size:12px;margin-bottom:10px;\\">Job Name: " + escapeHtml(SLIP_META.jobName || "\\u2014") + " &nbsp; | &nbsp; Vendor: " + escapeHtml(SLIP_META.vendor || "\\u2014") + "<br>" +\n' +
 '      "Job Number: " + escapeHtml(SLIP_META.jobNumber || "\\u2014") + " &nbsp; | &nbsp; Vendor Proj #: " + escapeHtml(SLIP_META.vendorProjNum || "\\u2014") + "<br>" +\n' +
@@ -3309,7 +3222,7 @@
 '      "<div style=\\"margin-top:10px;\\"><img src=\\"" + sigDataUrl + "\\" style=\\"max-width:320px;border:1px solid #ccc;\\"></div>";\n' +
 '    if (emailBody.length > 48000){\n' +
 '      btn.disabled = false; btn.textContent = "Submit signed slip";\n' +
-'      showStatus("This packing slip has too many items to email in one message (" + SLIP_ROWS.length + " items). Split it into smaller shipments and try again.", false);\n' +
+'      showStatus("This delivery slip has too many items to email in one message (" + SLIP_ROWS.length + " items). Split it into smaller shipments and try again.", false);\n' +
 '      return;\n' +
 '    }\n' +
 '    emailjs.init(CFG.publicKey);\n' +
@@ -3344,7 +3257,7 @@
     }
     var html = buildSignablePackingSlipHTML(selRows, shipDate);
     var blob = new Blob([html], {type: "text/html"});
-    downloadBlob(blob, "Packing Slip - " + buildTimestampedFilename("html"));
+    downloadBlob(blob, "Delivery Slip - " + buildTimestampedFilename("html"));
     return true;
   }
 
@@ -3552,7 +3465,7 @@
 
     function pdfCellValue(c, v){
       if (c.type === "date") return formatDateShort(v);
-      if (c.key === "deviceType") return truncateText(v, 50);
+      if (c.key === "deviceType" || c.key === "notes") return truncateText(v, 50);
       return v === undefined || v === null ? "" : String(v);
     }
 
@@ -3710,7 +3623,6 @@
   // a couple of common header spellings that differ slightly from our own labels
   COL_LABEL_TO_KEY["date shipped"] = "dateShipped";
   COL_LABEL_TO_KEY["date shipped to site"] = "dateShipped";
-  COL_LABEL_TO_KEY["mac address"] = "macAddress";
   COL_LABEL_TO_KEY["serial number"] = "serialNumber";
   COL_LABEL_TO_KEY["barcode"] = "barcode";
   COL_LABEL_TO_KEY["bar code"] = "barcode";
@@ -4038,20 +3950,6 @@
   }
 
   function importEquipmentFile(file){
-    // Cloud mode, no job open yet: create one automatically (named after
-    // the file) instead of making the person go create a job first just to
-    // come back and import - mirrors how "Upload this device's list" on
-    // sign-in already creates a job from a payload.
-    if (typeof cloud !== "undefined" && cloud.on && !cloud.jobId){
-      var jobName = file.name.replace(/\.[^.]+$/, "").trim() || "Imported list";
-      createJob(jobName).then(function(){
-        return importFileObject(file).then(function(count){
-          refreshUiAfterImport();
-          showSnackbar("Created job \"" + jobName + "\" and imported " + count + " row" + (count === 1 ? "" : "s") + ".");
-        });
-      }).catch(function(err){ showSnackbar((err && err.message) || "Couldn't import that file."); });
-      return;
-    }
     var hasExisting = order.length > 0;
     if (hasExisting && !window.confirm("Importing will replace the " + order.length + " row(s) currently in this table. Continue?")){
       return;
@@ -4685,6 +4583,31 @@
   document.getElementById("mobSelectAllBtn").addEventListener("click", function(){ setAllSelected(true); });
   document.getElementById("mobClearSelBtn").addEventListener("click", function(){ selectedIds.clear(); renderRows(); });
 
+  // ---------- table view toggle (tablet/phone widths) ----------
+  // The card layout at <=820px never had column headers or resize handles
+  // at all, so there was no way to widen a column there (e.g. on an iPad
+  // in portrait). This lets someone opt into the real, resizable table
+  // instead - see the "body.force-table-view" CSS override above the
+  // phone/tablet media queries. Remembered per device, off by default.
+  var TABLE_VIEW_KEY = "eq.tableView.v1";
+  var tableViewBtnEl = document.getElementById("tableViewBtn");
+  function applyTableViewPref(on){
+    document.body.classList.toggle("force-table-view", !!on);
+    if (tableViewBtnEl) tableViewBtnEl.textContent = on ? "Card view" : "Table view";
+  }
+  function setTableViewPref(on){
+    applyTableViewPref(on);
+    try{ window.localStorage.setItem(TABLE_VIEW_KEY, on ? "1" : "0"); }catch(e){}
+  }
+  if (tableViewBtnEl){
+    tableViewBtnEl.addEventListener("click", function(){
+      setTableViewPref(!document.body.classList.contains("force-table-view"));
+    });
+    var storedTableView = false;
+    try{ storedTableView = window.localStorage.getItem(TABLE_VIEW_KEY) === "1"; }catch(e){}
+    applyTableViewPref(storedTableView);
+  }
+
   // ---------- barcode / QR scanner ----------
   // Uses the phone/tablet camera through the html5-qrcode library (it uses the
   // device's built-in barcode detector when there is one). Every scan is
@@ -5255,6 +5178,20 @@
       remoteIds.add(r.id);
       mergeRemoteRow(r.id, r.data, r.pos, r.updated_at);
     });
+    // A pull that comes back with zero rows, despite this device having
+    // previously synced a nonzero number of rows for this job, is treated
+    // as a suspicious/transient read rather than proof every row was
+    // deleted elsewhere - a momentary empty result must never be enough on
+    // its own to wipe a job's local copy AND persist that wipe into the
+    // cache (see applyRemoteChanges below, via writeCache). A genuine bulk
+    // deletion done by someone else still gets picked up correctly on the
+    // very next successful pull, once remoteRows actually reflects it.
+    if (!remoteRows.length && cloud.synced.size > 0){
+      cloudStatus("bad", "Sync returned no items for this job — not clearing anything. Retrying…");
+      clearTimeout(cloud.retryTimer);
+      cloud.retryTimer = setTimeout(pullAll, 4000);
+      return;
+    }
     Array.from(cloud.synced.keys()).forEach(function(id){
       if (remoteIds.has(id)) return;
       var base = cloud.synced.get(id), local = rows.get(id);
@@ -5542,7 +5479,7 @@
     if (!safe){ jobMsg("Type something to search for.", true); return; }
     jobMsg("Searching every job...");
     var pattern = "%" + safe + "%";
-    var cols = ["barcode", "serialNumber", "manufacturer", "model", "macAddress", "deviceType"];
+    var cols = ["barcode", "serialNumber", "manufacturer", "model", "macAddress", "deviceType", "notes"];
     var orExpr = cols.map(function(c){ return "data->>" + c + ".ilike." + pattern; }).join(",");
     return cloud.sb.from("eq_rows").select("id,job_id,data,eq_jobs(id,name,deleted)").eq("deleted", false).or(orExpr).limit(50).then(function(r){
       if (r.error){ jobMsg("Couldn't search: " + r.error.message, true); return; }
@@ -5570,6 +5507,16 @@
       var code = (hit.data && (hit.data.barcode || hit.data.serialNumber)) || "";
       jobLine.textContent = (hit.eq_jobs && hit.eq_jobs.name || "Untitled job") + (code ? " · " + code : "");
       info.appendChild(item); info.appendChild(jobLine);
+      // the match might only be in the notes (now searched too - see cols
+      // above), which scanItemLabel/jobLine never show - a short snippet
+      // here is the only way to tell why this row showed up at all
+      var notesText = hit.data && hit.data.notes && String(hit.data.notes).trim();
+      if (notesText){
+        var noteLine = document.createElement("div");
+        noteLine.className = "fh-note";
+        noteLine.textContent = "Note: " + (notesText.length > 80 ? notesText.slice(0, 80) + "…" : notesText);
+        info.appendChild(noteLine);
+      }
       var btn = document.createElement("button");
       btn.type = "button"; btn.className = "primary"; btn.textContent = "Open job";
       btn.addEventListener("click", function(){ onOpenFindResult(hit); });
@@ -5623,11 +5570,11 @@
       var nm = document.createElement("div");
       nm.className = "nm";
       var b = document.createElement("b");
-      b.textContent = j.name || (j.meta && j.meta.project) || "Untitled job";
+      var jobNum = j.meta && j.meta.projectNumber ? String(j.meta.projectNumber).trim() : "";
+      b.textContent = (j.name || (j.meta && j.meta.project) || "Untitled job") + (jobNum ? " — " + jobNum : "");
       var w = document.createElement("span");
       w.className = "when";
-      var num = j.meta && j.meta.projectNumber ? j.meta.projectNumber + " - " : "";
-      w.textContent = num + formatWhen(j.updated_at);
+      w.textContent = formatWhen(j.updated_at);
       nm.appendChild(b); nm.appendChild(w);
       nm.addEventListener("click", function(){ openJob(j); });
       var open = document.createElement("button");
@@ -5708,30 +5655,17 @@
     el.importBtn.parentNode.replaceChild(ib, el.importBtn);
     el.importBtn = ib;
     ib.addEventListener("click", function(){
-      // no job open yet: importEquipmentFile() below creates one
-      // automatically, named after the file, so there's nothing to
-      // replace/confirm here
-      if (cloud.jobId && !confirm("Importing replaces the whole list in this job, for everyone who has it open. Continue?")) return;
+      if (!cloud.jobId){ showSnackbar("Open a job first."); return; }
+      if (!confirm("Importing replaces the whole list in this job, for everyone who has it open. Continue?")) return;
       el.importFile.click();
     });
 
-    // A hardcoded convenience: signing in as "mkabatsky" (no @, easier to
-    // remember/type than a full address) resolves to that one account's
-    // real email before ever reaching Supabase - which always needs a real
-    // email for password sign-in, so this isn't a separate username system,
-    // just a memorable alias for a single specific account.
-    var MASTER_USERNAME = "mkabatsky";
-    var MASTER_USERNAME_EMAIL = "mkabatsky@gmail.com";
-    function resolveSignInEmail(v){
-      v = String(v || "").trim();
-      return v.toLowerCase() === MASTER_USERNAME ? MASTER_USERNAME_EMAIL : v;
-    }
     var form = cloudEl("cloudLoginForm"), errEl = cloudEl("cloudLoginErr"), btn = cloudEl("cloudLoginBtn");
     form.addEventListener("submit", function(ev){
       ev.preventDefault();
       errEl.textContent = "";
       btn.disabled = true; btn.textContent = "Signing in...";
-      cloud.sb.auth.signInWithPassword({email: resolveSignInEmail(cloudEl("cloudEmail").value), password: cloudEl("cloudPass").value}).then(function(r){
+      cloud.sb.auth.signInWithPassword({email: cloudEl("cloudEmail").value.trim(), password: cloudEl("cloudPass").value}).then(function(r){
         btn.disabled = false; btn.textContent = "Sign in";
         if (r.error){
           errEl.textContent = /invalid/i.test(r.error.message) ? "Wrong email or password." : r.error.message;
@@ -5809,17 +5743,7 @@
           showLogin("You were signed out. Sign in again.");
         }
       });
-      // A stored session with an expired access token makes getSession()
-      // reach out to Supabase to refresh it before it can resolve. On a
-      // flaky mobile connection that first request can fail on a dropped
-      // packet even though the device is genuinely still signed in - retry
-      // once after a beat so that doesn't look identical to being logged
-      // out. (Desktop wifi rarely hits this, which is why it reads as
-      // "mobile only".)
-      return cloud.sb.auth.getSession().catch(function(){
-        return new Promise(function(resolve){ setTimeout(resolve, 800); })
-          .then(function(){ return cloud.sb.auth.getSession(); });
-      });
+      return cloud.sb.auth.getSession();
     }).then(function(r){
       var session = r && r.data && r.data.session;
       if (session && session.user) return afterSignIn(session.user);
@@ -5836,20 +5760,6 @@
       showLogin("Sign in to continue");
       cloudStatus("bad", "Signed out");
     }).catch(function(e){
-      // Still failing after the retry. If this looks like a network problem
-      // rather than an actual "you're not signed in", and this device has
-      // signed in before, don't bounce to the login form - open the job
-      // picker with the cached identity, same as the offline branch above.
-      // A dropped connection on mobile shouldn't look the same as being
-      // logged out.
-      var saved = null;
-      try{ saved = JSON.parse(lsGet(CK.user) || "null"); }catch(e2){}
-      if (isNetworkProblem(e) && saved){
-        cloud.user = saved;
-        cloudEl("cloudUser").textContent = saved.email || "";
-        cloudEl("cloudLogin").hidden = true;
-        return showJobs("Couldn't reach the server just now — pick a job saved on this device.");
-      }
       showLogin("Couldn't start sync: " + (e && e.message ? e.message : e));
     });
   }
@@ -5936,13 +5846,17 @@
         });
       }
       applyRoleUi("staff");
-      return urlJobId ? openUrlJobOrElse(legacyResume) : legacyResume();
+      // Staff's cover page is the fleet Dashboard (every job's status at a
+      // glance), not the plain Jobs list - same reasoning as the Dashboard
+      // button itself: this is a staff-only view, so only the staff branch
+      // changes here. A viewer/tech's own fallback above is untouched.
+      return urlJobId ? openUrlJobOrElse(openJobsDashboardModal) : openJobsDashboardModal();
     }).catch(function(){
       // eq_profiles missing/unreachable (e.g. offline, or the SQL migration
       // for this feature hasn't been run yet) - fall back to normal
       // full-access behavior so nothing breaks for existing accounts
       applyRoleUi("staff");
-      return urlJobId ? openUrlJobOrElse(legacyResume) : legacyResume();
+      return urlJobId ? openUrlJobOrElse(openJobsDashboardModal) : openJobsDashboardModal();
     });
   }
   resume = rolesResume;
@@ -6628,9 +6542,9 @@
         actionsHtml = '<button type="button" class="primary" data-pd-action="fulfilled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Mark fulfilled</button>' +
           '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>';
         if (req.job_id === cloud.jobId){
-          actionsHtml += '<button type="button" data-pd-slip="' + req.id + '">Create packing slip</button>';
+          actionsHtml += '<button type="button" data-pd-slip="' + req.id + '">Create delivery slip</button>';
         } else {
-          actionsHtml += '<span class="pd-slip-hint">Open ' + escHtml(jobName) + ' to create a packing slip for this</span>';
+          actionsHtml += '<span class="pd-slip-hint">Open ' + escHtml(jobName) + ' to create a delivery slip for this</span>';
         }
       }
       return '<div class="pd-card">' +
@@ -6776,9 +6690,10 @@
       var j = c.job, s = c.stats;
       var jobMeta = j.meta || {};
       var jobName = jobMeta.project || j.name || "Untitled job";
+      var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
       var address = jobMeta.address || "";
       return '<div class="jd-card">' +
-        '<div class="jd-card-head"><span class="jd-job">' + escHtml(jobName) + '</span>' +
+        '<div class="jd-card-head"><span class="jd-job">' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span>' +
           '<button type="button" class="jd-open-btn" data-jd-open="' + j.id + '">Open</button></div>' +
         (address ? '<div class="jd-address">' + escHtml(address) + '</div>' : '') +
         '<div class="jd-stats">' +
@@ -6817,6 +6732,80 @@
   if (jobsDashboardCloseBtnEl) jobsDashboardCloseBtnEl.addEventListener("click", closeJobsDashboardModal);
   var jobsDashboardBackdropEl = cloudEl("jobsDashboardBackdrop");
   if (jobsDashboardBackdropEl) jobsDashboardBackdropEl.addEventListener("click", function(ev){ if (ev.target === jobsDashboardBackdropEl) closeJobsDashboardModal(); });
+
+  // ---------- transfer to another job (staff only) ----------
+  // The UI gate is #transferBtn being hidden for viewer/tech (see
+  // roles.css), but the real lock is server-side: eq_rows writes already
+  // require role=staff (see "staff update rows" in
+  // supabase-setup-roles-and-delivery.sql), so even a forced request from
+  // a non-staff account is rejected regardless of what this screen shows.
+  var transferJobsCache = []; // [{id, name}], refreshed each time the modal opens
+  function transferMsg(text, kind){
+    var m = cloudEl("transferMsg");
+    m.textContent = text || "";
+    m.className = "transfer-msg" + (kind ? " " + kind : "");
+  }
+  function loadTransferJobs(){
+    var sel = cloudEl("transferJobSelect");
+    sel.innerHTML = "<option>Loading...</option>";
+    return cloud.sb.from("eq_jobs").select("id,name").eq("deleted", false).neq("id", cloud.jobId).order("name").then(function(r){
+      if (r.error){ sel.innerHTML = ""; transferMsg("Couldn't load jobs: " + r.error.message, "bad"); return; }
+      transferJobsCache = r.data || [];
+      if (!transferJobsCache.length){
+        sel.innerHTML = '<option value="">No other jobs yet</option>';
+        return;
+      }
+      sel.innerHTML = transferJobsCache.map(function(j){
+        return '<option value="' + j.id + '">' + escHtml(j.name || "Untitled job") + '</option>';
+      }).join("");
+    }).catch(function(e){
+      sel.innerHTML = "";
+      transferMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't load jobs: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+  function openTransferModal(){
+    if (!cloud.jobId) return;
+    if (!selectedIds.size){ showSnackbar("Check one or more rows first."); return; }
+    cloudEl("transferCount").textContent = "Moving " + selectedIds.size + " item" + (selectedIds.size === 1 ? "" : "s") + " out of this job.";
+    transferMsg("");
+    cloudEl("transferBackdrop").hidden = false;
+    loadTransferJobs();
+  }
+  function closeTransferModal(){ cloudEl("transferBackdrop").hidden = true; }
+
+  var transferBtnEl = cloudEl("transferBtn");
+  if (transferBtnEl) transferBtnEl.addEventListener("click", openTransferModal);
+  var transferCloseBtnEl = cloudEl("transferCloseBtn");
+  if (transferCloseBtnEl) transferCloseBtnEl.addEventListener("click", closeTransferModal);
+  var transferBackdropEl = cloudEl("transferBackdrop");
+  if (transferBackdropEl) transferBackdropEl.addEventListener("click", function(ev){ if (ev.target === transferBackdropEl) closeTransferModal(); });
+
+  var transferConfirmBtnEl = cloudEl("transferConfirmBtn");
+  if (transferConfirmBtnEl) transferConfirmBtnEl.addEventListener("click", function(){
+    var destId = cloudEl("transferJobSelect").value;
+    if (!destId){ transferMsg("Pick a destination job first.", "bad"); return; }
+    var ids = Array.from(selectedIds);
+    if (!ids.length){ transferMsg("Nothing is checked anymore.", "bad"); closeTransferModal(); return; }
+    var destJob = transferJobsCache.filter(function(j){ return j.id === destId; })[0];
+    transferConfirmBtnEl.disabled = true;
+    transferMsg("Transferring...");
+    cloud.sb.from("eq_rows").update({job_id: destId, updated_by: cloud.clientId}).in("id", ids).then(function(r){
+      transferConfirmBtnEl.disabled = false;
+      if (r.error){ transferMsg("Couldn't transfer: " + r.error.message, "bad"); return; }
+      // these rows now belong to the OTHER job - drop them from this job's
+      // local view (and sync tracking) exactly like a remote delete, so
+      // the next push never tries to resurrect or re-claim them
+      ids.forEach(function(id){ removeRowLocally(id); });
+      rebuildOrder();
+      renderRows();
+      writeCache();
+      closeTransferModal();
+      showSnackbar("Transferred " + ids.length + " item" + (ids.length === 1 ? "" : "s") + " to " + (destJob ? (destJob.name || "Untitled job") : "the other job") + ".");
+    }).catch(function(e){
+      transferConfirmBtnEl.disabled = false;
+      transferMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't transfer: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
 
   // installable app: works offline once opened over https
   // a scan from an iOS/iPadOS Shortcut, another scanner app's "open URL" action, or any
