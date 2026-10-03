@@ -640,14 +640,27 @@
   body.role-viewer #fabAddRowBtn, body.role-tech #fabAddRowBtn,
   body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn,
   body.role-viewer #pendingDeliveriesBtn, body.role-tech #pendingDeliveriesBtn,
-  body.role-viewer #jobsDashboardBtn, body.role-tech #jobsDashboardBtn,
-  body.role-viewer #transferBtn, body.role-tech #transferBtn{
+  body.role-viewer #transferBtn, body.role-tech #transferBtn,
+  body.role-viewer #scanBtn, body.role-tech #scanBtn,
+  body.role-viewer #saveBtn, body.role-tech #saveBtn,
+  body.role-viewer #saveAsBtn, body.role-tech #saveAsBtn,
+  body.role-viewer #searchFilesBtn, body.role-tech #searchFilesBtn{
     display:none !important;
   }
+  /* Viewer can only review + download PDF - Export Excel goes too (PC/tech
+     keeps it, since it's explicitly allowed to export both formats). */
+  body.role-viewer #exportXlsxBtn{display:none !important;}
   /* only hide the Jobs picker when this account is pinned to one job - a
      viewer with no job assigned can still browse and switch between jobs,
      same as staff, just read-only once inside one */
   body.locked-job #cloudJobsBtn{
+    display:none !important;
+  }
+  /* the Jobs Dashboard is read-only info (every job's progress, scheduled
+     deliveries, deployed assets) - useful for an unlocked ("all jobs")
+     viewer or PC/tech to see, same as staff; a LOCKED account (pinned to
+     one job) has no use for a cross-job overview, so it stays hidden there. */
+  body.locked-job #jobsDashboardBtn{
     display:none !important;
   }
   /* an unlocked viewer or tech can open the Jobs list (to browse/switch
@@ -788,14 +801,22 @@
   .jd-deliveries-list{display:flex;flex-direction:column;gap:6px;}
   .jd-delivery-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px;background:var(--surface-alt);}
   .jd-delivery-job{font-weight:700;flex:1 1 auto;min-width:120px;}
-  .jd-delivery-driver{color:var(--ink-muted);}
-  .jd-delivery-when{color:#8a5a00;font-weight:600;white-space:nowrap;}
+  .jd-delivery-driver{color:var(--ink);}
+  .jd-delivery-when{color:var(--ink);font-weight:600;white-space:nowrap;}
+  .jd-delivery-slip-btn{padding:6px 11px;font-size:12.5px;flex:none;}
   .jd-list{display:grid;grid-template-columns:repeat(auto-fill, minmax(280px, 1fr));gap:12px;align-content:start;}
-  .jd-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;}
-  .jd-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;}
+  /* the whole card is the open-job control now (click anywhere on it), same
+     as Install Tracker's own dashboard cards - not just a small corner
+     button, so it's reset to look like a plain card despite being a
+     <button> underneath. */
+  .jd-card{
+    display:block;width:100%;border:1px solid var(--border);border-radius:10px;padding:10px 12px;
+    text-align:left;font:inherit;color:inherit;background:var(--surface);cursor:pointer;
+  }
+  .jd-card:hover{border-color:var(--accent);box-shadow:var(--shadow);}
+  .jd-card-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .jd-job{font-weight:700;}
   .jd-address{font-size:12.5px;color:var(--ink-muted);margin:2px 0 8px;}
-  .jd-open-btn{padding:6px 11px;font-size:12.5px;}
   .jd-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
   /* percent + progress bar + stat counts, styled like Install Tracker's own
      project-dashboard cards (same mono percent over a track/fill bar) so
@@ -1243,8 +1264,8 @@
             <option value="staff">Staff (full access)</option>
             <option value="viewer-locked">Viewer - one job</option>
             <option value="viewer-any">Viewer - all jobs</option>
-            <option value="tech-locked">Tech - one job (delivery requests)</option>
-            <option value="tech-any">Tech - all jobs (delivery requests)</option>
+            <option value="tech-locked">PC - one job (delivery requests)</option>
+            <option value="tech-any">PC - all jobs (delivery requests)</option>
             <option value="driver">Driver</option>
           </select>
         </label>
@@ -1408,7 +1429,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Full-access staff only (view-only for Tech - all jobs). Search, filter, and audit the shared asset pool.</p>
+    <p class="modal-sub">Full-access staff only (view-only for PC - all jobs). Search, filter, and audit the shared asset pool.</p>
     <div class="asset-audit-toolbar">
       <input type="search" id="assetAuditSearch" placeholder="Search label, barcode, make, model...">
       <select id="assetAuditStatusFilter">
@@ -2677,7 +2698,7 @@
     var natural = sc.scrollWidth;
     var available = document.documentElement.clientWidth - 32; // body's 16px padding-inline each side
     sc.style.zoom = (natural > 0 && available > 0 && natural > available)
-      ? String(Math.max(0.7, available / natural))
+      ? String(Math.max(0.7, (available - 6) / natural))
       : "1";
   }
   function updateScrollNav(){
@@ -3387,7 +3408,6 @@
 '.field input[type=text],.field input[type=date]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:16px;font:inherit;-webkit-user-select:text;user-select:text;}\n' +
 '#signedDate:disabled{opacity:1;-webkit-text-fill-color:#1a1a18;color:#1a1a18;background:#eef0f3;}\n' +
 '#sigCanvas.sig-highlight{border-color:#b8720f;border-style:solid;box-shadow:0 0 0 3px rgba(184,114,15,.25);}\n' +
-'.sig-debug{margin-top:6px;font-family:monospace;font-size:10.5px;color:#666;background:#f4f5f7;border-radius:6px;padding:6px 8px;white-space:pre-wrap;word-break:break-all;max-height:110px;overflow:auto;}\n' +
 '#sigCanvas{width:100%;height:180px;border:2px dashed #99a3b0;border-radius:8px;touch-action:none;background:#fff;display:block;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}\n' +
 '.sign-actions{display:flex;justify-content:flex-end;margin-top:8px;}\n' +
 'button{font:inherit;font-size:15px;padding:10px 16px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;touch-action:manipulation;min-height:44px;}\n' +
@@ -3420,7 +3440,7 @@
 '  <h2>Sign to confirm receipt</h2>\n' +
 '  <div class="field"><label for="signerName">Signed by (name)</label><input type="text" id="signerName" placeholder="Full name" autocomplete="name" enterkeyhint="done"></div>\n' +
 '  <div class="field"><label for="signedDate">Date</label><input type="date" id="signedDate" value="' + todayIso + '" disabled></div>\n' +
-'  <div class="field"><label>Signature</label><canvas id="sigCanvas"></canvas><div class="sign-actions"><button type="button" id="clearBtn">Clear</button></div><div id="sigDebug" class="sig-debug"></div></div>\n' +
+'  <div class="field"><label>Signature</label><canvas id="sigCanvas"></canvas><div class="sign-actions"><button type="button" id="clearBtn">Clear</button></div></div>\n' +
 '  <button type="button" id="submitBtn" class="primary">Submit signed slip</button>\n' +
 '  <div id="statusMsg"></div>\n' +
 '</div>\n' +
@@ -3447,14 +3467,8 @@
 '    }, 0);\n' +
 '  });\n' +
 '  var hasSignature = false, drawing = false;\n' +
-'  var sigDebugEl = document.getElementById("sigDebug");\n' +
-'  var sigDebugLines = [];\n' +
-'  function sigDebug(line){\n' +
-'    sigDebugLines.push(line);\n' +
-'    if (sigDebugLines.length > 8) sigDebugLines.shift();\n' +
-'    sigDebugEl.textContent = sigDebugLines.join("\\n");\n' +
-'  }\n' +
-'  sigDebug("PointerEvent: " + (!!window.PointerEvent) + " | dpr: " + (window.devicePixelRatio||1) + " | UA: " + navigator.userAgent.slice(0,60));\n' +
+'  function sigDebug(){}\n' + // pointer-tracking overlay removed from this signer-facing page - was a dev diagnostic, not meant to stay visible
+
 '  function fitCanvas(preserve){\n' +
 '    var rect = canvas.getBoundingClientRect();\n' +
 '    if (rect.width < 10 || rect.height < 10){\n' +
@@ -5635,6 +5649,15 @@
     var msg = String(e && e.message || e || "").toLowerCase();
     return navigator.onLine === false || msg.indexOf("failed to fetch") >= 0 || msg.indexOf("network") >= 0 || msg.indexOf("load failed") >= 0;
   }
+  // "new row violates row-level security policy" (or Postgres code 42501) -
+  // this account's role simply isn't allowed to write here, and that can't
+  // change by itself. Retrying the exact same payload every 8s forever (the
+  // normal retry behavior below) can never succeed and just hammers the
+  // server while showing a permanently-stuck "(will retry)" message.
+  function isRlsDenied(e){
+    var msg = String(e && e.message || "").toLowerCase();
+    return msg.indexOf("row-level security") >= 0 || (e && e.code === "42501");
+  }
 
   function jobNameFromMeta(){
     var p = String(meta.project || "").trim();
@@ -5703,8 +5726,16 @@
       isDirty = false;
       cloudStatusOk();
     }).catch(function(e){
-      if (isNetworkProblem(e)) cloudStatusOffline();
-      else cloudStatus("bad", "Couldn't sync: " + (e && e.message ? e.message : e) + " (will retry)");
+      if (isNetworkProblem(e)){
+        cloudStatusOffline();
+      } else if (isRlsDenied(e)){
+        // Don't loop forever on a write that will never be allowed - stop
+        // here instead of scheduling another retry.
+        cloudStatus("bad", "This account doesn't have permission to save changes here - ask your administrator.");
+        return;
+      } else {
+        cloudStatus("bad", "Couldn't sync: " + (e && e.message ? e.message : e) + " (will retry)");
+      }
       clearTimeout(cloud.retryTimer);
       cloud.retryTimer = setTimeout(pushNow, 8000);
     }).then(function(){
@@ -6181,7 +6212,7 @@
     var banner = cloudEl("roleBanner");
     if (banner){
       banner.textContent = role === "viewer" ? (locked ? "Viewer — read only" : "Viewer — read only (all jobs)")
-        : role === "tech" ? (locked ? "Tech — request deliveries only" : "Tech — request deliveries only (all jobs)")
+        : role === "tech" ? (locked ? "PC — request deliveries only" : "PC — request deliveries only (all jobs)")
         : "";
     }
   }
@@ -6646,8 +6677,8 @@
             '<option value="staff"' + (kind === "staff" ? " selected" : "") + '>Staff (full access)</option>' +
             '<option value="viewer-locked"' + (kind === "viewer-locked" ? " selected" : "") + '>Viewer - one job</option>' +
             '<option value="viewer-any"' + (kind === "viewer-any" ? " selected" : "") + '>Viewer - all jobs</option>' +
-            '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>Tech - one job</option>' +
-            '<option value="tech-any"' + (kind === "tech-any" ? " selected" : "") + '>Tech - all jobs</option>' +
+            '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>PC - one job</option>' +
+            '<option value="tech-any"' + (kind === "tech-any" ? " selected" : "") + '>PC - all jobs</option>' +
             '<option value="driver"' + (kind === "driver" ? " selected" : "") + '>Driver</option>' +
           '</select>' +
           '<select class="mu-job' + (jobShown ? "" : " mu-job-hidden") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
@@ -7135,7 +7166,9 @@
   // "all the jobs and deliveries scheduled" - the dashboard's cover-page
   // job also needs to surface upcoming driver deliveries, not just each
   // job's own equipment progress.
+  var jdDeliveriesCache = []; // so the "Create delivery slip" button below can look up a delivery's items by id
   function renderJdDeliveries(deliveries, driverEmailById){
+    jdDeliveriesCache = deliveries;
     var box = cloudEl("jdDeliveries");
     if (!box) return;
     if (!deliveries.length){ box.innerHTML = ""; return; }
@@ -7151,9 +7184,45 @@
           '<span class="jd-delivery-job">' + escHtml(jobName) + '</span>' +
           '<span class="jd-delivery-driver">' + escHtml(driverEmail) + '</span>' +
           (when ? '<span class="jd-delivery-when">' + escHtml(when) + '</span>' : '<span class="jd-delivery-when">No time set</span>') +
+          '<button type="button" class="jd-delivery-slip-btn" data-jd-delivery-slip="' + d.id + '">Create delivery slip</button>' +
         '</div>';
       }).join("") +
       '</div>';
+  }
+
+  // Jumps to the delivery's job, selects the matching rows (by barcode,
+  // against the snapshot saved on the delivery), and opens the same
+  // Create Delivery Slip modal - so staff don't have to leave the
+  // dashboard, find the job, and re-select everything by hand.
+  function createDeliverySlipFromDashboard(deliveryId){
+    var delivery = jdDeliveriesCache.filter(function(d){ return d.id === deliveryId; })[0];
+    if (!delivery) return;
+    var btn = document.querySelector('[data-jd-delivery-slip="' + deliveryId + '"]');
+    if (btn) btn.disabled = true;
+    cloud.sb.from("eq_jobs").select("id,name,meta").eq("id", delivery.job_id).maybeSingle().then(function(jr){
+      if (jr.error || !jr.data){
+        if (btn) btn.disabled = false;
+        jdMsg("Couldn't open that job - it may have been deleted.", "bad");
+        return;
+      }
+      closeJobsDashboardModal();
+      return openJob(jr.data).then(function(){
+        var barcodes = (delivery.items || []).map(function(it){ return it && it.barcode; }).filter(Boolean);
+        var matchedIds = order.filter(function(id){
+          var r = rows.get(id);
+          return r && r.barcode && barcodes.indexOf(r.barcode) !== -1;
+        });
+        if (!matchedIds.length){
+          showSnackbar("None of this delivery's items are in the table anymore - they may have been deleted.");
+          return;
+        }
+        selectedIds.clear();
+        matchedIds.forEach(function(id){ selectedIds.add(id); });
+        renderRows();
+        activeDeliveryRequestId = null;
+        openPackingSlipModal();
+      });
+    });
   }
 
   // 3rd dashboard section: assets currently checked out against any
@@ -7199,9 +7268,8 @@
       var jobName = jobMeta.project || j.name || "Untitled job";
       var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
       var address = jobMeta.address || "";
-      return '<div class="jd-card">' +
-        '<div class="jd-card-head"><span class="jd-job">' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span>' +
-          '<button type="button" class="jd-open-btn" data-jd-open="' + j.id + '">Open</button></div>' +
+      return '<button type="button" class="jd-card" data-jd-open="' + j.id + '" title="' + escHtml(jobName) + ' - click to open">' +
+        '<div class="jd-card-head"><span class="jd-job">' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span></div>' +
         (address ? '<div class="jd-address">' + escHtml(address) + '</div>' : '') +
         '<div class="jd-overall">' +
           '<div class="jd-pct-wrap"><div class="jd-pct mono">' + s.pct + '%</div><div class="jd-pct-label">shipped</div></div>' +
@@ -7216,7 +7284,7 @@
             '</div>' +
           '</div>' +
         '</div>' +
-      '</div>';
+      '</button>';
     }).join("");
   }
 
@@ -7237,6 +7305,12 @@
       closeJobsDashboardModal();
       openJob(jr.data);
     });
+  });
+
+  document.addEventListener("click", function(ev){
+    var slipBtn = ev.target.closest && ev.target.closest("[data-jd-delivery-slip]");
+    if (!slipBtn) return;
+    createDeliverySlipFromDashboard(slipBtn.dataset.jdDeliverySlip);
   });
 
   var jobsDashboardBtnEl = cloudEl("jobsDashboardBtn");
@@ -7844,13 +7918,24 @@
   function loadDriversForAssign(){
     var sel = cloudEl("assignDriverSelect");
     return invokeFn("admin-users", {action: "list"}).then(function(res){
-      if (res.error || (res.data && res.data.error)) return; // quietly leave the placeholder - Manage Users still shows the real list/error
+      if (res.error || (res.data && res.data.error)){
+        // Used to silently leave "Loading drivers..." in place forever here -
+        // looked exactly like "unable to select a driver" with no clue why.
+        var reason = (res.data && res.data.error) || (res.error && res.error.message) || "Couldn't load drivers";
+        sel.innerHTML = '<option value="">' + escHtml(reason) + '</option>';
+        assignDriverMsg(reason, "bad");
+        return;
+      }
       var users = (res.data && res.data.users) || [];
       driversCache = users.filter(function(u){ return u.role === "driver"; });
       sel.innerHTML = driversCache.length
         ? driversCache.map(function(d){ return '<option value="' + d.id + '">' + escHtml(d.email) + '</option>'; }).join("")
         : '<option value="">No drivers yet - add one in Manage Users</option>';
-    }).catch(function(){});
+    }).catch(function(e){
+      var reason = isNetworkProblem(e) ? "You're offline - can't load drivers" : "Couldn't load drivers: " + (e && e.message ? e.message : e);
+      sel.innerHTML = '<option value="">' + escHtml(reason) + '</option>';
+      assignDriverMsg(reason, "bad");
+    });
   }
   function resetAssignDriverFields(){
     cloudEl("assignDriverSelect").innerHTML = '<option value="">Loading drivers...</option>';
