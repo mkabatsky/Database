@@ -813,6 +813,11 @@
      separately-capped scroll area. */
   .jd-body{max-height:80vh;overflow:auto;display:flex;flex-direction:column;gap:18px;}
   .jd-section-title{margin:0 0 8px;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);}
+  .jd-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .jd-section-head .jd-section-title{margin:0;}
+  .jd-sort{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-muted);}
+  .jd-sort select{font:inherit;font-size:13px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
+  .jd-sort-dir{padding:5px 10px;font-size:12.5px;min-height:0;white-space:nowrap;}
   .jd-deliveries:empty, .jd-assets-deployed:empty{display:none;}
   .jd-deliveries-title{margin:0 0 8px;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);}
   .jd-deliveries-list{display:flex;flex-direction:column;gap:6px;}
@@ -1348,7 +1353,20 @@
     <p class="modal-sub">Full-access staff only. Every active job's progress at a glance, busiest first.</p>
     <div class="jd-body" id="jdBody">
       <div class="jd-section">
-        <h3 class="jd-section-title">Projects</h3>
+        <div class="jd-section-head">
+          <h3 class="jd-section-title">Projects</h3>
+          <div class="jd-sort">
+            <label>Sort by <select id="jdSortKey">
+              <option value="remaining">Remaining</option>
+              <option value="pct">% shipped</option>
+              <option value="total">Total items</option>
+              <option value="openRequests">Open requests</option>
+              <option value="name">Name</option>
+              <option value="number">Job number</option>
+            </select></label>
+            <button type="button" class="jd-sort-dir" id="jdSortDirBtn" title="Reverse the sort order"></button>
+          </div>
+        </div>
         <div class="jd-list" id="jdList"></div>
       </div>
       <div class="jd-deliveries" id="jdDeliveries"></div>
@@ -1574,7 +1592,20 @@
   </header>
   <div class="jd-body dash-only-body" id="dashOnlyBody">
     <div class="jd-section">
-      <h3 class="jd-section-title">Projects</h3>
+      <div class="jd-section-head">
+        <h3 class="jd-section-title">Projects</h3>
+        <div class="jd-sort">
+          <label>Sort by <select id="dashOnlyJdSortKey">
+            <option value="remaining">Remaining</option>
+            <option value="pct">% shipped</option>
+            <option value="total">Total items</option>
+            <option value="openRequests">Open requests</option>
+            <option value="name">Name</option>
+            <option value="number">Job number</option>
+          </select></label>
+          <button type="button" class="jd-sort-dir" id="dashOnlyJdSortDirBtn" title="Reverse the sort order"></button>
+        </div>
+      </div>
       <div class="jd-list" id="dashOnlyJdList"></div>
     </div>
     <div class="jd-deliveries" id="dashOnlyJdDeliveries"></div>
@@ -7462,26 +7493,52 @@
       '</div>';
   }
 
+  // Project cards sort by whichever column the user picked (see the sort
+  // controls above the Projects list). Default is most remaining-to-ship
+  // first, so whatever job needs the most attention is at the top.
+  var jdSort = {key: "remaining", dir: "desc"};
+  var jdRenderArgs = {}; // listId -> last render inputs, so a sort change redraws without refetching
+
+  function jdSortValue(card, key){
+    if (key === "name") return card.name.toLowerCase();
+    if (key === "number") return card.number.toLowerCase();
+    return card.stats[key];
+  }
+  function sortJobCards(cards){
+    var dir = jdSort.dir === "asc" ? 1 : -1;
+    cards.sort(function(a, b){
+      var va = jdSortValue(a, jdSort.key), vb = jdSortValue(b, jdSort.key);
+      var cmp = typeof va === "string"
+        ? va.localeCompare(vb, undefined, {numeric: true, sensitivity: "base"})
+        : va - vb;
+      return cmp * dir || a.name.localeCompare(b.name);
+    });
+  }
+
   function renderJobsDashboard(jobs, rowsByJob, openReqByJob, opts){
     opts = opts || {};
-    var list = cloudEl(opts.listId || "jdList");
+    var listId = opts.listId || "jdList";
+    jdRenderArgs[listId] = {jobs: jobs, rowsByJob: rowsByJob, openReqByJob: openReqByJob, opts: opts};
+    var list = cloudEl(listId);
     if (!jobs.length){ list.innerHTML = ""; if (!opts.readOnly) jdMsg("No active jobs yet."); return; }
     if (!opts.readOnly) jdMsg("");
     var cards = jobs.map(function(j){
       var stats = jdStatusCounts(rowsByJob[j.id] || []);
       stats.openRequests = openReqByJob[j.id] || 0;
       stats.pct = stats.total ? Math.round(stats.shipped / stats.total * 100) : 0;
-      return {job: j, stats: stats};
+      var jobMeta = j.meta || {};
+      return {
+        job: j, stats: stats,
+        name: jobMeta.project || j.name || "Untitled job",
+        number: jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : ""
+      };
     });
-    // most remaining-to-ship first, so whatever job needs the most
-    // attention surfaces at the top instead of being buried in whatever
-    // order the database happens to return
-    cards.sort(function(a, b){ return b.stats.remaining - a.stats.remaining; });
+    sortJobCards(cards);
     list.innerHTML = cards.map(function(c){
       var j = c.job, s = c.stats;
+      var jobName = c.name;
+      var jobNum = c.number;
       var jobMeta = j.meta || {};
-      var jobName = jobMeta.project || j.name || "Untitled job";
-      var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
       var address = jobMeta.address || "";
       var tag = opts.readOnly ? "div" : "button";
       return '<' + tag + ' class="jd-card"' + (opts.readOnly ? "" : ' type="button" data-jd-open="' + j.id + '" title="' + escHtml(jobName) + ' - click to open"') + '>' +
@@ -7517,6 +7574,47 @@
     var backdrop = cloudEl("jobsDashboardBackdrop");
     if (backdrop) backdrop.classList.toggle("jd-fullscreen");
   });
+
+  // Sort controls - the staff dashboard and the read-only dashboard-view
+  // screen each have their own copy of the control, but they share one
+  // sort choice so switching screens keeps the same order.
+  var JD_SORT_SELECT_IDS = ["jdSortKey", "dashOnlyJdSortKey"];
+  var JD_SORT_DIR_IDS = ["jdSortDirBtn", "dashOnlyJdSortDirBtn"];
+  function syncJdSortControls(){
+    JD_SORT_SELECT_IDS.forEach(function(id){
+      var el = cloudEl(id);
+      if (el) el.value = jdSort.key;
+    });
+    JD_SORT_DIR_IDS.forEach(function(id){
+      var el = cloudEl(id);
+      if (el) el.textContent = jdSort.dir === "asc" ? "▲ Asc" : "▼ Desc";
+    });
+  }
+  function redrawJobCards(){
+    Object.keys(jdRenderArgs).forEach(function(listId){
+      var a = jdRenderArgs[listId];
+      renderJobsDashboard(a.jobs, a.rowsByJob, a.openReqByJob, a.opts);
+    });
+  }
+  JD_SORT_SELECT_IDS.forEach(function(id){
+    var el = cloudEl(id);
+    if (!el) return;
+    el.addEventListener("change", function(){
+      jdSort.key = el.value;
+      syncJdSortControls();
+      redrawJobCards();
+    });
+  });
+  JD_SORT_DIR_IDS.forEach(function(id){
+    var el = cloudEl(id);
+    if (!el) return;
+    el.addEventListener("click", function(){
+      jdSort.dir = jdSort.dir === "asc" ? "desc" : "asc";
+      syncJdSortControls();
+      redrawJobCards();
+    });
+  });
+  syncJdSortControls();
 
   // ---------- dashboard view (role=dashboard): full-screen, read-only,
   // always-live takeover - nothing on it is clickable, and it never shows
@@ -7561,7 +7659,11 @@
       .on("postgres_changes", {event: "*", schema: "public", table: "eq_delivery_requests"}, scheduleDashOnlyRefresh)
       .on("postgres_changes", {event: "*", schema: "public", table: "eq_deliveries"}, scheduleDashOnlyRefresh)
       .on("postgres_changes", {event: "*", schema: "public", table: "eq_asset_checkouts"}, scheduleDashOnlyRefresh)
-      .subscribe();
+      .subscribe(function(status){
+        // a (re)connect could have missed changes made while it was down -
+        // pull a fresh copy once the channel is back up
+        if (status === "SUBSCRIBED") loadDashboardOnlyData();
+      });
   }
   var dashOnlySignOutBtnEl = cloudEl("dashOnlySignOutBtn");
   if (dashOnlySignOutBtnEl) dashOnlySignOutBtnEl.addEventListener("click", function(){
