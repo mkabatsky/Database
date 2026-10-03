@@ -7537,9 +7537,9 @@
     });
   }
 
-  function loadJobsDashboard(){
+  function loadJobsDashboard(quiet){
     var list = cloudEl("jdList");
-    list.textContent = "Loading...";
+    if (!quiet) list.textContent = "Loading...";
     jdMsg("");
     return fetchDashboardData().then(function(d){
       renderJdDeliveries(d.deliveries, d.driverEmailById);
@@ -7715,11 +7715,39 @@
     }).join("");
   }
 
+  // While the staff dashboard is open it stays live: a delivery signed on a
+  // driver's phone (or any other change to deliveries, checkouts or requests)
+  // updates it on its own instead of only when it's reopened.
+  var jdLiveChannel = null, jdLiveTimer = null;
+  function scheduleJdLiveRefresh(){
+    clearTimeout(jdLiveTimer);
+    jdLiveTimer = setTimeout(function(){
+      if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+    }, 400);
+  }
+  function startJdLive(){
+    stopJdLive();
+    jdLiveChannel = cloud.sb.channel("jobs-dashboard-" + cloud.clientId)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_deliveries"}, scheduleJdLiveRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_asset_checkouts"}, scheduleJdLiveRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_delivery_requests"}, scheduleJdLiveRefresh)
+      .subscribe(function(status){
+        if (status === "SUBSCRIBED") scheduleJdLiveRefresh();
+      });
+  }
+  function stopJdLive(){
+    clearTimeout(jdLiveTimer);
+    if (jdLiveChannel){ cloud.sb.removeChannel(jdLiveChannel); jdLiveChannel = null; }
+  }
   function openJobsDashboardModal(){
     cloudEl("jobsDashboardBackdrop").hidden = false;
     loadJobsDashboard();
+    startJdLive();
   }
-  function closeJobsDashboardModal(){ cloudEl("jobsDashboardBackdrop").hidden = true; }
+  function closeJobsDashboardModal(){
+    cloudEl("jobsDashboardBackdrop").hidden = true;
+    stopJdLive();
+  }
 
   // Full-screen toggle (staff) - the dashboard-view account (below) always
   // renders full-screen by default, no toggle needed there.
