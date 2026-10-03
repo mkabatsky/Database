@@ -356,11 +356,14 @@
   .ps-meta-grid{display:grid;grid-template-columns:1.2fr 1.6fr 1fr;gap:5px 20px;margin-bottom:18px;font-size:13px;}
   .ps-meta-grid .ps-meta-job{grid-column:1;grid-row:1;font-size:calc(13px + 2pt);}
   .ps-meta-grid .ps-meta-jobnum{grid-column:1;grid-row:2;}
+  .ps-meta-grid .ps-meta-poc{grid-column:1;grid-row:3;}
   .ps-meta-grid .ps-meta-vendor{grid-column:3;grid-row:1;}
   .ps-meta-grid .ps-meta-vendorproj{grid-column:3;grid-row:2;}
+  .ps-meta-grid .ps-meta-pocphone{grid-column:3;grid-row:3;}
   .ps-meta-grid .ps-meta-label{color:#666;display:inline-block;min-width:84px;}
   .ps-meta-grid .ps-meta-address{grid-column:2;grid-row:1 / span 2;display:flex;gap:8px;align-items:flex-start;}
-  .ps-meta-grid .ps-meta-address .ps-meta-label{min-width:0;flex:none;}
+  .ps-meta-grid .ps-meta-pocemail{grid-column:2;grid-row:3;display:flex;gap:8px;align-items:flex-start;}
+  .ps-meta-grid .ps-meta-address .ps-meta-label,.ps-meta-grid .ps-meta-pocemail .ps-meta-label{min-width:0;flex:none;}
   .ps-meta-grid .ps-meta-val{min-width:0;line-height:1.35;}
   .ps-table{width:100%;border-collapse:collapse;font-size:10px;}
   .ps-table th{background:#1a3a6b;color:#fff;text-align:left;padding:4px 5px;font-size:9px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
@@ -698,6 +701,8 @@
      search, and export, but add/edit/delete/import stay staff-only. */
   body.role-tech #assetAuditAddBtn, body.role-tech #assetAuditImportBtn,
   body.role-tech .asset-audit-edit, body.role-tech .asset-audit-delete{display:none !important;}
+  /* a viewer can't request anything, delivery or otherwise */
+  body.role-viewer #assetAuditRequestBtn{display:none !important;}
 
   /* =================== delivery request modal =================== */
   .modal-backdrop#deliveryRequestBackdrop[hidden]{display:none;}
@@ -791,6 +796,18 @@
      Install Tracker's own dashboard grid width so both apps' "projects
      dashboard" feel like the same product. */
   .jobs-dashboard-panel{width:1320px;max-width:96vw;}
+  /* the two icon buttons (full screen + close) as one group, so the modal
+     header's own space-between puts the title on one side and both buttons
+     together on the other, instead of spreading all three evenly. */
+  .modal-head-actions{display:flex;align-items:center;gap:4px;}
+  /* full-screen toggle - fills the viewport edge-to-edge, same idea as the
+     mobile breakpoint's own full-screen modal override (padding:0 on the
+     backdrop itself, not just a wider panel - otherwise the backdrop's own
+     20px padding keeps the panel from actually reaching the edges), just
+     triggered by a button instead of a narrow screen. */
+  #jobsDashboardBackdrop.jd-fullscreen{padding:0;align-items:stretch;}
+  #jobsDashboardBackdrop.jd-fullscreen .jobs-dashboard-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
+  #jobsDashboardBackdrop.jd-fullscreen .jd-body{max-height:none;flex:1 1 auto;}
   /* three sections (Projects / Scheduled deliveries / Deployed assets) all
      scroll together as one body, instead of each section having its own
      separately-capped scroll area. */
@@ -926,6 +943,23 @@
     position:fixed;inset:0;z-index:50;overflow:auto;background:var(--bg);
     padding:16px 16px calc(16px + env(safe-area-inset-bottom));
   }
+
+  /* =================== dashboard-view role: same full-screen takeover
+     pattern as driver above, for a different, read-only, always-live
+     screen - see #dashboardOnlyView in roles.html. =================== */
+  body.role-dashboard #cloudLogin,
+  body.role-dashboard .wrap,
+  body.role-dashboard .snackbar{display:none !important;}
+  #dashboardOnlyView[hidden]{display:none;}
+  #dashboardOnlyView{
+    position:fixed;inset:0;z-index:50;overflow:auto;background:var(--bg);
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .dash-only-body{max-width:1320px;margin:0 auto;}
+  /* read-only cards aren't buttons here (nothing to click) - same look,
+     just without the hover/cursor affordance of the staff dashboard's. */
+  .dash-only-body .jd-card{cursor:default;}
+  .dash-only-body .jd-card:hover{border-color:var(--border);box-shadow:none;}
   .driver-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
   .driver-brand{display:flex;align-items:center;gap:12px;}
   .driver-badge{width:40px;height:40px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none;}
@@ -1198,6 +1232,7 @@
         <label>Delivery time<input type="time" id="assignDeliveryTime"></label>
         <label>POC name<input type="text" id="assignPocName"></label>
         <label>POC phone<input type="tel" id="assignPocPhone"></label>
+        <label>POC email<input type="email" id="assignPocEmail"></label>
       </div>
       <div class="assign-driver-actions">
         <button type="button" id="assignAssetsBtn">Assets (<span id="assignAssetsCount">0</span>)</button>
@@ -1219,7 +1254,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Sends the warehouse a pick slip (PDF) and this list, by email, for the items checked in the table.</p>
+    <p class="modal-sub">Sends the warehouse a pick slip (PDF) and this list, by email, for the items checked in the table (and/or any assets picked below).</p>
     <div class="delivery-item-list">
       <table>
         <thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>
@@ -1227,13 +1262,14 @@
       </table>
     </div>
     <div class="delivery-fields">
-      <label>Your name<input type="text" id="deliveryContactName" autocomplete="name"></label>
+      <label>POC Name<input type="text" id="deliveryContactName" autocomplete="name"></label>
       <label>Phone<input type="tel" id="deliveryContactPhone" autocomplete="tel"></label>
       <label class="field-wide">Email (optional, for confirmation)<input type="email" id="deliveryContactEmail" autocomplete="email"></label>
       <label>Requested date<input type="date" id="deliveryDate"></label>
       <label>Requested time<input type="time" id="deliveryTime"></label>
     </div>
     <div class="modal-actions">
+      <button type="button" id="deliveryAssetsBtn">Assets (<span id="deliveryAssetsCount">0</span>)</button>
       <button class="primary" id="deliveryRequestSubmitBtn" type="button">Submit request</button>
     </div>
     <div class="delivery-request-msg" id="deliveryRequestMsg" aria-live="polite"></div>
@@ -1267,6 +1303,7 @@
             <option value="tech-locked">PC - one job (delivery requests)</option>
             <option value="tech-any">PC - all jobs (delivery requests)</option>
             <option value="driver">Driver</option>
+            <option value="dashboard">Dashboard view (read-only, full screen)</option>
           </select>
         </label>
         <label class="mu-new-job" id="muNewJobWrap">Job<select id="muNewJob"></select></label>
@@ -1299,9 +1336,14 @@
   <div class="modal-panel packing-slip-modal-panel jobs-dashboard-panel" role="dialog" aria-modal="true" aria-labelledby="jobsDashboardTitle">
     <div class="modal-head">
       <h2 id="jobsDashboardTitle">Jobs dashboard</h2>
-      <button class="icon-btn" id="jobsDashboardCloseBtn" title="Close" aria-label="Close" type="button">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
-      </button>
+      <div class="modal-head-actions">
+        <button class="icon-btn" id="jobsDashboardFullscreenBtn" title="Full screen" aria-label="Full screen" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+        </button>
+        <button class="icon-btn" id="jobsDashboardCloseBtn" title="Close" aria-label="Close" type="button">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+        </button>
+      </div>
     </div>
     <p class="modal-sub">Full-access staff only. Every active job's progress at a glance, busiest first.</p>
     <div class="jd-body" id="jdBody">
@@ -1439,6 +1481,7 @@
       </select>
       <select id="assetAuditCategoryFilter"><option value="">All categories</option></select>
       <button type="button" id="assetAuditAddBtn">+ Add asset</button>
+      <button type="button" id="assetAuditRequestBtn" title="Request one or more assets be delivered, without needing any equipment">Request assets</button>
       <button type="button" id="assetAuditExportBtn">Download spreadsheet</button>
       <button type="button" id="assetAuditImportBtn">Upload spreadsheet</button>
       <input type="file" id="assetAuditImportFile" accept=".xlsx,.xls" hidden="">
@@ -1487,6 +1530,57 @@
     </div>
     <div class="asset-history-list" id="assetHistoryList"></div>
   </div>
+</div>
+
+<!-- ================= edit a pending delivery request (date/time only) ================= -->
+<div class="modal-backdrop" id="editRequestBackdrop" hidden="">
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="editRequestTitle">
+    <div class="modal-head">
+      <h2 id="editRequestTitle">Edit delivery request</h2>
+      <button class="icon-btn" id="editRequestCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub">Reschedule this request instead of submitting a second one for the same items.</p>
+    <div class="delivery-fields">
+      <label>Requested date<input type="date" id="editRequestDate"></label>
+      <label>Requested time<input type="time" id="editRequestTime"></label>
+    </div>
+    <div class="modal-actions">
+      <button class="primary" id="editRequestSaveBtn" type="button">Save changes</button>
+    </div>
+    <div class="pd-msg" id="editRequestMsg" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ================= dashboard view: full-screen, read-only, live-updating
+     dashboard (replaces the whole app for this role - see body.role-dashboard
+     in roles.css). Nothing on this screen is clickable - Projects, Scheduled
+     deliveries and Deployed assets, same 3 sections as the staff Jobs
+     Dashboard, kept live via realtime subscriptions instead of a manual
+     refresh. ================= -->
+<div id="dashboardOnlyView" hidden="">
+  <header class="driver-topbar">
+    <div class="driver-brand">
+      <div class="driver-badge">AU</div>
+      <div>
+        <h1>Dashboard</h1>
+        <p class="driver-sub" id="dashOnlyUserEmail"></p>
+      </div>
+    </div>
+    <button class="icon-btn" id="dashOnlySignOutBtn" type="button" title="Sign out">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg>
+    </button>
+  </header>
+  <div class="jd-body dash-only-body" id="dashOnlyBody">
+    <div class="jd-section">
+      <h3 class="jd-section-title">Projects</h3>
+      <div class="jd-list" id="dashOnlyJdList"></div>
+    </div>
+    <div class="jd-deliveries" id="dashOnlyJdDeliveries"></div>
+    <div class="jd-assets-deployed" id="dashOnlyJdAssetsDeployed"></div>
+  </div>
+  <div class="driver-msg" id="dashOnlyMsg" aria-live="polite"></div>
 </div>
 <div id="packingSlipPrintRoot"><div id="packingSlipPrintDoc"></div></div>
 
@@ -3154,6 +3248,12 @@
     return s.length > max ? s.slice(0, max) + "…" : s;
   }
 
+  // Point of contact for this slip - blank by default here (no cloud
+  // features layered on); roles.js sets/clears this whenever a POC is known
+  // (a tech's delivery request, or an already-assigned driver delivery) or
+  // typed into the Assign-to-driver fields, and re-renders the preview.
+  var packingSlipPocInfo = {name: "", phone: "", email: ""};
+
   function makePackingSlipHTML(selRows, shipDateIso, opts){
     var jobName = meta.project || "";
     var jobNum = meta.projectNumber || "";
@@ -3189,6 +3289,9 @@
           "<div class=\"ps-meta-jobnum\"><span class=\"ps-meta-label\">Job Number:</span>" + labelValOrMissing(jobNum, "—") + "</div>" +
           "<div class=\"ps-meta-vendorproj\"><span class=\"ps-meta-label\">Vendor Proj #:</span>" + labelValOrMissing(vendorProjNum, "—") + "</div>" +
           '<div class="ps-meta-address"><span class="ps-meta-label">Address:</span><span class="ps-meta-val">' + labelValOrMissing(meta.address || "", "—") + "</span></div>" +
+          "<div class=\"ps-meta-poc\"><span class=\"ps-meta-label\">POC Name:</span>" + labelValOrMissing(packingSlipPocInfo.name, "—") + "</div>" +
+          "<div class=\"ps-meta-pocphone\"><span class=\"ps-meta-label\">Phone #:</span>" + labelValOrMissing(packingSlipPocInfo.phone, "—") + "</div>" +
+          (packingSlipPocInfo.email ? "<div class=\"ps-meta-pocemail\"><span class=\"ps-meta-label\">Email:</span>" + labelValOrMissing(packingSlipPocInfo.email, "—") + "</div>" : "") +
         "</div>" +
         '<table class="ps-table"><thead><tr>' +
           '<th style="text-align:center">&#10003;</th>' +
@@ -3389,11 +3492,14 @@
 '.ps-meta-grid{display:grid;grid-template-columns:1.2fr 1.6fr 1fr;gap:5px 20px;margin-bottom:18px;font-size:13px;}\n' +
 '.ps-meta-grid .ps-meta-job{grid-column:1;grid-row:1;font-size:calc(13px + 2pt);}\n' +
 '.ps-meta-grid .ps-meta-jobnum{grid-column:1;grid-row:2;}\n' +
+'.ps-meta-grid .ps-meta-poc{grid-column:1;grid-row:3;}\n' +
 '.ps-meta-grid .ps-meta-vendor{grid-column:3;grid-row:1;}\n' +
 '.ps-meta-grid .ps-meta-vendorproj{grid-column:3;grid-row:2;}\n' +
+'.ps-meta-grid .ps-meta-pocphone{grid-column:3;grid-row:3;}\n' +
 '.ps-meta-grid .ps-meta-label{color:#666;display:inline-block;min-width:84px;}\n' +
 '.ps-meta-grid .ps-meta-address{grid-column:2;grid-row:1 / span 2;display:flex;gap:8px;align-items:flex-start;}\n' +
-'.ps-meta-grid .ps-meta-address .ps-meta-label{min-width:0;flex:none;}\n' +
+'.ps-meta-grid .ps-meta-pocemail{grid-column:2;grid-row:3;display:flex;gap:8px;align-items:flex-start;}\n' +
+'.ps-meta-grid .ps-meta-address .ps-meta-label,.ps-meta-grid .ps-meta-pocemail .ps-meta-label{min-width:0;flex:none;}\n' +
 '.ps-meta-grid .ps-meta-val{min-width:0;line-height:1.35;}\n' +
 '.ps-table{width:100%;border-collapse:collapse;font-size:11px;}\n' +
 '.ps-table th{background:#1a3a6b;color:#fff;text-align:left;padding:5px 6px;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}\n' +
@@ -3775,11 +3881,13 @@
       window.print();
       document.body.classList.remove("printing-packing-slip");
       pageOverride.remove();
-      var signableExported = exportSignableSlip(selRows, shipDate, {silent: true});
+      // Used to also silently auto-download the signable HTML slip here on
+      // every print - with the in-app Drivers page now handling signing,
+      // that file is no longer needed by default. "Export signable slip" is
+      // still right there as an explicit button for whoever still wants it.
       showSnackbar(
         "Date Shipped set to " + formatDateForMsg(shipDate) + " for " + result.applied + " item" + (result.applied === 1 ? "" : "s") +
-        (result.skipped ? " (" + result.skipped + " skipped — missing BarCode/Date Received, or ship date before Date Received)" : "") + "." +
-        (signableExported ? " Signable slip also downloaded — send it to whoever needs to sign." : " (Set up Email Settings — gear icon — to also auto-export a signable slip.)")
+        (result.skipped ? " (" + result.skipped + " skipped — missing BarCode/Date Received, or ship date before Date Received)" : "") + "."
       );
     }, 30);
   });
@@ -6198,7 +6306,7 @@
   // switch to). A viewer with no job assigned is NOT locked - they behave
   // like staff for navigation (pick any job) but read-only once inside one.
   function applyRoleUi(role, locked){
-    document.body.classList.remove("role-viewer", "role-tech", "role-driver", "locked-job");
+    document.body.classList.remove("role-viewer", "role-tech", "role-driver", "role-dashboard", "locked-job");
     if (role === "viewer" || role === "tech"){
       document.body.classList.add("role-" + role);
       if (locked) document.body.classList.add("locked-job");
@@ -6206,6 +6314,9 @@
     } else if (role === "driver"){
       document.body.classList.add("role-driver");
       persist = function(){}; // drivers never touch eq_jobs/eq_rows at all
+    } else if (role === "dashboard"){
+      document.body.classList.add("role-dashboard");
+      persist = function(){}; // a dashboard-view account never opens a job, let alone writes to one
     } else {
       persist = realPersist;
     }
@@ -6242,7 +6353,6 @@
     }).catch(fallback);
   }
 
-  var legacyResume = resume;
   function rolesResume(){
     return cloud.sb.from("eq_profiles").select("role,job_id").eq("id", cloud.user.id).maybeSingle().then(function(pr){
       var role = (pr.data && pr.data.role) || "staff";
@@ -6255,14 +6365,21 @@
         applyRoleUi("driver");
         return openDriverDashboard();
       }
+      if (role === "dashboard"){
+        // same idea as driver - a totally separate, full-screen takeover,
+        // never the normal job-opening flow
+        applyRoleUi("dashboard");
+        return openDashboardOnlyView();
+      }
       if ((role === "viewer" || role === "tech") && !jobId){
         // read-only viewer, or an unlocked tech - either way can browse/open
         // any job, same navigation as staff. A tech still can't request
         // delivery until they've actually opened a job - Request Delivery
         // submits against whichever job is currently open (cloud.jobId),
-        // not a fixed per-account one.
+        // not a fixed per-account one. Lands on the Dashboard first, same as
+        // staff, rather than the plain Jobs list - pick a job from there.
         applyRoleUi(role, false);
-        return urlJobId ? openUrlJobOrElse(legacyResume) : legacyResume();
+        return urlJobId ? openUrlJobOrElse(openJobsDashboardModal) : openJobsDashboardModal();
       }
       if ((role === "viewer" || role === "tech") && jobId){
         applyRoleUi(role, true);
@@ -6407,10 +6524,11 @@
     return rows.filter(function(r){ return !r.barcode || !String(r.barcode).trim(); });
   }
 
-  function openDeliveryRequestModal(){
+  function openDeliveryRequestModal(opts){
+    opts = opts || {};
     var selRows = getSelectedRows();
-    if (!selRows.length){
-      showSnackbar("Select one or more rows in the table first (checkbox in the # column).");
+    if (!selRows.length && !opts.assetsOnly){
+      showSnackbar('Select one or more rows in the table first (checkbox in the # column), or use "Request assets" on the Assets page for an equipment-free request.');
       return;
     }
     var missing = rowsMissingBarcode(selRows);
@@ -6423,6 +6541,8 @@
     deliveryMsg("");
     cloudEl("deliveryDate").value = todayLocalIso();
     cloudEl("deliveryTime").value = "";
+    deliveryAssetPickedIds = new Set();
+    updateDeliveryAssetsCount();
     cloudEl("deliveryRequestBackdrop").hidden = false;
   }
   function closeDeliveryRequestModal(){ cloudEl("deliveryRequestBackdrop").hidden = true; }
@@ -6554,12 +6674,21 @@
 
   function submitDeliveryRequest(){
     var selRows = getSelectedRows();
-    if (!selRows.length){ deliveryMsg("Select at least one item first.", "bad"); return; }
+    var assetIds = Array.from(deliveryAssetPickedIds);
+    if (!selRows.length && !assetIds.length){ deliveryMsg("Select at least one item, or add an asset, first.", "bad"); return; }
     // Re-checked here too (not just when the modal opened) in case the
     // selection changed underneath it - e.g. another device's realtime
     // update cleared a barcode while this modal was still open.
     if (rowsMissingBarcode(selRows).length){
       deliveryMsg("One or more selected items don't have a barcode yet - close this, generate labels for them, then try again.", "bad");
+      return;
+    }
+    // Don't let the same item end up on two open requests at once - the
+    // existing one should be edited (or cancelled) instead, from Deliveries.
+    var dupes = selRows.filter(function(r){ return r.barcode && requestedBarcodes.has(String(r.barcode).trim()); });
+    if (dupes.length){
+      var dupeNames = dupes.slice(0, 4).map(function(r){ return r.barcode; }).join(", ") + (dupes.length > 4 ? "; and " + (dupes.length - 4) + " more" : "");
+      deliveryMsg("Already on an open delivery request: " + dupeNames + ". Uncheck them, or ask staff to edit that request from Deliveries.", "bad");
       return;
     }
     var contact = {
@@ -6570,7 +6699,7 @@
     };
     var dateIso = cloudEl("deliveryDate").value;
     var time = cloudEl("deliveryTime").value;
-    if (!contact.name){ deliveryMsg("Enter your name.", "bad"); return; }
+    if (!contact.name){ deliveryMsg("Enter the POC name.", "bad"); return; }
     if (!dateIso){ deliveryMsg("Pick a requested date.", "bad"); return; }
 
     var btn = cloudEl("deliveryRequestSubmitBtn");
@@ -6582,7 +6711,7 @@
     });
     var pdfBase64 = buildDeliveryPdfBase64(selRows, contact, dateIso, time);
 
-    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, pdfBase64: pdfBase64}).then(function(res){
+    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, assetIds: assetIds, pdfBase64: pdfBase64}).then(function(res){
       btn.disabled = false;
       if (res.error){
         deliveryMsg("Couldn't submit: " + res.error.message, "bad");
@@ -6590,6 +6719,11 @@
       }
       var data = res.data || {};
       if (data.error){ deliveryMsg("Couldn't submit: " + data.error, "bad"); return; }
+      // The request row itself is saved at this point regardless of what
+      // happens below - the duplicate-barcode check above and the amber
+      // "requested" highlight both need to know about it either way, not
+      // just on the fully-successful (emailed) outcome.
+      requestedBarcodesJobId = null; refreshRequestedBarcodesIfNeeded();
       if (data.emailSkipped){
         deliveryMsg("Request saved, but not emailed: " + data.emailSkipped, "bad");
         return;
@@ -6599,7 +6733,6 @@
         return;
       }
       deliveryMsg("Delivery request sent to the warehouse.", "good");
-      requestedBarcodesJobId = null; refreshRequestedBarcodesIfNeeded();
       setTimeout(closeDeliveryRequestModal, 1400);
     }).catch(function(e){
       btn.disabled = false;
@@ -6615,6 +6748,8 @@
   if (deliveryBackdropEl) deliveryBackdropEl.addEventListener("click", function(ev){ if (ev.target === deliveryBackdropEl) closeDeliveryRequestModal(); });
   var deliverySubmitBtnEl = cloudEl("deliveryRequestSubmitBtn");
   if (deliverySubmitBtnEl) deliverySubmitBtnEl.addEventListener("click", submitDeliveryRequest);
+  var deliveryAssetsBtnEl = cloudEl("deliveryAssetsBtn");
+  if (deliveryAssetsBtnEl) deliveryAssetsBtnEl.addEventListener("click", function(){ openAssetsModal("request"); });
 
   // ---------- manage users (staff only) ----------
   // "Role" in the UI is one of 4 kinds; the database only knows role +
@@ -6627,6 +6762,7 @@
     if (u.role === "viewer") return u.jobId ? "viewer-locked" : "viewer-any";
     if (u.role === "tech") return u.jobId ? "tech-locked" : "tech-any";
     if (u.role === "driver") return "driver";
+    if (u.role === "dashboard") return "dashboard";
     return "staff";
   }
   function muKindNeedsJob(kind){ return kind === "viewer-locked" || kind === "tech-locked"; }
@@ -6636,6 +6772,7 @@
     if (kind === "tech-locked") return {role: "tech", jobId: jobId || null};
     if (kind === "tech-any") return {role: "tech", jobId: null};
     if (kind === "driver") return {role: "driver", jobId: null};
+    if (kind === "dashboard") return {role: "dashboard", jobId: null};
     return {role: "staff", jobId: null};
   }
   function muJobOptionsHtml(selectedId){
@@ -6680,6 +6817,7 @@
             '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>PC - one job</option>' +
             '<option value="tech-any"' + (kind === "tech-any" ? " selected" : "") + '>PC - all jobs</option>' +
             '<option value="driver"' + (kind === "driver" ? " selected" : "") + '>Driver</option>' +
+            '<option value="dashboard"' + (kind === "dashboard" ? " selected" : "") + '>Dashboard view</option>' +
           '</select>' +
           '<select class="mu-job' + (jobShown ? "" : " mu-job-hidden") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
           '<button type="button" class="mu-save primary">Save</button>' +
@@ -7013,7 +7151,8 @@
       var actionsHtml = "";
       if (req.status === "submitted"){
         actionsHtml = '<button type="button" class="primary" data-pd-action="fulfilled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Mark fulfilled</button>' +
-          '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>';
+          '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>' +
+          '<button type="button" data-pd-edit="' + req.id + '">Edit</button>';
         if (req.job_id === cloud.jobId){
           actionsHtml += '<button type="button" data-pd-slip="' + req.id + '">Create delivery slip</button>';
         } else {
@@ -7056,8 +7195,55 @@
     renderRows();
     closePendingDeliveriesModal();
     activeDeliveryRequestId = req.id;
+    resetAssignDriverFields();
+    loadDriversForAssign();
+    // The tech who submitted this already gave a name/phone/email and a
+    // requested date/time - no reason to make staff retype any of it here.
+    applySlipPoc({name: req.contact_name, phone: req.contact_phone, email: req.contact_email});
+    if (req.requested_date) cloudEl("assignDeliveryDate").value = req.requested_date;
+    if (req.requested_time) cloudEl("assignDeliveryTime").value = req.requested_time;
     openPackingSlipModal();
   }
+
+  // Reschedules an open request in place (date/time only) instead of
+  // requiring a second request for the same items - see the duplicate-
+  // barcode block in submitDeliveryRequest() above, which this is the other
+  // half of.
+  var editingRequestId = null;
+  function openEditRequestModal(req){
+    editingRequestId = req.id;
+    cloudEl("editRequestDate").value = req.requested_date || "";
+    cloudEl("editRequestTime").value = req.requested_time || "";
+    editRequestMsg("");
+    cloudEl("editRequestBackdrop").hidden = false;
+  }
+  function closeEditRequestModal(){ cloudEl("editRequestBackdrop").hidden = true; }
+  function editRequestMsg(text, kind){
+    var m = cloudEl("editRequestMsg");
+    m.textContent = text || "";
+    m.className = "pd-msg" + (kind ? " " + kind : "");
+  }
+  var editRequestCloseBtnEl = cloudEl("editRequestCloseBtn");
+  if (editRequestCloseBtnEl) editRequestCloseBtnEl.addEventListener("click", closeEditRequestModal);
+  var editRequestBackdropEl = cloudEl("editRequestBackdrop");
+  if (editRequestBackdropEl) editRequestBackdropEl.addEventListener("click", function(ev){ if (ev.target === editRequestBackdropEl) closeEditRequestModal(); });
+  var editRequestSaveBtnEl = cloudEl("editRequestSaveBtn");
+  if (editRequestSaveBtnEl) editRequestSaveBtnEl.addEventListener("click", function(){
+    var dateIso = cloudEl("editRequestDate").value;
+    if (!dateIso){ editRequestMsg("Pick a date.", "bad"); return; }
+    editRequestSaveBtnEl.disabled = true;
+    cloud.sb.from("eq_delivery_requests").update({
+      requested_date: dateIso, requested_time: cloudEl("editRequestTime").value || ""
+    }).eq("id", editingRequestId).then(function(r){
+      editRequestSaveBtnEl.disabled = false;
+      if (r.error){ editRequestMsg("Couldn't save: " + r.error.message, "bad"); return; }
+      closeEditRequestModal();
+      loadPendingDeliveries();
+    }).catch(function(e){
+      editRequestSaveBtnEl.disabled = false;
+      editRequestMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't save: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
 
   document.addEventListener("click", function(ev){
     var filterBtn = ev.target.closest && ev.target.closest(".pd-filter button");
@@ -7072,6 +7258,12 @@
     if (slipBtn){
       var slipReq = pdReqsCache.filter(function(r){ return String(r.id) === slipBtn.dataset.pdSlip; })[0];
       if (slipReq) openPackingSlipForRequest(slipReq);
+      return;
+    }
+    var editBtn = ev.target.closest && ev.target.closest("[data-pd-edit]");
+    if (editBtn){
+      var editReq = pdReqsCache.filter(function(r){ return String(r.id) === editBtn.dataset.pdEdit; })[0];
+      if (editReq) openEditRequestModal(editReq);
       return;
     }
     var actionBtn = ev.target.closest && ev.target.closest(".pd-actions button[data-pd-action]");
@@ -7120,11 +7312,9 @@
 
   // One query per table across EVERY job, aggregated client-side, rather
   // than one query per job - keeps this to a small fixed number of
-  // requests regardless of how many jobs exist.
-  function loadJobsDashboard(){
-    var list = cloudEl("jdList");
-    list.textContent = "Loading...";
-    jdMsg("");
+  // requests regardless of how many jobs exist. Shared by the staff Jobs
+  // Dashboard and the read-only Dashboard-view account's full-screen copy.
+  function fetchDashboardData(){
     return Promise.all([
       cloud.sb.from("eq_jobs").select("id,name,meta").eq("deleted", false),
       cloud.sb.from("eq_rows").select("job_id,data").eq("deleted", false),
@@ -7137,7 +7327,7 @@
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
           usersRes = results[4], assetsRes = results[5], checkoutsRes = results[6];
-      if (jobsRes.error){ jdMsg("Couldn't load: " + jobsRes.error.message, "bad"); list.textContent = ""; return; }
+      if (jobsRes.error) throw jobsRes.error;
       var jobs = jobsRes.data || [];
       var rowsByJob = {}, openReqByJob = {};
       (rowsRes.data || []).forEach(function(r){
@@ -7154,9 +7344,22 @@
       var jobNameById = {};
       jobs.forEach(function(j){ jobNameById[j.id] = (j.meta && j.meta.project) || j.name || "Untitled job"; });
       var openCheckouts = (checkoutsRes.data || []).filter(function(c){ return !c.returned_at; });
-      renderJdDeliveries(deliveriesRes && deliveriesRes.data || [], driverEmailById);
-      renderJdAssetsDeployed(openCheckouts, assetsById, jobNameById);
-      renderJobsDashboard(jobs, rowsByJob, openReqByJob);
+      return {
+        jobs: jobs, rowsByJob: rowsByJob, openReqByJob: openReqByJob,
+        deliveries: deliveriesRes && deliveriesRes.data || [], driverEmailById: driverEmailById,
+        assetsById: assetsById, jobNameById: jobNameById, openCheckouts: openCheckouts
+      };
+    });
+  }
+
+  function loadJobsDashboard(){
+    var list = cloudEl("jdList");
+    list.textContent = "Loading...";
+    jdMsg("");
+    return fetchDashboardData().then(function(d){
+      renderJdDeliveries(d.deliveries, d.driverEmailById);
+      renderJdAssetsDeployed(d.openCheckouts, d.assetsById, d.jobNameById);
+      renderJobsDashboard(d.jobs, d.rowsByJob, d.openReqByJob);
     }).catch(function(e){
       jdMsg("Couldn't load: " + (e && e.message ? e.message : e), "bad");
       list.textContent = "";
@@ -7167,9 +7370,10 @@
   // job also needs to surface upcoming driver deliveries, not just each
   // job's own equipment progress.
   var jdDeliveriesCache = []; // so the "Create delivery slip" button below can look up a delivery's items by id
-  function renderJdDeliveries(deliveries, driverEmailById){
+  function renderJdDeliveries(deliveries, driverEmailById, opts){
+    opts = opts || {};
     jdDeliveriesCache = deliveries;
-    var box = cloudEl("jdDeliveries");
+    var box = cloudEl(opts.boxId || "jdDeliveries");
     if (!box) return;
     if (!deliveries.length){ box.innerHTML = ""; return; }
     box.innerHTML = '<h3 class="jd-deliveries-title">Scheduled deliveries</h3>' +
@@ -7184,7 +7388,7 @@
           '<span class="jd-delivery-job">' + escHtml(jobName) + '</span>' +
           '<span class="jd-delivery-driver">' + escHtml(driverEmail) + '</span>' +
           (when ? '<span class="jd-delivery-when">' + escHtml(when) + '</span>' : '<span class="jd-delivery-when">No time set</span>') +
-          '<button type="button" class="jd-delivery-slip-btn" data-jd-delivery-slip="' + d.id + '">Create delivery slip</button>' +
+          (opts.readOnly ? '' : '<button type="button" class="jd-delivery-slip-btn" data-jd-delivery-slip="' + d.id + '">Create delivery slip</button>') +
         '</div>';
       }).join("") +
       '</div>';
@@ -7220,6 +7424,16 @@
         matchedIds.forEach(function(id){ selectedIds.add(id); });
         renderRows();
         activeDeliveryRequestId = null;
+        resetAssignDriverFields();
+        // This delivery already has a driver, schedule and POC from when it
+        // was first assigned - re-show all of it instead of making staff
+        // redo it from scratch just to reprint.
+        applySlipPoc({name: delivery.poc_name, phone: delivery.poc_phone, email: delivery.poc_email});
+        if (delivery.scheduled_date) cloudEl("assignDeliveryDate").value = delivery.scheduled_date;
+        if (delivery.scheduled_time) cloudEl("assignDeliveryTime").value = delivery.scheduled_time;
+        loadDriversForAssign().then(function(){
+          if (delivery.driver_id) cloudEl("assignDriverSelect").value = delivery.driver_id;
+        });
         openPackingSlipModal();
       });
     });
@@ -7228,8 +7442,8 @@
   // 3rd dashboard section: assets currently checked out against any
   // delivery, cross-referenced with the job they're out with, so staff can
   // see what's deployed without opening Assets separately.
-  function renderJdAssetsDeployed(openCheckouts, assetsById, jobNameById){
-    var box = cloudEl("jdAssetsDeployed");
+  function renderJdAssetsDeployed(openCheckouts, assetsById, jobNameById, boxId){
+    var box = cloudEl(boxId || "jdAssetsDeployed");
     if (!box) return;
     if (!openCheckouts.length){ box.innerHTML = ""; return; }
     box.innerHTML = '<h3 class="jd-deliveries-title">Deployed assets</h3>' +
@@ -7248,10 +7462,11 @@
       '</div>';
   }
 
-  function renderJobsDashboard(jobs, rowsByJob, openReqByJob){
-    var list = cloudEl("jdList");
-    if (!jobs.length){ list.innerHTML = ""; jdMsg("No active jobs yet."); return; }
-    jdMsg("");
+  function renderJobsDashboard(jobs, rowsByJob, openReqByJob, opts){
+    opts = opts || {};
+    var list = cloudEl(opts.listId || "jdList");
+    if (!jobs.length){ list.innerHTML = ""; if (!opts.readOnly) jdMsg("No active jobs yet."); return; }
+    if (!opts.readOnly) jdMsg("");
     var cards = jobs.map(function(j){
       var stats = jdStatusCounts(rowsByJob[j.id] || []);
       stats.openRequests = openReqByJob[j.id] || 0;
@@ -7268,7 +7483,8 @@
       var jobName = jobMeta.project || j.name || "Untitled job";
       var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
       var address = jobMeta.address || "";
-      return '<button type="button" class="jd-card" data-jd-open="' + j.id + '" title="' + escHtml(jobName) + ' - click to open">' +
+      var tag = opts.readOnly ? "div" : "button";
+      return '<' + tag + ' class="jd-card"' + (opts.readOnly ? "" : ' type="button" data-jd-open="' + j.id + '" title="' + escHtml(jobName) + ' - click to open"') + '>' +
         '<div class="jd-card-head"><span class="jd-job">' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span></div>' +
         (address ? '<div class="jd-address">' + escHtml(address) + '</div>' : '') +
         '<div class="jd-overall">' +
@@ -7284,7 +7500,7 @@
             '</div>' +
           '</div>' +
         '</div>' +
-      '</button>';
+      '</' + tag + '>';
     }).join("");
   }
 
@@ -7293,6 +7509,65 @@
     loadJobsDashboard();
   }
   function closeJobsDashboardModal(){ cloudEl("jobsDashboardBackdrop").hidden = true; }
+
+  // Full-screen toggle (staff) - the dashboard-view account (below) always
+  // renders full-screen by default, no toggle needed there.
+  var jobsDashboardFullscreenBtnEl = cloudEl("jobsDashboardFullscreenBtn");
+  if (jobsDashboardFullscreenBtnEl) jobsDashboardFullscreenBtnEl.addEventListener("click", function(){
+    var backdrop = cloudEl("jobsDashboardBackdrop");
+    if (backdrop) backdrop.classList.toggle("jd-fullscreen");
+  });
+
+  // ---------- dashboard view (role=dashboard): full-screen, read-only,
+  // always-live takeover - nothing on it is clickable, and it never shows
+  // the normal app underneath (see body.role-dashboard in roles.css). Kept
+  // "truly live" with a real realtime subscription across every table its
+  // screen uses, not just a refresh-on-return-to-tab like the driver
+  // dashboard - there's no single job to scope a channel to here. ----------
+  var dashOnlyChannel = null;
+  var dashOnlyRefreshTimer = null;
+
+  function dashOnlyMsg(text, kind){
+    var m = cloudEl("dashOnlyMsg");
+    if (!m) return;
+    m.textContent = text || "";
+    m.className = "driver-msg" + (kind ? " " + kind : "");
+  }
+  function loadDashboardOnlyData(){
+    return fetchDashboardData().then(function(d){
+      renderJobsDashboard(d.jobs, d.rowsByJob, d.openReqByJob, {listId: "dashOnlyJdList", readOnly: true});
+      renderJdDeliveries(d.deliveries, d.driverEmailById, {boxId: "dashOnlyJdDeliveries", readOnly: true});
+      renderJdAssetsDeployed(d.openCheckouts, d.assetsById, d.jobNameById, "dashOnlyJdAssetsDeployed");
+      dashOnlyMsg("");
+    }).catch(function(e){
+      dashOnlyMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't load: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+  // Several individual row/job changes often land within the same second
+  // (e.g. a driver's whole delivery getting marked shipped) - debounced so
+  // that doesn't mean a full re-query per row.
+  function scheduleDashOnlyRefresh(){
+    clearTimeout(dashOnlyRefreshTimer);
+    dashOnlyRefreshTimer = setTimeout(loadDashboardOnlyData, 400);
+  }
+  function openDashboardOnlyView(){
+    cloudEl("dashOnlyUserEmail").textContent = (cloud.user && cloud.user.email) || "";
+    cloudEl("dashboardOnlyView").hidden = false;
+    loadDashboardOnlyData();
+    if (dashOnlyChannel){ cloud.sb.removeChannel(dashOnlyChannel); }
+    dashOnlyChannel = cloud.sb.channel("dashboard-view-" + cloud.clientId)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_jobs"}, scheduleDashOnlyRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_rows"}, scheduleDashOnlyRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_delivery_requests"}, scheduleDashOnlyRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_deliveries"}, scheduleDashOnlyRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_asset_checkouts"}, scheduleDashOnlyRefresh)
+      .subscribe();
+  }
+  var dashOnlySignOutBtnEl = cloudEl("dashOnlySignOutBtn");
+  if (dashOnlySignOutBtnEl) dashOnlySignOutBtnEl.addEventListener("click", function(){
+    var realBtn = cloudEl("cloudSignOutBtn");
+    if (realBtn) realBtn.click();
+  });
 
   document.addEventListener("click", function(ev){
     var jdOpenBtn = ev.target.closest && ev.target.closest("[data-jd-open]");
@@ -7402,7 +7677,10 @@
   var assetCheckoutsCache = []; // every OPEN checkout (returned_at is null)
   var assetJobNameById = {}; // job_id -> name, just for the open checkouts above
   var assetPickerMode = false; // true when opened via "Assets" from the Create Delivery Slip flow
-  var assetPickedIds = new Set();
+  var assetPickedIds = new Set(); // "assign" target (Create Delivery Slip -> Assign to a driver)
+  var deliveryAssetPickedIds = new Set(); // "request" target (tech/PC Request Delivery)
+  var assetPickerTarget = "assign"; // which of the two Sets above the open picker is currently filling
+  function activeAssetPickedIds(){ return assetPickerTarget === "request" ? deliveryAssetPickedIds : assetPickedIds; }
 
   function assetsMsg(text, kind){
     var m = cloudEl("assetsMsg");
@@ -7443,7 +7721,7 @@
       var checkout = assetCheckoutFor(a.id);
       var out = !!checkout;
       var pickCheckbox = (assetPickerMode && !out)
-        ? '<input type="checkbox" class="asset-pick" data-asset-pick="' + a.id + '"' + (assetPickedIds.has(a.id) ? " checked" : "") + '>'
+        ? '<input type="checkbox" class="asset-pick" data-asset-pick="' + a.id + '"' + (activeAssetPickedIds().has(a.id) ? " checked" : "") + '>'
         : "";
       var returnBtn = out
         ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>'
@@ -7477,8 +7755,9 @@
   // Audit page instead (see "asset audit" section below); this modal is
   // reached only from Create Delivery Slip's "Assign to a driver" -> Assets,
   // to pick which assets ride along on that delivery.
-  function openAssetsModal(){
+  function openAssetsModal(target){
     assetPickerMode = true;
+    assetPickerTarget = target || "assign";
     cloudEl("assetsPickerActions").hidden = false;
     cloudEl("assetsBackdrop").hidden = false;
     loadAssets();
@@ -7530,7 +7809,9 @@
     cloud.sb.from("eq_asset_checkouts").update({returned_at: new Date().toISOString(), returned_by: (cloud.user && cloud.user.email) || ""}).eq("id", checkoutId).then(function(r){
       returnBtn.disabled = false;
       if (r.error){ assetsMsg("Couldn't mark returned: " + r.error.message, "bad"); return; }
-      loadAssets();
+      // this same button/handler is shared by the old picker modal and the
+      // newer Asset Audit page - refresh whichever one is actually open
+      if (!cloudEl("assetAuditBackdrop").hidden) loadAssetAudit(); else loadAssets();
     }).catch(function(e){
       returnBtn.disabled = false;
       assetsMsg("Couldn't mark returned: " + (e && e.message ? e.message : e), "bad");
@@ -7539,16 +7820,21 @@
   document.addEventListener("change", function(ev){
     if (!ev.target.classList || !ev.target.classList.contains("asset-pick")) return;
     var id = ev.target.dataset.assetPick;
-    if (ev.target.checked) assetPickedIds.add(id); else assetPickedIds.delete(id);
+    var set = activeAssetPickedIds();
+    if (ev.target.checked) set.add(id); else set.delete(id);
   });
 
   function updateAssignAssetsCount(){
     var el = cloudEl("assignAssetsCount");
     if (el) el.textContent = String(assetPickedIds.size);
   }
+  function updateDeliveryAssetsCount(){
+    var el = cloudEl("deliveryAssetsCount");
+    if (el) el.textContent = String(deliveryAssetPickedIds.size);
+  }
   var assetsUseSelectedBtnEl = cloudEl("assetsUseSelectedBtn");
   if (assetsUseSelectedBtnEl) assetsUseSelectedBtnEl.addEventListener("click", function(){
-    updateAssignAssetsCount();
+    if (assetPickerTarget === "request") updateDeliveryAssetsCount(); else updateAssignAssetsCount();
     closeAssetsModal();
   });
 
@@ -7642,6 +7928,7 @@
         '<td><span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (out ? "Checked out" : "Available") + '</span></td>' +
         '<td>' + (out ? escHtml(jobName) : "") + '</td>' +
         '<td class="asset-audit-actions">' +
+          (out ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>' : '') +
           '<button type="button" class="asset-audit-edit" data-audit-edit="' + a.id + '">Edit</button>' +
           '<button type="button" class="asset-audit-delete" data-audit-delete="' + a.id + '">Delete</button>' +
           '<button type="button" data-audit-history="' + a.id + '">History</button>' +
@@ -7808,6 +8095,16 @@
     "notes": "notes"
   };
 
+  // Lets a PC/tech (or staff) request one or more assets with no equipment
+  // involved at all - still needs a job open, since every request is tied to
+  // one (same as any other delivery request).
+  var assetAuditRequestBtnEl = cloudEl("assetAuditRequestBtn");
+  if (assetAuditRequestBtnEl) assetAuditRequestBtnEl.addEventListener("click", function(){
+    if (!cloud.jobId){ assetAuditMsg("Open a job first - every delivery request is tied to one.", "bad"); return; }
+    closeAssetAuditModal();
+    openDeliveryRequestModal({assetsOnly: true});
+  });
+
   var assetAuditExportBtnEl = cloudEl("assetAuditExportBtn");
   if (assetAuditExportBtnEl) assetAuditExportBtnEl.addEventListener("click", function(){
     if (typeof XLSX === "undefined"){ assetAuditMsg("Excel export library failed to load — check your connection.", "bad"); return; }
@@ -7937,12 +8234,24 @@
       assignDriverMsg(reason, "bad");
     });
   }
+  // Single source of truth for whatever POC is currently known for the open
+  // Create Delivery Slip - fills the visible Assign-to-driver fields (so
+  // staff can see/edit what's pre-filled) and the shared packingSlipPocInfo
+  // the base app's printed slip reads from (see pwa/index.html).
+  function applySlipPoc(poc){
+    poc = poc || {};
+    packingSlipPocInfo = {name: poc.name || "", phone: poc.phone || "", email: poc.email || ""};
+    var nameEl = cloudEl("assignPocName"), phoneEl = cloudEl("assignPocPhone"), emailEl = cloudEl("assignPocEmail");
+    if (nameEl) nameEl.value = packingSlipPocInfo.name;
+    if (phoneEl) phoneEl.value = packingSlipPocInfo.phone;
+    if (emailEl) emailEl.value = packingSlipPocInfo.email;
+  }
+
   function resetAssignDriverFields(){
     cloudEl("assignDriverSelect").innerHTML = '<option value="">Loading drivers...</option>';
     cloudEl("assignDeliveryDate").value = todayLocalIso();
     cloudEl("assignDeliveryTime").value = "";
-    cloudEl("assignPocName").value = "";
-    cloudEl("assignPocPhone").value = "";
+    applySlipPoc({});
     assetPickedIds = new Set();
     updateAssignAssetsCount();
     assignDriverMsg("");
@@ -7954,19 +8263,38 @@
     loadDriversForAssign();
   });
 
+  // Typing a POC in by hand (no prior request/assignment to pull it from)
+  // should still show up on the printed slip immediately.
+  ["assignPocName", "assignPocPhone", "assignPocEmail"].forEach(function(id){
+    var inputEl = cloudEl(id);
+    if (!inputEl) return;
+    inputEl.addEventListener("input", function(){
+      packingSlipPocInfo = {
+        name: cloudEl("assignPocName").value.trim(),
+        phone: cloudEl("assignPocPhone").value.trim(),
+        email: cloudEl("assignPocEmail").value.trim()
+      };
+      if (!cloudEl("packingSlipBackdrop").hidden) renderPackingSlipPreview();
+    });
+  });
+
   var assignAssetsBtnEl = cloudEl("assignAssetsBtn");
-  if (assignAssetsBtnEl) assignAssetsBtnEl.addEventListener("click", openAssetsModal);
+  if (assignAssetsBtnEl) assignAssetsBtnEl.addEventListener("click", function(){ openAssetsModal("assign"); });
 
   var assignDriverBtnEl = cloudEl("assignDriverBtn");
   if (assignDriverBtnEl) assignDriverBtnEl.addEventListener("click", function(){
     var selRows = getSelectedRows();
-    if (!selRows.length){ assignDriverMsg("Select one or more rows in the table first.", "bad"); return; }
+    if (!selRows.length){
+      assignDriverMsg("No items selected - check the item(s) in the table above. (If you just printed, that sets Date Shipped and clears the selection, since those rows are no longer pending.)", "bad");
+      return;
+    }
     var driverId = cloudEl("assignDriverSelect").value;
     if (!driverId){ assignDriverMsg("Pick a driver first.", "bad"); return; }
     var scheduledDate = cloudEl("assignDeliveryDate").value || null;
     var scheduledTime = cloudEl("assignDeliveryTime").value || "";
     var pocName = cloudEl("assignPocName").value.trim();
     var pocPhone = cloudEl("assignPocPhone").value.trim();
+    var pocEmail = cloudEl("assignPocEmail").value.trim();
     var assetIds = Array.from(assetPickedIds);
     var items = selRows.map(function(r){
       return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber, notes: r.notes};
@@ -7977,7 +8305,7 @@
     assignDriverMsg("Assigning...");
     cloud.sb.from("eq_deliveries").insert({
       id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds,
-      poc_name: pocName, poc_phone: pocPhone, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
+      poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
       status: "assigned", updated_by: cloud.clientId
     }).then(function(r){
       if (r.error) throw r.error;
