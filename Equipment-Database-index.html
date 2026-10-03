@@ -703,6 +703,8 @@
   body.role-tech .asset-audit-edit, body.role-tech .asset-audit-delete{display:none !important;}
   /* a viewer can't request anything, delivery or otherwise */
   body.role-viewer #assetAuditRequestBtn{display:none !important;}
+  /* checking assets out and in is a staff action */
+  body.role-viewer #assetAuditScanBtn, body.role-tech #assetAuditScanBtn{display:none !important;}
 
   /* =================== delivery request modal =================== */
   .modal-backdrop#deliveryRequestBackdrop[hidden]{display:none;}
@@ -1505,6 +1507,7 @@
       <select id="assetAuditCategoryFilter"><option value="">All categories</option></select>
       <button type="button" id="assetAuditAddBtn">+ Add asset</button>
       <button type="button" id="assetAuditRequestBtn" title="Request one or more assets be delivered, without needing any equipment">Request assets</button>
+      <button type="button" id="assetAuditScanBtn" title="Scan an asset's barcode to check it out to this job or mark it back in">Scan assets</button>
       <button type="button" id="assetAuditExportBtn">Download spreadsheet</button>
       <button type="button" id="assetAuditImportBtn">Upload spreadsheet</button>
       <input type="file" id="assetAuditImportFile" accept=".xlsx,.xls" hidden="">
@@ -5199,6 +5202,7 @@
   var SCAN_LIB_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js";
   var scanBackdrop = document.getElementById("scanBackdrop");
   var scanMode = "find";
+  var scanCodeHandler = null; // set by roles.js to receive scans instead of the job table
   var scanStarting = false, scanLibPromise = null;
   var scanLastCode = "", scanLastAt = 0;
   var scanLog = [];
@@ -5426,6 +5430,9 @@
   }
 
   function handleScannedCode(code){
+    // the Assets page takes over the scanner for check-in/check-out (see
+    // roles.js); otherwise every scan goes to the job table as usual
+    if (scanCodeHandler){ scanCodeHandler(code); return; }
     scanFillFindBar(code);
     var norm = code.toLowerCase();
     var ids = order.filter(function(id){
@@ -8291,6 +8298,7 @@
     }
     var deleteBtn = ev.target.closest && ev.target.closest("[data-audit-delete]");
     if (deleteBtn){
+      if (cloud.role && cloud.role !== "staff"){ assetAuditMsg("Only full-access staff can delete assets.", "bad"); return; }
       var id = deleteBtn.dataset.auditDelete;
       if (auditOpenCheckoutFor(id)){ assetAuditMsg("This asset is checked out - mark it returned before deleting it.", "bad"); return; }
       var toDelete = auditAssetsCache.filter(function(a){ return a.id === id; })[0];
@@ -8353,6 +8361,89 @@
   // Lets a PC/tech (or staff) request one or more assets with no equipment
   // involved at all - still needs a job open, since every request is tied to
   // one (same as any other delivery request).
+  // ---------- scan assets in/out (staff) - reuses the app's own scanner
+  // (camera, Bluetooth scanner, typed or photo) with the job-table behavior
+  // swapped out for a check-in/check-out one ----------
+  var assetScanMode = "out"; // "out" = check out to the open job, "in" = mark returned
+
+  function ensureAssetScanModes(){
+    if (cloudEl("assetScanModes")) return;
+    var host = cloudEl("scanReader");
+    if (!host) return;
+    var box = document.createElement("div");
+    box.id = "assetScanModes";
+    box.className = "status-filter";
+    box.innerHTML = '<button type="button" class="active" data-asset-scan="out" title="Check this asset out to the job open right now">Scan out (to open job)</button>' +
+      '<button type="button" data-asset-scan="in" title="Mark this asset back in the shop">Scan in (return)</button>';
+    host.parentNode.insertBefore(box, host);
+    box.addEventListener("click", function(ev){
+      var b = ev.target.closest("button[data-asset-scan]");
+      if (!b) return;
+      assetScanMode = b.dataset.assetScan;
+      Array.prototype.forEach.call(box.querySelectorAll("button"), function(x){ x.classList.toggle("active", x === b); });
+    });
+  }
+
+  function handleAssetScan(code){
+    var norm = String(code || "").trim().toLowerCase();
+    var asset = auditAssetsCache.filter(function(a){ return String(a.barcode || "").trim().toLowerCase() === norm; })[0];
+    if (!asset){
+      showScanResult("bad", "No asset has the BarCode <strong>" + escHtml(code) + "</strong>.", []);
+      return;
+    }
+    var name = "<strong>" + escHtml(asset.label || asset.barcode) + "</strong>";
+    var open = auditOpenCheckoutFor(asset.id);
+    if (assetScanMode === "out"){
+      if (open){
+        showScanResult("bad", name + " is already checked out to " + escHtml(auditJobNameById[open.job_id] || "another job") + ". Scan it in first.", []);
+        return;
+      }
+      if (!cloud.jobId){ showScanResult("bad", "Open a job first - a scan out checks the asset out to the open job.", []); return; }
+      var newCheckout = {id: cloudUuid(), asset_id: asset.id, job_id: cloud.jobId, delivery_id: null, checked_out_at: new Date().toISOString(), checked_out_by: (cloud.user && cloud.user.email) || "", returned_at: null};
+      cloud.sb.from("eq_asset_checkouts").insert(newCheckout).then(function(r){
+        if (r.error){ showScanResult("bad", "Couldn't check out: " + escHtml(r.error.message), []); return; }
+        auditCheckoutsCache.push(newCheckout); // so a quick second scan can't check the same asset out twice
+        showScanResult("ok", name + " checked out to this job.", []);
+        loadAssetAudit();
+      });
+    } else {
+      if (!open){ showScanResult("bad", name + " is already in the shop.", []); return; }
+      var returnedAt = new Date().toISOString();
+      var returnedBy = (cloud.user && cloud.user.email) || "";
+      cloud.sb.from("eq_asset_checkouts").update({returned_at: returnedAt, returned_by: returnedBy}).eq("id", open.id).then(function(r){
+        if (r.error){ showScanResult("bad", "Couldn't mark returned: " + escHtml(r.error.message), []); return; }
+        open.returned_at = returnedAt;
+        showScanResult("ok", name + " is back in the shop.", []);
+        loadAssetAudit();
+      });
+    }
+  }
+
+  function openAssetScan(){
+    ensureAssetScanModes();
+    cloudEl("assetScanModes").hidden = false;
+    cloudEl("scanModeGroup").hidden = true;
+    cloudEl("scanList").hidden = true;
+    cloudEl("scanTitle").textContent = "Scan assets";
+    cloudEl("scanResult").innerHTML = "";
+    openScanModal();
+    scanCodeHandler = handleAssetScan; // set after openScanModal, which clears any handler
+    if (!auditAssetsCache.length) loadAssetAudit();
+  }
+  // Whenever the scanner closes (Done, X, or anything else), hand it back to the job table.
+  var scanBackdropEl = cloudEl("scanBackdrop");
+  if (scanBackdropEl) new MutationObserver(function(){
+    if (!scanBackdropEl.hidden) return;
+    scanCodeHandler = null;
+    var m = cloudEl("assetScanModes");
+    if (m) m.hidden = true;
+    cloudEl("scanModeGroup").hidden = false;
+    cloudEl("scanList").hidden = false;
+    cloudEl("scanTitle").textContent = "Scan barcode / QR code";
+  }).observe(scanBackdropEl, {attributes: true, attributeFilter: ["hidden"]});
+  var assetAuditScanBtnEl = cloudEl("assetAuditScanBtn");
+  if (assetAuditScanBtnEl) assetAuditScanBtnEl.addEventListener("click", openAssetScan);
+
   var assetAuditRequestBtnEl = cloudEl("assetAuditRequestBtn");
   if (assetAuditRequestBtnEl) assetAuditRequestBtnEl.addEventListener("click", function(){
     if (!cloud.jobId){ assetAuditMsg("Open a job first - every delivery request is tied to one.", "bad"); return; }
