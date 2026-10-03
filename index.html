@@ -674,6 +674,14 @@
   #deliveryRequestBtn{display:none;}
   body.role-tech #deliveryRequestBtn{display:inline-flex;}
 
+  /* Assets: staff always, PLUS an unlocked ("all jobs") tech can VIEW the
+     house pool - any viewer, and any LOCKED account (tech or viewer),
+     never need it. */
+  body.role-viewer #assetsBtn, body.locked-job #assetsBtn{display:none !important;}
+  /* tech sees the list but can't add assets or mark one returned - those
+     are staff-only actions */
+  body.role-tech #assetsNewForm, body.role-tech .asset-return-btn{display:none !important;}
+
   /* =================== delivery request modal =================== */
   .modal-backdrop#deliveryRequestBackdrop[hidden]{display:none;}
   .delivery-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin:10px 0 14px;}
@@ -786,6 +794,91 @@
     background:#fff4e0 !important;
     border-color:#d9a441 !important;
   }
+
+  /* =================== assign to a driver (inside Create Delivery Slip) === */
+  .assign-driver-section{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin:10px 0 14px;background:var(--surface-alt);}
+  .assign-driver-section h3{margin:0 0 10px;font-size:14px;}
+  .assign-driver-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px 14px;margin-bottom:12px;}
+  .assign-driver-fields label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);}
+  .assign-driver-fields input, .assign-driver-fields select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
+  .assign-driver-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .assign-driver-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-top:6px;}
+  .assign-driver-msg.bad{color:var(--danger);font-weight:600;}
+  .assign-driver-msg.good{color:var(--success);font-weight:600;}
+
+  /* =================== assets (house inventory) =================== */
+  .modal-backdrop#assetsBackdrop[hidden]{display:none;}
+  .assets-new{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+  .assets-new input{flex:1;min-width:160px;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
+  .assets-list{max-height:440px;overflow:auto;display:flex;flex-direction:column;gap:8px;}
+  .asset-row{border:1px solid var(--border);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px;}
+  .asset-row .asset-pick{flex:none;}
+  .asset-row .asset-info{flex:1;min-width:0;}
+  .asset-row .asset-label{font-weight:700;}
+  .asset-row .asset-sub{font-size:12px;color:var(--ink-muted);}
+  .asset-status-badge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:99px;flex:none;}
+  .asset-status-badge.available{background:#e6f3e8;color:#1f6b40;}
+  .asset-status-badge.out{background:#fff4e0;color:#8a5a00;}
+  .asset-row button{padding:6px 11px;font-size:12.5px;flex:none;}
+  .assets-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-top:8px;}
+  .assets-msg.bad{color:var(--danger);font-weight:600;}
+  .assets-msg.good{color:var(--success);font-weight:600;}
+
+  /* =================== driver role: a totally different, full-screen
+     dashboard instead of the equipment app - nothing below matters until
+     body.role-driver is present, and once it is, everything of the
+     normal app is hidden in favor of #driverDashboard. =================== */
+  body.role-driver #cloudLogin,
+  body.role-driver .wrap,
+  body.role-driver .snackbar{display:none !important;}
+  #driverDashboard[hidden]{display:none;}
+  #driverDashboard{
+    position:fixed;inset:0;z-index:50;overflow:auto;background:var(--bg);
+    padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .driver-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
+  .driver-brand{display:flex;align-items:center;gap:12px;}
+  .driver-badge{width:40px;height:40px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none;}
+  .driver-brand h1{margin:0;font-size:19px;font-family:"Barlow Semi Condensed",sans-serif;}
+  .driver-sub{margin:1px 0 0;font-size:12.5px;color:var(--ink-muted);}
+  .driver-list{display:flex;flex-direction:column;gap:12px;max-width:640px;margin:0 auto;}
+  .driver-msg{text-align:center;font-size:13.5px;color:var(--ink-muted);margin-top:20px;}
+  .driver-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--surface);box-shadow:var(--shadow);}
+  .driver-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
+  .driver-job{font-weight:800;font-size:16px;}
+  .driver-when{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;}
+  .driver-address{font-size:13.5px;color:var(--ink-muted);margin:4px 0;}
+  .driver-address a{color:var(--accent);font-weight:600;text-decoration:none;}
+  .driver-address a:hover{text-decoration:underline;}
+  .driver-card-stats{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-muted);margin:8px 0 12px;}
+  .driver-card-stats b{color:var(--ink);}
+  .driver-open-btn{width:100%;min-height:46px;font-size:15px;font-weight:700;}
+  .driver-status-badge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:99px;background:#e6f3e8;color:#1f6b40;}
+
+  /* =================== delivery sign modal (driver) =================== */
+  .modal-backdrop#deliverySignBackdrop[hidden]{display:none;}
+  .ds-meta{font-size:13px;color:var(--ink-muted);margin-bottom:12px;line-height:1.5;}
+  .ds-meta b{color:var(--ink);}
+  .ds-section{border-top:1px solid var(--border);padding-top:14px;margin-top:14px;}
+  .ds-section:first-of-type{border-top:none;padding-top:0;margin-top:0;}
+  .ds-section h3{margin:0 0 8px;font-size:15px;color:var(--accent-ink,inherit);}
+  .ds-table-wrap{overflow-x:auto;margin-bottom:12px;}
+  .ds-table-wrap .ps-table{font-size:12px;}
+  .ds-signed-note{font-size:13.5px;font-weight:700;color:var(--success);padding:10px;border-radius:8px;background:#e6f3e8;margin-bottom:10px;}
+  .ds-field{margin-bottom:14px;}
+  .ds-field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;}
+  .ds-field input[type=text]{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:16px;font:inherit;background:var(--surface);color:var(--ink);}
+  .ds-sign-actions{display:flex;justify-content:flex-end;margin-top:8px;}
+  .ds-field > button.primary{width:100%;margin-top:8px;}
+  #deliverySignCanvas, #assetSignCanvas{width:100%;height:160px;border:2px dashed var(--border);border-radius:8px;touch-action:none;background:#fff;display:block;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  .delivery-sign-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-top:10px;}
+  .delivery-sign-msg.bad{color:var(--danger);font-weight:600;}
+  .delivery-sign-msg.good{color:var(--success);font-weight:600;}
+
+  @media (max-width:640px){
+    .driver-topbar{align-items:flex-start;}
+    .assign-driver-fields{grid-template-columns:1fr;}
+  }
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap">
@@ -809,7 +902,7 @@
       </div>
     </div>
     <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Saved on this device</span></div>
-    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="jobsDashboardBtn" type="button">Dashboard</button><button id="pendingDeliveriesBtn" type="button">Deliveries</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
+    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="jobsDashboardBtn" type="button">Dashboard</button><button id="pendingDeliveriesBtn" type="button">Deliveries</button><button id="assetsBtn" type="button">Assets</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
     <span id="roleBanner"></span>
   </div>
 
@@ -1007,6 +1100,21 @@
       </button>
     </div>
     <p class="modal-sub" id="packingSlipShipNote">Printing will set this as the Date Shipped for the selected row(s) in the table.</p>
+    <div class="assign-driver-section" id="assignDriverSection">
+      <h3>Assign to a driver</h3>
+      <div class="assign-driver-fields">
+        <label>Driver<select id="assignDriverSelect"><option value="">No drivers yet</option></select></label>
+        <label>Delivery date<input type="date" id="assignDeliveryDate"></label>
+        <label>Delivery time<input type="time" id="assignDeliveryTime"></label>
+        <label>POC name<input type="text" id="assignPocName"></label>
+        <label>POC phone<input type="tel" id="assignPocPhone"></label>
+      </div>
+      <div class="assign-driver-actions">
+        <button type="button" id="assignAssetsBtn">Assets (<span id="assignAssetsCount">0</span>)</button>
+        <button type="button" class="primary" id="assignDriverBtn">Assign to driver</button>
+      </div>
+      <div class="assign-driver-msg" id="assignDriverMsg" aria-live="polite"></div>
+    </div>
     <div class="packing-slip-preview-scroll" id="packingSlipPreviewScroll">
       <div id="packingSlipPreview"></div>
     </div>
@@ -1068,6 +1176,7 @@
             <option value="viewer-any">Viewer - all jobs</option>
             <option value="tech-locked">Tech - one job (delivery requests)</option>
             <option value="tech-any">Tech - all jobs (delivery requests)</option>
+            <option value="driver">Driver</option>
           </select>
         </label>
         <label class="mu-new-job" id="muNewJobWrap">Job<select id="muNewJob"></select></label>
@@ -1125,6 +1234,88 @@
       <button class="primary" id="transferConfirmBtn" type="button">Transfer</button>
     </div>
     <div class="transfer-msg" id="transferMsg" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ================= drivers: full-screen dashboard (replaces the whole app for this role - see body.role-driver in roles.css) ================= -->
+<div id="driverDashboard" hidden="">
+  <header class="driver-topbar">
+    <div class="driver-brand">
+      <div class="driver-badge">AU</div>
+      <div>
+        <h1>My Deliveries</h1>
+        <p class="driver-sub" id="driverUserEmail"></p>
+      </div>
+    </div>
+    <button class="icon-btn" id="driverSignOutBtn" type="button" title="Sign out">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg>
+    </button>
+  </header>
+  <div class="driver-list" id="driverList"></div>
+  <div class="driver-msg" id="driverMsg" aria-live="polite"></div>
+</div>
+
+<div class="modal-backdrop" id="deliverySignBackdrop" hidden="">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="deliverySignTitle">
+    <div class="modal-head">
+      <h2 id="deliverySignTitle">Delivery</h2>
+      <button class="icon-btn" id="deliverySignCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <div class="ds-meta" id="deliverySignMeta"></div>
+
+    <div class="ds-section">
+      <h3>Delivery Slip</h3>
+      <div class="ds-table-wrap"><table class="ps-table" id="deliverySignItemsTable"></table></div>
+      <div id="deliverySignEquipDone" class="ds-signed-note" hidden="">Signed - thank you.</div>
+      <div class="ds-field" id="deliverySignEquipFields">
+        <label>Signed by (name)<input type="text" id="deliverySignerName" placeholder="Full name"></label>
+        <label>Signature<canvas id="deliverySignCanvas" width="600" height="160"></canvas>
+          <div class="ds-sign-actions"><button type="button" id="deliverySignClearBtn">Clear</button></div>
+        </label>
+        <button type="button" class="primary" id="deliverySignSubmitBtn">Submit signed delivery slip</button>
+      </div>
+    </div>
+
+    <div class="ds-section" id="assetSlipSection" hidden="">
+      <h3>Asset Slip</h3>
+      <p class="modal-sub">These are on loan - they'll be checked back into the house pool when returned.</p>
+      <div class="ds-table-wrap"><table class="ps-table" id="deliverySignAssetsTable"></table></div>
+      <div id="deliverySignAssetDone" class="ds-signed-note" hidden="">Signed - thank you.</div>
+      <div class="ds-field" id="deliverySignAssetFields">
+        <label>Signed by (name)<input type="text" id="assetSignerName" placeholder="Full name"></label>
+        <label>Signature<canvas id="assetSignCanvas" width="600" height="160"></canvas>
+          <div class="ds-sign-actions"><button type="button" id="assetSignClearBtn">Clear</button></div>
+        </label>
+        <button type="button" class="primary" id="assetSignSubmitBtn">Submit signed asset slip</button>
+      </div>
+    </div>
+
+    <div class="delivery-sign-msg" id="deliverySignMsg" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ================= assets (house inventory) ================= -->
+<div class="modal-backdrop" id="assetsBackdrop" hidden="">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="assetsTitle">
+    <div class="modal-head">
+      <h2 id="assetsTitle">Assets</h2>
+      <button class="icon-btn" id="assetsCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub" id="assetsSub">Full-access staff only (view-only for Tech - all jobs). Shared pool, reused across every job.</p>
+    <div class="assets-new" id="assetsNewForm">
+      <input type="text" id="assetNewLabel" placeholder="Label (e.g. Pelican case #4)">
+      <input type="text" id="assetNewCategory" placeholder="Category (optional)">
+      <button type="button" class="primary" id="assetNewBtn">Add asset</button>
+    </div>
+    <div class="assets-list" id="assetsList"></div>
+    <div class="assets-msg" id="assetsMsg" aria-live="polite"></div>
+    <div class="modal-actions" id="assetsPickerActions" hidden="">
+      <button class="primary" id="assetsUseSelectedBtn" type="button">Use selected</button>
+    </div>
   </div>
 </div>
 <div id="packingSlipPrintRoot"><div id="packingSlipPrintDoc"></div></div>
@@ -5778,11 +5969,14 @@
   // switch to). A viewer with no job assigned is NOT locked - they behave
   // like staff for navigation (pick any job) but read-only once inside one.
   function applyRoleUi(role, locked){
-    document.body.classList.remove("role-viewer", "role-tech", "locked-job");
+    document.body.classList.remove("role-viewer", "role-tech", "role-driver", "locked-job");
     if (role === "viewer" || role === "tech"){
       document.body.classList.add("role-" + role);
       if (locked) document.body.classList.add("locked-job");
       persist = function(){}; // this account can never write eq_jobs/eq_rows - RLS would reject it anyway
+    } else if (role === "driver"){
+      document.body.classList.add("role-driver");
+      persist = function(){}; // drivers never touch eq_jobs/eq_rows at all
     } else {
       persist = realPersist;
     }
@@ -5826,6 +6020,12 @@
       var jobId = pr.data && pr.data.job_id;
       cloud.role = role;
 
+      if (role === "driver"){
+        // completely bypasses the normal job-opening flow - a driver never
+        // picks a job, they just see their own assigned deliveries
+        applyRoleUi("driver");
+        return openDriverDashboard();
+      }
       if ((role === "viewer" || role === "tech") && !jobId){
         // read-only viewer, or an unlocked tech - either way can browse/open
         // any job, same navigation as staff. A tech still can't request
@@ -6156,6 +6356,7 @@
   function muKind(u){
     if (u.role === "viewer") return u.jobId ? "viewer-locked" : "viewer-any";
     if (u.role === "tech") return u.jobId ? "tech-locked" : "tech-any";
+    if (u.role === "driver") return "driver";
     return "staff";
   }
   function muKindNeedsJob(kind){ return kind === "viewer-locked" || kind === "tech-locked"; }
@@ -6164,6 +6365,7 @@
     if (kind === "viewer-any") return {role: "viewer", jobId: null};
     if (kind === "tech-locked") return {role: "tech", jobId: jobId || null};
     if (kind === "tech-any") return {role: "tech", jobId: null};
+    if (kind === "driver") return {role: "driver", jobId: null};
     return {role: "staff", jobId: null};
   }
   function muJobOptionsHtml(selectedId){
@@ -6207,6 +6409,7 @@
             '<option value="viewer-any"' + (kind === "viewer-any" ? " selected" : "") + '>Viewer - all jobs</option>' +
             '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>Tech - one job</option>' +
             '<option value="tech-any"' + (kind === "tech-any" ? " selected" : "") + '>Tech - all jobs</option>' +
+            '<option value="driver"' + (kind === "driver" ? " selected" : "") + '>Driver</option>' +
           '</select>' +
           '<select class="mu-job' + (jobShown ? "" : " mu-job-hidden") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
           '<button type="button" class="mu-save primary">Save</button>' +
@@ -6804,6 +7007,443 @@
     }).catch(function(e){
       transferConfirmBtnEl.disabled = false;
       transferMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't transfer: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
+
+  // ---------- assets (house inventory) ----------
+  // A shared pool, independent of any job's own eq_rows - an asset counts
+  // as "available" exactly when it has no eq_asset_checkouts row with
+  // returned_at still null (see supabase-setup-drivers-and-assets.sql).
+  var assetsCache = []; // [{id,label,category,barcode,notes}]
+  var assetCheckoutsCache = []; // every OPEN checkout (returned_at is null)
+  var assetPickerMode = false; // true when opened via "Assets" from the Create Delivery Slip flow
+  var assetPickedIds = new Set();
+
+  function assetsMsg(text, kind){
+    var m = cloudEl("assetsMsg");
+    m.textContent = text || "";
+    m.className = "assets-msg" + (kind ? " " + kind : "");
+  }
+  function assetCheckoutFor(assetId){
+    return assetCheckoutsCache.filter(function(c){ return c.asset_id === assetId && !c.returned_at; })[0];
+  }
+  function loadAssets(){
+    var list = cloudEl("assetsList");
+    list.textContent = "Loading...";
+    return Promise.all([
+      cloud.sb.from("eq_assets").select("*").eq("deleted", false).order("label"),
+      cloud.sb.from("eq_asset_checkouts").select("*")
+    ]).then(function(results){
+      var assetsRes = results[0], checkoutsRes = results[1];
+      if (assetsRes.error){ assetsMsg("Couldn't load: " + assetsRes.error.message, "bad"); list.textContent = ""; return; }
+      assetsCache = assetsRes.data || [];
+      assetCheckoutsCache = (checkoutsRes.data || []).filter(function(c){ return !c.returned_at; });
+      renderAssetsList();
+    }).catch(function(e){
+      assetsMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't load: " + (e && e.message ? e.message : e), "bad");
+      list.textContent = "";
+    });
+  }
+  function renderAssetsList(){
+    var list = cloudEl("assetsList");
+    if (!assetsCache.length){ list.innerHTML = ""; assetsMsg("No assets yet."); return; }
+    assetsMsg("");
+    list.innerHTML = assetsCache.map(function(a){
+      var checkout = assetCheckoutFor(a.id);
+      var out = !!checkout;
+      var pickCheckbox = (assetPickerMode && !out)
+        ? '<input type="checkbox" class="asset-pick" data-asset-pick="' + a.id + '"' + (assetPickedIds.has(a.id) ? " checked" : "") + '>'
+        : "";
+      var returnBtn = out
+        ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>'
+        : "";
+      return '<div class="asset-row" data-asset-id="' + a.id + '">' +
+        pickCheckbox +
+        '<div class="asset-info">' +
+          '<div class="asset-label">' + escHtml(a.label || "Untitled asset") + '</div>' +
+          '<div class="asset-sub">' + escHtml(a.category || "") + (out ? " · Out since " + escHtml(formatWhen(checkout.checked_out_at)) : "") + '</div>' +
+        '</div>' +
+        '<span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (out ? "Checked out" : "Available") + '</span>' +
+        returnBtn +
+      '</div>';
+    }).join("");
+  }
+  function openAssetsModal(picker){
+    assetPickerMode = !!picker;
+    cloudEl("assetsPickerActions").hidden = !assetPickerMode;
+    cloudEl("assetsSub").textContent = assetPickerMode
+      ? "Check the assets going out with this delivery, then Use selected."
+      : "Full-access staff only (view-only for Tech - all jobs). Shared pool, reused across every job.";
+    cloudEl("assetsBackdrop").hidden = false;
+    loadAssets();
+  }
+  function closeAssetsModal(){ cloudEl("assetsBackdrop").hidden = true; }
+
+  var assetsBtnEl = cloudEl("assetsBtn");
+  if (assetsBtnEl) assetsBtnEl.addEventListener("click", function(){ openAssetsModal(false); });
+  var assetsCloseBtnEl = cloudEl("assetsCloseBtn");
+  if (assetsCloseBtnEl) assetsCloseBtnEl.addEventListener("click", closeAssetsModal);
+  var assetsBackdropEl = cloudEl("assetsBackdrop");
+  if (assetsBackdropEl) assetsBackdropEl.addEventListener("click", function(ev){ if (ev.target === assetsBackdropEl) closeAssetsModal(); });
+
+  var assetNewBtnEl = cloudEl("assetNewBtn");
+  if (assetNewBtnEl) assetNewBtnEl.addEventListener("click", function(){
+    var label = cloudEl("assetNewLabel").value.trim();
+    var category = cloudEl("assetNewCategory").value.trim();
+    if (!label){ assetsMsg("Type a label first.", "bad"); return; }
+    assetNewBtnEl.disabled = true;
+    cloud.sb.from("eq_assets").insert({id: cloudUuid(), label: label, category: category, updated_by: cloud.clientId}).then(function(r){
+      assetNewBtnEl.disabled = false;
+      if (r.error){ assetsMsg("Couldn't add: " + r.error.message, "bad"); return; }
+      cloudEl("assetNewLabel").value = "";
+      cloudEl("assetNewCategory").value = "";
+      loadAssets();
+    }).catch(function(e){
+      assetNewBtnEl.disabled = false;
+      assetsMsg("Couldn't add: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
+
+  document.addEventListener("click", function(ev){
+    var returnBtn = ev.target.closest && ev.target.closest("[data-asset-return]");
+    if (!returnBtn) return;
+    var checkoutId = returnBtn.dataset.assetReturn;
+    returnBtn.disabled = true;
+    cloud.sb.from("eq_asset_checkouts").update({returned_at: new Date().toISOString(), returned_by: (cloud.user && cloud.user.email) || ""}).eq("id", checkoutId).then(function(r){
+      returnBtn.disabled = false;
+      if (r.error){ assetsMsg("Couldn't mark returned: " + r.error.message, "bad"); return; }
+      loadAssets();
+    }).catch(function(e){
+      returnBtn.disabled = false;
+      assetsMsg("Couldn't mark returned: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
+  document.addEventListener("change", function(ev){
+    if (!ev.target.classList || !ev.target.classList.contains("asset-pick")) return;
+    var id = ev.target.dataset.assetPick;
+    if (ev.target.checked) assetPickedIds.add(id); else assetPickedIds.delete(id);
+  });
+
+  function updateAssignAssetsCount(){
+    var el = cloudEl("assignAssetsCount");
+    if (el) el.textContent = String(assetPickedIds.size);
+  }
+  var assetsUseSelectedBtnEl = cloudEl("assetsUseSelectedBtn");
+  if (assetsUseSelectedBtnEl) assetsUseSelectedBtnEl.addEventListener("click", function(){
+    updateAssignAssetsCount();
+    closeAssetsModal();
+  });
+
+  // ---------- assign to a driver (inside Create Delivery Slip) ----------
+  var driversCache = []; // [{id,email}] - admin-users accounts with role=driver
+
+  function assignDriverMsg(text, kind){
+    var m = cloudEl("assignDriverMsg");
+    m.textContent = text || "";
+    m.className = "assign-driver-msg" + (kind ? " " + kind : "");
+  }
+  function loadDriversForAssign(){
+    var sel = cloudEl("assignDriverSelect");
+    return invokeFn("admin-users", {action: "list"}).then(function(res){
+      if (res.error || (res.data && res.data.error)) return; // quietly leave the placeholder - Manage Users still shows the real list/error
+      var users = (res.data && res.data.users) || [];
+      driversCache = users.filter(function(u){ return u.role === "driver"; });
+      sel.innerHTML = driversCache.length
+        ? driversCache.map(function(d){ return '<option value="' + d.id + '">' + escHtml(d.email) + '</option>'; }).join("")
+        : '<option value="">No drivers yet - add one in Manage Users</option>';
+    }).catch(function(){});
+  }
+  function resetAssignDriverFields(){
+    cloudEl("assignDriverSelect").innerHTML = '<option value="">Loading drivers...</option>';
+    cloudEl("assignDeliveryDate").value = todayLocalIso();
+    cloudEl("assignDeliveryTime").value = "";
+    cloudEl("assignPocName").value = "";
+    cloudEl("assignPocPhone").value = "";
+    assetPickedIds = new Set();
+    updateAssignAssetsCount();
+    assignDriverMsg("");
+  }
+
+  var packingSlipBtnForAssignEl = cloudEl("packingSlipBtn");
+  if (packingSlipBtnForAssignEl) packingSlipBtnForAssignEl.addEventListener("click", function(){
+    resetAssignDriverFields();
+    loadDriversForAssign();
+  });
+
+  var assignAssetsBtnEl = cloudEl("assignAssetsBtn");
+  if (assignAssetsBtnEl) assignAssetsBtnEl.addEventListener("click", function(){ openAssetsModal(true); });
+
+  var assignDriverBtnEl = cloudEl("assignDriverBtn");
+  if (assignDriverBtnEl) assignDriverBtnEl.addEventListener("click", function(){
+    var selRows = getSelectedRows();
+    if (!selRows.length){ assignDriverMsg("Select one or more rows in the table first.", "bad"); return; }
+    var driverId = cloudEl("assignDriverSelect").value;
+    if (!driverId){ assignDriverMsg("Pick a driver first.", "bad"); return; }
+    var scheduledDate = cloudEl("assignDeliveryDate").value || null;
+    var scheduledTime = cloudEl("assignDeliveryTime").value || "";
+    var pocName = cloudEl("assignPocName").value.trim();
+    var pocPhone = cloudEl("assignPocPhone").value.trim();
+    var assetIds = Array.from(assetPickedIds);
+    var items = selRows.map(function(r){
+      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber, notes: r.notes};
+    });
+    var deliveryId = cloudUuid();
+    var driver = driversCache.filter(function(d){ return d.id === driverId; })[0];
+    assignDriverBtnEl.disabled = true;
+    assignDriverMsg("Assigning...");
+    cloud.sb.from("eq_deliveries").insert({
+      id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds,
+      poc_name: pocName, poc_phone: pocPhone, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
+      status: "assigned", updated_by: cloud.clientId
+    }).then(function(r){
+      if (r.error) throw r.error;
+      if (!assetIds.length) return null;
+      var checkoutRows = assetIds.map(function(aid){
+        return {id: cloudUuid(), asset_id: aid, job_id: cloud.jobId, delivery_id: deliveryId, checked_out_by: (cloud.user && cloud.user.email) || ""};
+      });
+      return cloud.sb.from("eq_asset_checkouts").insert(checkoutRows);
+    }).then(function(r){
+      assignDriverBtnEl.disabled = false;
+      if (r && r.error){ assignDriverMsg("Delivery created, but checking out assets failed: " + r.error.message, "bad"); return; }
+      resetAssignDriverFields();
+      loadDriversForAssign();
+      assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + ".", "good");
+    }).catch(function(e){
+      assignDriverBtnEl.disabled = false;
+      assignDriverMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't assign: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
+
+  // ---------- driver dashboard (role=driver) ----------
+  var driverDeliveriesCache = [];
+  var currentDelivery = null, currentDeliveryPad = null, currentAssetPad = null;
+
+  function driverMsg(text, kind){
+    var m = cloudEl("driverMsg");
+    if (!m) return;
+    m.textContent = text || "";
+    m.className = "driver-msg" + (kind ? " " + kind : "");
+  }
+  function driverMapsUrl(address){
+    return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(address);
+  }
+  function driverFormatDate(iso){
+    if (!iso) return "";
+    var d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString(undefined, {month: "short", day: "numeric"});
+  }
+  function openDriverDashboard(){
+    cloudEl("driverDashboard").hidden = false;
+    cloudEl("driverUserEmail").textContent = (cloud.user && cloud.user.email) || "";
+    return loadDriverDeliveries();
+  }
+  function loadDriverDeliveries(){
+    driverMsg("Loading...");
+    return Promise.all([
+      cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("driver_id", cloud.user.id).eq("status", "assigned")
+        .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
+      cloud.sb.from("eq_assets").select("id,label,category")
+    ]).then(function(results){
+      var delRes = results[0], assetsRes = results[1];
+      if (delRes.error){ driverMsg("Couldn't load: " + delRes.error.message, "bad"); return; }
+      driverDeliveriesCache = delRes.data || [];
+      if (!assetsRes.error) assetsCache = assetsRes.data || [];
+      renderDriverDashboard();
+    }).catch(function(e){
+      driverMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't load: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+  function renderDriverDashboard(){
+    var list = cloudEl("driverList");
+    if (!driverDeliveriesCache.length){ list.innerHTML = ""; driverMsg("No deliveries assigned yet."); return; }
+    driverMsg("");
+    list.innerHTML = driverDeliveriesCache.map(function(d, i){
+      var job = d.eq_jobs || {};
+      var jobMeta = job.meta || {};
+      var jobName = jobMeta.project || job.name || "Untitled job";
+      var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
+      var address = jobMeta.address || "";
+      var when = [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ");
+      var itemCount = (d.items || []).length;
+      var assetCount = (d.asset_ids || []).length;
+      return '<div class="driver-card">' +
+        '<div class="driver-card-head"><span class="driver-job">' + (i + 1) + '. ' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span>' +
+          (when ? '<span class="driver-when">' + escHtml(when) + '</span>' : '') +
+        '</div>' +
+        (address ? '<div class="driver-address">' + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : '') +
+        '<div class="driver-card-stats">' +
+          '<span><b>' + itemCount + '</b> item' + (itemCount === 1 ? "" : "s") + '</span>' +
+          (assetCount ? '<span><b>' + assetCount + '</b> asset' + (assetCount === 1 ? "" : "s") + '</span>' : '') +
+          (d.poc_name ? '<span>POC: <b>' + escHtml(d.poc_name) + '</b>' + (d.poc_phone ? " · " + escHtml(d.poc_phone) : "") + '</span>' : '') +
+        '</div>' +
+        '<button type="button" class="driver-open-btn" data-driver-open="' + d.id + '">View &amp; Sign</button>' +
+      '</div>';
+    }).join("");
+  }
+  document.addEventListener("click", function(ev){
+    var openBtn = ev.target.closest && ev.target.closest("[data-driver-open]");
+    if (!openBtn) return;
+    var delivery = driverDeliveriesCache.filter(function(d){ return d.id === openBtn.dataset.driverOpen; })[0];
+    if (delivery) openDeliverySignModal(delivery);
+  });
+  var driverSignOutBtnEl = cloudEl("driverSignOutBtn");
+  if (driverSignOutBtnEl) driverSignOutBtnEl.addEventListener("click", function(){
+    var realBtn = cloudEl("cloudSignOutBtn");
+    if (realBtn) realBtn.click();
+  });
+  document.addEventListener("visibilitychange", function(){
+    if (!document.hidden && document.body.classList.contains("role-driver")) loadDriverDeliveries();
+  });
+
+  // ---------- delivery sign modal (driver) - plain canvas signature pad,
+  // sized once when the modal opens (no live-resize tracking - this is a
+  // one-shot signing screen, not something left open across a rotation) ----------
+  function setupSignaturePad(canvas){
+    var ctx = canvas.getContext("2d");
+    var ratio = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.round(rect.width * ratio));
+    canvas.height = Math.max(1, Math.round(rect.height * ratio));
+    ctx.scale(ratio, ratio);
+    ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#1a1a18";
+    var drawing = false, hasSignature = false;
+    function pos(ev){ var r = canvas.getBoundingClientRect(); return {x: ev.clientX - r.left, y: ev.clientY - r.top}; }
+    canvas.addEventListener("pointerdown", function(ev){
+      ev.preventDefault();
+      drawing = true; hasSignature = true;
+      var p = pos(ev); ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      try{ canvas.setPointerCapture(ev.pointerId); }catch(e){}
+    });
+    canvas.addEventListener("pointermove", function(ev){
+      if (!drawing) return;
+      var p = pos(ev); ctx.lineTo(p.x, p.y); ctx.stroke();
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach(function(evt){
+      canvas.addEventListener(evt, function(){ drawing = false; });
+    });
+    return {
+      clear: function(){ ctx.clearRect(0, 0, canvas.width, canvas.height); hasSignature = false; },
+      isEmpty: function(){ return !hasSignature; },
+      toDataUrl: function(){ return canvas.toDataURL("image/png"); }
+    };
+  }
+  function deliveryItemsTableHtml(items){
+    var rows = (items || []).map(function(it){
+      return "<tr><td>" + escHtml(it.barcode) + "</td><td>" + escHtml(it.manufacturer) + "</td><td>" + escHtml(it.model) + "</td><td>" + escHtml(it.deviceType) + "</td>" +
+        "<td>" + escHtml(it.totalQty == null ? "" : String(it.totalQty)) + "</td><td>" + escHtml(it.serialNumber) + "</td></tr>";
+    }).join("");
+    return "<thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead><tbody>" + rows + "</tbody>";
+  }
+  function assetItemsTableHtml(ids){
+    var rows = (ids || []).map(function(id){
+      var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+      return "<tr><td>" + escHtml(a ? a.label : "Unknown asset") + "</td><td>" + escHtml(a ? a.category : "") + "</td></tr>";
+    }).join("");
+    return "<thead><tr><th>Asset</th><th>Category</th></tr></thead><tbody>" + rows + "</tbody>";
+  }
+  function deliverySignMsg(text, kind){
+    var m = cloudEl("deliverySignMsg");
+    m.textContent = text || "";
+    m.className = "delivery-sign-msg" + (kind ? " " + kind : "");
+  }
+  function openDeliverySignModal(delivery){
+    currentDelivery = delivery;
+    currentDeliveryPad = null; currentAssetPad = null;
+    var job = delivery.eq_jobs || {};
+    var jobMeta = job.meta || {};
+    var jobName = jobMeta.project || job.name || "Untitled job";
+    var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
+    var address = jobMeta.address || "";
+    var when = [driverFormatDate(delivery.scheduled_date), formatDeliveryTime(delivery.scheduled_time)].filter(Boolean).join(" ");
+    cloudEl("deliverySignMeta").innerHTML =
+      "<div><b>" + escHtml(jobName) + (jobNum ? " — " + escHtml(jobNum) : "") + "</b></div>" +
+      (address ? "<div>" + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : "") +
+      (when ? "<div>" + escHtml(when) + "</div>" : "") +
+      (delivery.poc_name ? "<div>POC: " + escHtml(delivery.poc_name) + (delivery.poc_phone ? " · " + escHtml(delivery.poc_phone) : "") + "</div>" : "");
+
+    cloudEl("deliverySignItemsTable").innerHTML = deliveryItemsTableHtml(delivery.items);
+    var equipSigned = !!delivery.signed_at;
+    cloudEl("deliverySignEquipDone").hidden = !equipSigned;
+    cloudEl("deliverySignEquipFields").hidden = equipSigned;
+    cloudEl("deliverySignerName").value = "";
+
+    var hasAssets = delivery.asset_ids && delivery.asset_ids.length > 0;
+    cloudEl("assetSlipSection").hidden = !hasAssets;
+    var assetSigned = hasAssets && !!delivery.asset_signed_at;
+    if (hasAssets){
+      cloudEl("deliverySignAssetsTable").innerHTML = assetItemsTableHtml(delivery.asset_ids);
+      cloudEl("deliverySignAssetDone").hidden = !assetSigned;
+      cloudEl("deliverySignAssetFields").hidden = assetSigned;
+      cloudEl("assetSignerName").value = "";
+    }
+
+    deliverySignMsg("");
+    cloudEl("deliverySignBackdrop").hidden = false;
+
+    if (!equipSigned) currentDeliveryPad = setupSignaturePad(cloudEl("deliverySignCanvas"));
+    if (hasAssets && !assetSigned) currentAssetPad = setupSignaturePad(cloudEl("assetSignCanvas"));
+  }
+  function closeDeliverySignModal(){
+    cloudEl("deliverySignBackdrop").hidden = true;
+    currentDelivery = null; currentDeliveryPad = null; currentAssetPad = null;
+  }
+  var deliverySignCloseBtnEl = cloudEl("deliverySignCloseBtn");
+  if (deliverySignCloseBtnEl) deliverySignCloseBtnEl.addEventListener("click", closeDeliverySignModal);
+  var deliverySignBackdropEl = cloudEl("deliverySignBackdrop");
+  if (deliverySignBackdropEl) deliverySignBackdropEl.addEventListener("click", function(ev){ if (ev.target === deliverySignBackdropEl) closeDeliverySignModal(); });
+
+  var deliverySignClearBtnEl = cloudEl("deliverySignClearBtn");
+  if (deliverySignClearBtnEl) deliverySignClearBtnEl.addEventListener("click", function(){ if (currentDeliveryPad) currentDeliveryPad.clear(); });
+  var assetSignClearBtnEl = cloudEl("assetSignClearBtn");
+  if (assetSignClearBtnEl) assetSignClearBtnEl.addEventListener("click", function(){ if (currentAssetPad) currentAssetPad.clear(); });
+
+  var deliverySignSubmitBtnEl = cloudEl("deliverySignSubmitBtn");
+  if (deliverySignSubmitBtnEl) deliverySignSubmitBtnEl.addEventListener("click", function(){
+    if (!currentDelivery) return;
+    var name = cloudEl("deliverySignerName").value.trim();
+    if (!name){ deliverySignMsg("Type the signer's name first.", "bad"); return; }
+    if (!currentDeliveryPad || currentDeliveryPad.isEmpty()){ deliverySignMsg("Sign in the box first.", "bad"); return; }
+    var hasAssets = currentDelivery.asset_ids && currentDelivery.asset_ids.length > 0;
+    var patch = {signed_by: name, signature_data: currentDeliveryPad.toDataUrl(), signed_at: new Date().toISOString(), updated_by: cloud.clientId};
+    if (!hasAssets || currentDelivery.asset_signed_at) patch.status = "delivered";
+    deliverySignSubmitBtnEl.disabled = true;
+    deliverySignMsg("Submitting...");
+    cloud.sb.from("eq_deliveries").update(patch).eq("id", currentDelivery.id).then(function(r){
+      deliverySignSubmitBtnEl.disabled = false;
+      if (r.error){ deliverySignMsg("Couldn't submit: " + r.error.message, "bad"); return; }
+      currentDelivery = Object.assign(currentDelivery, patch);
+      cloudEl("deliverySignEquipDone").hidden = false;
+      cloudEl("deliverySignEquipFields").hidden = true;
+      deliverySignMsg("Signed. Thank you!", "good");
+      if (patch.status === "delivered") setTimeout(function(){ closeDeliverySignModal(); loadDriverDeliveries(); }, 1200);
+    }).catch(function(e){
+      deliverySignSubmitBtnEl.disabled = false;
+      deliverySignMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't submit: " + (e && e.message ? e.message : e), "bad");
+    });
+  });
+
+  var assetSignSubmitBtnEl = cloudEl("assetSignSubmitBtn");
+  if (assetSignSubmitBtnEl) assetSignSubmitBtnEl.addEventListener("click", function(){
+    if (!currentDelivery) return;
+    var name = cloudEl("assetSignerName").value.trim();
+    if (!name){ deliverySignMsg("Type the signer's name first.", "bad"); return; }
+    if (!currentAssetPad || currentAssetPad.isEmpty()){ deliverySignMsg("Sign in the asset box first.", "bad"); return; }
+    var patch = {asset_signed_by: name, asset_signature_data: currentAssetPad.toDataUrl(), asset_signed_at: new Date().toISOString(), updated_by: cloud.clientId};
+    if (currentDelivery.signed_at) patch.status = "delivered";
+    assetSignSubmitBtnEl.disabled = true;
+    deliverySignMsg("Submitting...");
+    cloud.sb.from("eq_deliveries").update(patch).eq("id", currentDelivery.id).then(function(r){
+      assetSignSubmitBtnEl.disabled = false;
+      if (r.error){ deliverySignMsg("Couldn't submit: " + r.error.message, "bad"); return; }
+      currentDelivery = Object.assign(currentDelivery, patch);
+      cloudEl("deliverySignAssetDone").hidden = false;
+      cloudEl("deliverySignAssetFields").hidden = true;
+      deliverySignMsg("Signed. Thank you!", "good");
+      if (patch.status === "delivered") setTimeout(function(){ closeDeliverySignModal(); loadDriverDeliveries(); }, 1200);
+    }).catch(function(e){
+      assetSignSubmitBtnEl.disabled = false;
+      deliverySignMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't submit: " + (e && e.message ? e.message : e), "bad");
     });
   });
 
