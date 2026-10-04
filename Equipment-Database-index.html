@@ -7710,7 +7710,7 @@
       invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
       // no "deleted" filter here: this is only a name lookup, and an asset that
       // was deleted while still out would otherwise show up with no name
-      cloud.sb.from("eq_assets").select("id,label"),
+      cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model"),
       cloud.sb.from("eq_asset_checkouts").select("*")
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
@@ -7846,9 +7846,13 @@
       '<div class="jd-deliveries-list">' +
       openCheckouts.map(function(c){
         var asset = assetsById[c.asset_id];
-        // "Untitled" only when the asset is there but has no label; a missing
-        // asset is reported as such rather than looking like a blank name
-        var assetLabel = asset ? (asset.label || "Untitled asset") : "Unknown asset (not in the asset list)";
+        // Name from whatever the asset has - its label, else its BarCode, make
+        // and model, or category - so a row is never just "Untitled". The short
+        // id on the end tells apart two assets that look alike.
+        var shortId = "#" + String(c.asset_id || "").slice(0, 6);
+        var assetLabel = asset
+          ? (asset.label || asset.barcode || [asset.manufacturer, asset.model].filter(Boolean).join(" ") || asset.category || "Asset") + " " + shortId
+          : "Asset not found " + shortId;
         var jobName = c.job_id ? (jobNameById[c.job_id] || "Unknown job") : "Unknown job";
         var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
         return '<div class="jd-delivery-row">' +
@@ -9050,7 +9054,10 @@
     if (emailEl) emailEl.value = packingSlipPocInfo.email;
   }
 
+  // Set once a delivery has saved from this form, cleared when a new slip starts.
+  var assignSavedDeliveryId = null;
   function resetAssignDriverFields(){
+    assignSavedDeliveryId = null;
     cloudEl("assignDriverSelect").innerHTML = '<option value="">Loading drivers...</option>';
     cloudEl("assignDeliveryDate").value = todayLocalIso();
     cloudEl("assignDeliveryTime").value = "";
@@ -9088,6 +9095,10 @@
 
   var assignDriverBtnEl = cloudEl("assignDriverBtn");
   if (assignDriverBtnEl) assignDriverBtnEl.addEventListener("click", function(){
+    if (assignSavedDeliveryId){
+      assignDriverMsg("This delivery is already saved. Click Create delivery slip to start another one.", "bad");
+      return;
+    }
     var selRows = getSelectedRows();
     if (!selRows.length){
       assignDriverMsg("No items selected - check the item(s) in the table above. (If you just printed, that sets Date Shipped and clears the selection, since those rows are no longer pending.)", "bad");
@@ -9134,14 +9145,18 @@
     }).then(function(r){
       assignDriverBtnEl.disabled = false;
       if (r && r.error){ assignDriverMsg("Delivery created, but checking out assets failed: " + r.error.message, "bad"); return; }
-      // Keep the driver, van, date, time and POC on screen after saving, so
-      // what was just assigned visibly stays put. Only the picked assets are
-      // cleared - they're checked out now.
-      assetPickedIds = new Set();
-      assetPickQty = {};
-      updateAssignAssetsCount();
+      // Everything stays on screen after saving - driver, van, date, time, POC
+      // and the assets - so what was just assigned visibly stays put. The
+      // assets are already checked out, so this delivery can't be assigned
+      // again from here; a new slip (Create delivery slip) starts clean.
+      assignSavedDeliveryId = deliveryId;
       loadDriversForAssign().then(function(){ cloudEl("assignDriverSelect").value = driverId; });
-      assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + (van ? " in " + van : "") + ". Saved.", "good");
+      var assetNames = assetIds.map(function(id){
+        var q = assetQtyFor(id);
+        return assetNameById(id) + (q > 1 ? " ×" + q : "");
+      });
+      assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + (van ? " in " + van : "") +
+        (assetNames.length ? " with " + assetNames.join(", ") : "") + ". Saved.", "good");
     }).catch(function(e){
       assignDriverBtnEl.disabled = false;
       assignDriverMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't assign: " + (e && e.message ? e.message : e), "bad");
