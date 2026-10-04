@@ -1240,6 +1240,7 @@
       <h3>Assign to a driver</h3>
       <div class="assign-driver-fields">
         <label>Driver<select id="assignDriverSelect"><option value="">No drivers yet</option></select></label>
+        <label>Van<select id="assignVanSelect"><option value="">No van</option><option value="Van 1">Van 1</option><option value="Van 2">Van 2</option><option value="Van 3">Van 3</option><option value="Van 4">Van 4</option><option value="Van 5">Van 5</option><option value="Van 6">Van 6</option><option value="Van 7">Van 7</option><option value="Van 8">Van 8</option><option value="Van 9">Van 9</option><option value="Van 10">Van 10</option><option value="Van 11">Van 11</option><option value="Van 12">Van 12</option><option value="Van 13">Van 13</option><option value="Van 14">Van 14</option><option value="Van 15">Van 15</option><option value="Van 16">Van 16</option><option value="Van 17">Van 17</option><option value="Van 18">Van 18</option><option value="Van 19">Van 19</option><option value="Van 20">Van 20</option></select></label>
         <label>Delivery date<input type="date" id="assignDeliveryDate"></label>
         <label>Delivery time<input type="time" id="assignDeliveryTime"></label>
         <label>POC name<input type="text" id="assignPocName"></label>
@@ -1267,6 +1268,7 @@
       </button>
     </div>
     <p class="modal-sub">Sends the warehouse a pick slip (PDF) and this list, by email, for the items checked in the table (and/or any assets picked below).</p>
+    <p class="modal-sub delivery-job-info" id="deliveryJobInfo"></p>
     <div class="delivery-item-list">
       <table>
         <thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>
@@ -1280,6 +1282,7 @@
       <label>Requested date<input type="date" id="deliveryDate"></label>
       <label>Requested time<input type="time" id="deliveryTime"></label>
     </div>
+    <p class="modal-sub delivery-assets-list" id="deliveryAssetsList"></p>
     <div class="modal-actions">
       <button type="button" id="deliveryAssetsBtn">Assets (<span id="deliveryAssetsCount">0</span>)</button>
       <button class="primary" id="deliveryRequestSubmitBtn" type="button">Submit request</button>
@@ -1333,9 +1336,10 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Full-access staff only. Delivery requests submitted by techs, across every job.</p>
+    <p class="modal-sub">Full-access staff only. Pending = delivery requests submitted by techs, across every job. Scheduled = deliveries already assigned to a driver and not yet signed off.</p>
     <div class="pd-filter" role="group" aria-label="Filter deliveries">
       <button type="button" class="active" data-pd-status="submitted">Pending</button>
+      <button type="button" data-pd-status="scheduled">Scheduled</button>
       <button type="button" data-pd-status="fulfilled">Fulfilled</button>
       <button type="button" data-pd-status="cancelled">Cancelled</button>
     </div>
@@ -1479,6 +1483,7 @@
       <input type="text" id="assetNewDescription" placeholder="Description (optional)">
       <button type="button" class="primary" id="assetNewBtn">Add asset</button>
     </div>
+    <input type="search" id="assetsPickSearch" class="assets-pick-search" placeholder="Search any field: label, category, barcode, make, model, notes, job, status..." autocomplete="off">
     <div class="assets-list" id="assetsList"></div>
     <div class="assets-msg" id="assetsMsg" aria-live="polite"></div>
     <div class="modal-actions" id="assetsPickerActions" hidden="">
@@ -1498,7 +1503,7 @@
     </div>
     <p class="modal-sub">Full-access staff only (view-only for PC - all jobs). Search, filter, and audit the shared asset pool.</p>
     <div class="asset-audit-toolbar">
-      <input type="search" id="assetAuditSearch" placeholder="Search label, barcode, make, model...">
+      <input type="search" id="assetAuditSearch" placeholder="Search any field: label, category, barcode, make, model, notes, job, status...">
       <select id="assetAuditStatusFilter">
         <option value="all">All statuses</option>
         <option value="available">Available</option>
@@ -1538,6 +1543,8 @@
       <label>Model<input type="text" id="assetEditModel"></label>
       <label class="field-wide">Description<input type="text" id="assetEditDescription"></label>
       <label class="field-wide">Notes<input type="text" id="assetEditNotes"></label>
+      <label class="field-wide asset-consumable-toggle"><input type="checkbox" id="assetEditConsumable"> Consumable - counted by quantity (packing tape rolls, blankets, boxes)</label>
+      <label id="assetEditStockLabel" hidden="">In stock<input type="number" min="0" step="1" id="assetEditStock"></label>
     </div>
     <div class="modal-actions">
       <button class="primary" id="assetEditSaveBtn" type="button">Add asset</button>
@@ -6618,12 +6625,32 @@
       return;
     }
     renderDeliveryItemsList(selRows);
+    renderDeliveryJobInfo();
     deliveryMsg("");
     cloudEl("deliveryDate").value = todayLocalIso();
     cloudEl("deliveryTime").value = "";
     deliveryAssetPickedIds = new Set();
+    assetPickQty = {};
     updateDeliveryAssetsCount();
     cloudEl("deliveryRequestBackdrop").hidden = false;
+    // Request Assets is for picking assets, so go straight to the picker
+    // instead of leaving the request empty behind an Assets (0) button.
+    if (opts.assetsOnly) openAssetsModal("request");
+  }
+  // Job name, job number and address shown at the top of the request, so the
+  // person submitting (and anyone reading the email or pick slip) can see
+  // exactly which job the equipment or assets are going to. Taken from the
+  // job's own details - the same values the email and PDF already use.
+  function renderDeliveryJobInfo(){
+    var el = cloudEl("deliveryJobInfo");
+    if (!el) return;
+    var name = meta.project || "";
+    var num = meta.projectNumber ? String(meta.projectNumber).trim() : "";
+    var addr = String(meta.address || "").trim();
+    el.innerHTML =
+      "<b>Job:</b> " + (name ? escHtml(name) : "<span class=\"delivery-job-missing\">not set - add it under Project &amp; Job Details</span>") + "<br>" +
+      "<b>Job #:</b> " + (num ? escHtml(num) : "<span class=\"delivery-job-missing\">not set</span>") + "<br>" +
+      "<b>Address:</b> " + (addr ? escHtml(addr) : "<span class=\"delivery-job-missing\">not set</span>");
   }
   function closeDeliveryRequestModal(){ cloudEl("deliveryRequestBackdrop").hidden = true; }
 
@@ -6752,10 +6779,144 @@
     return doc.output("datauristring").split(",")[1];
   }
 
+  // The signed copy of a driver's equipment slip or asset slip, emailed by
+  // send-signed-slip the moment it's signed. Built from the delivery itself
+  // (not the staff user's currently-open job), so it carries that delivery's
+  // own job/address/van/POC plus the signer's name and signature.
+  function buildSignedSlipPdfBase64(delivery, kind, signedBy, signedAtIso, signatureDataUrl){
+    if (typeof window.jspdf === "undefined") return "";
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var doc = new jsPDFCtor({unit: "pt", format: "letter", orientation: "landscape"});
+    var pageW = doc.internal.pageSize.getWidth();
+    var NAVY = [26, 58, 107];
+    var margin = 40;
+    var job = delivery.eq_jobs || {};
+    var jm = job.meta || {};
+    var isAssets = kind === "assets";
+    var jobLine = [jm.project || job.name, jm.projectNumber].filter(function(v){ return v && String(v).trim(); }).join(" - ");
+    var when = [driverFormatDate(delivery.scheduled_date), formatDeliveryTime(delivery.scheduled_time)].filter(Boolean).join(" ");
+    var signedText = new Date(signedAtIso).toLocaleString(undefined, {dateStyle: "medium", timeStyle: "short"});
+
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(19);
+    doc.text(isAssets ? "Asset Delivery Slip" : "Delivery Slip", margin, 34);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Signed " + signedText, margin, 50);
+
+    var badgeSize = 30, badgeX = pageW - margin - badgeSize, badgeY = 14;
+    doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.roundedRect(badgeX, badgeY, badgeSize, badgeSize, 4, 4, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(12);
+    doc.text("AU", badgeX + badgeSize / 2, badgeY + badgeSize / 2 + 4, {align: "center"});
+
+    var ruleY = 64;
+    doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.setLineWidth(1.5);
+    doc.line(margin, ruleY, pageW - margin, ruleY);
+
+    var metaTop = ruleY + 22;
+    var col1X = margin, col2X = margin + 230, col3X = margin + 460;
+    function metaField(x, y, label, value){
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(102, 102, 102);
+      doc.text(label.toUpperCase(), x, y);
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(26, 26, 24);
+      doc.text(String(value || "—"), x, y + 14);
+    }
+    metaField(col1X, metaTop, "Job", jobLine);
+    metaField(col1X, metaTop + 34, "POC", [delivery.poc_name, delivery.poc_phone].filter(Boolean).join(" · "));
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(102, 102, 102);
+    doc.text("ADDRESS", col2X, metaTop);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(26, 26, 24);
+    doc.text(doc.splitTextToSize(jm.address || "—", 210), col2X, metaTop + 14);
+    metaField(col3X, metaTop, "Van", delivery.van || "");
+    metaField(col3X, metaTop + 34, "Scheduled", when);
+
+    var tableStartY = metaTop + 34 + 28;
+    var head, body, foot = null;
+    if (isAssets){
+      head = [["Asset", "Category", "Qty"]];
+      body = (delivery.asset_ids || []).map(function(id){
+        var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+        return [a ? a.label : "Unknown asset", a ? a.category : "", String((delivery.asset_qty || {})[id] || 1)];
+      });
+    } else {
+      var items = delivery.items || [];
+      head = [["BarCode", "Manufacturer", "Model", "Device Type", "Qty", "Serial Number"]];
+      body = items.map(function(r){
+        return [r.barcode, r.manufacturer, r.model, r.deviceType, (r.totalQty === "" || r.totalQty == null) ? "" : String(r.totalQty), r.serialNumber];
+      });
+      var totalQty = items.reduce(function(sum, r){ return sum + (Number(r.totalQty) || 0); }, 0);
+      foot = [[
+        {content: "Total Items:", colSpan: 4, styles: {halign: "right"}},
+        {content: String(totalQty), styles: {halign: "center"}},
+        ""
+      ]];
+    }
+    var tableOpts = {
+      head: head,
+      body: body,
+      startY: tableStartY,
+      margin: {left: margin, right: margin},
+      styles: {fontSize: 9, cellPadding: 4, lineWidth: 0.5, lineColor: [90, 98, 107], overflow: "visible"},
+      headStyles: {fillColor: NAVY, textColor: 255, fontStyle: "bold"},
+      alternateRowStyles: {fillColor: [242, 244, 247]},
+      theme: "grid"
+    };
+    if (foot){
+      tableOpts.foot = foot;
+      tableOpts.footStyles = {fillColor: [255, 255, 255], textColor: [26, 26, 24], fontStyle: "bold", lineWidth: 0.5, lineColor: [90, 98, 107]};
+    }
+    doc.autoTable(tableOpts);
+
+    var sigY = doc.lastAutoTable.finalY + 26;
+    if (sigY > 440){ doc.addPage(); sigY = 60; }
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(102, 102, 102);
+    doc.text("SIGNED BY", margin, sigY);
+    doc.text("SIGNATURE", col2X, sigY);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(26, 26, 24);
+    doc.text(String(signedBy || ""), margin, sigY + 14);
+    if (signatureDataUrl) doc.addImage(signatureDataUrl, "PNG", col2X, sigY + 4, 200, 60);
+    return doc.output("datauristring").split(",")[1];
+  }
+
+  // Emails the signed slip (send-signed-slip) for one delivery. Resolves with
+  // "" on success or with the reason it failed. The signature is already saved
+  // by the time this runs, so a failed email never un-signs anything - the
+  // caller just says so on screen.
+  function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy){
+    if (!pdfBase64) return Promise.resolve("The slip PDF couldn't be built (PDF library didn't load).");
+    return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64}).then(function(res){
+      if (res.error) return res.error.message;
+      var data = res.data || {};
+      if (data.error) return data.error;
+      if (data.emailError) return data.emailError;
+      return "";
+    }).catch(function(e){
+      return isNetworkProblem(e) ? "You're offline" : (e && e.message ? e.message : String(e));
+    });
+  }
+
   function submitDeliveryRequest(){
     var selRows = getSelectedRows();
     var assetIds = Array.from(deliveryAssetPickedIds);
-    if (!selRows.length && !assetIds.length){ deliveryMsg("Select at least one item, or add an asset, first.", "bad"); return; }
+    if (!selRows.length && !assetIds.length){ deliveryMsg("Nothing to request yet. Check at least one item in the table, or click Assets and pick the ones you need.", "bad"); return; }
     // Re-checked here too (not just when the modal opened) in case the
     // selection changed underneath it - e.g. another device's realtime
     // update cleared a barcode while this modal was still open.
@@ -6791,7 +6952,7 @@
     });
     var pdfBase64 = buildDeliveryPdfBase64(selRows, contact, dateIso, time);
 
-    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, assetIds: assetIds, pdfBase64: pdfBase64}).then(function(res){
+    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, assetIds: assetIds, assetQty: buildAssetQtyMap(assetIds), pdfBase64: pdfBase64}).then(function(res){
       btn.disabled = false;
       if (res.error){
         deliveryMsg("Couldn't submit: " + res.error.message, "bad");
@@ -7206,10 +7367,26 @@
     m.className = "pd-msg" + (kind ? " " + kind : "");
   }
 
-  function loadPendingDeliveries(){
+  // "Scheduled" in this panel: the same deliveries the Jobs Dashboard lists
+  // (assigned to a driver, not yet signed off), with the same card layout.
+  function loadScheduledIntoPanel(){
     var list = cloudEl("pdList");
-    list.textContent = "Loading...";
-    return cloud.sb.from("eq_delivery_requests").select("*, eq_jobs(name)").eq("status", pdStatus).order("created_at", {ascending: false}).then(function(r){
+    if (!jdDeliveriesCache.length) list.textContent = "Loading...";
+    return fetchDashboardData().then(function(d){
+      renderJdDeliveries(d.deliveries, d.driverEmailById, {boxId: "pdList"});
+      pdMsg(d.deliveries.length ? "" : "No scheduled deliveries.");
+    }).catch(function(e){
+      pdMsg("Couldn't load: " + (e && e.message ? e.message : e), "bad");
+      list.textContent = "";
+    });
+  }
+
+  function loadPendingDeliveries(){
+    if (pdStatus === "scheduled") return loadScheduledIntoPanel();
+    var list = cloudEl("pdList");
+    // keep what's on screen during the minute-by-minute refresh instead of flashing "Loading..."
+    if (!pdReqsCache.length) list.textContent = "Loading...";
+    return cloud.sb.from("eq_delivery_requests").select("*, eq_jobs(name, meta)").eq("status", pdStatus).order("created_at", {ascending: false}).then(function(r){
       if (r.error){ pdMsg("Couldn't load: " + r.error.message, "bad"); list.textContent = ""; return; }
       renderPdList(r.data || []);
     }).catch(function(e){
@@ -7224,7 +7401,11 @@
     if (!reqs.length){ list.innerHTML = ""; pdMsg("No " + pdStatus + " delivery requests."); return; }
     pdMsg("");
     list.innerHTML = reqs.map(function(req){
-      var jobName = (req.eq_jobs && req.eq_jobs.name) || "Untitled job";
+      var jobMeta = (req.eq_jobs && req.eq_jobs.meta) || {};
+      var jobName = jobMeta.project || (req.eq_jobs && req.eq_jobs.name) || "Untitled job";
+      var jobNumber = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
+      var jobAddress = String(jobMeta.address || "").trim();
+      var jobDetailHtml = '<div class="pd-job-detail">' + (jobNumber ? "Job #" + escHtml(jobNumber) : "Job # not set") + " · " + (jobAddress ? escHtml(jobAddress) : "Address not set") + '</div>';
       var itemsHtml = (req.items || []).map(function(it){
         return "<li>" + escHtml([it.barcode, it.manufacturer, it.model, it.deviceType].filter(Boolean).join(" - ")) + (it.totalQty != null ? " (qty " + escHtml(String(it.totalQty)) + ")" : "") + "</li>";
       }).join("");
@@ -7241,6 +7422,7 @@
       }
       return '<div class="pd-card">' +
         '<div class="pd-card-head"><span class="pd-job">' + escHtml(jobName) + '</span><span class="pd-status-badge ' + req.status + '">' + escHtml(req.status) + '</span></div>' +
+        jobDetailHtml +
         '<div class="pd-when">' + escHtml(pdFormatWhen(req.created_at)) + (req.requested_date ? " - requested for " + escHtml(req.requested_date) + (req.requested_time ? " " + escHtml(req.requested_time) : "") : "") + '</div>' +
         '<div class="pd-who">' + escHtml(req.contact_name || req.requested_by_name || "") + (req.contact_phone ? " - " + escHtml(req.contact_phone) : "") + (req.contact_email ? " - " + escHtml(req.contact_email) : "") + '</div>' +
         '<ul class="pd-items">' + itemsHtml + '</ul>' +
@@ -7250,11 +7432,20 @@
     }).join("");
   }
 
+  // Re-reads itself while open, for the same reason as the dashboard does.
+  var pdPollTimer = null;
   function openPendingDeliveriesModal(){
     cloudEl("pendingDeliveriesBackdrop").hidden = false;
     loadPendingDeliveries();
+    clearInterval(pdPollTimer);
+    pdPollTimer = setInterval(function(){
+      if (!cloudEl("pendingDeliveriesBackdrop").hidden) loadPendingDeliveries();
+    }, 60000);
   }
-  function closePendingDeliveriesModal(){ cloudEl("pendingDeliveriesBackdrop").hidden = true; }
+  function closePendingDeliveriesModal(){
+    cloudEl("pendingDeliveriesBackdrop").hidden = true;
+    clearInterval(pdPollTimer);
+  }
 
   // Pre-selects exactly the rows on this delivery request (matched by
   // barcode) and opens the existing packing-slip modal, which already offers
@@ -7329,6 +7520,7 @@
     cloudEl("editRequestDate").value = req.requested_date || "";
     cloudEl("editRequestTime").value = req.requested_time || "";
     editAssetPickedIds = new Set(req.asset_ids || []);
+    assetPickQty = Object.assign({}, req.asset_qty || {});
     updateEditAssetsCount();
     editRequestMsg("");
     editItemsState = [];
@@ -7416,7 +7608,8 @@
         requested_date: dateIso,
         requested_time: cloudEl("editRequestTime").value || "",
         items: chosenItems,
-        asset_ids: assetIds
+        asset_ids: assetIds,
+        asset_qty: buildAssetQtyMap(assetIds)
       }).eq("id", req.id).then(function(r){
         editRequestSaveBtnEl.disabled = false;
         if (r.error) throw r.error;
@@ -7512,7 +7705,11 @@
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
           usersRes = results[4], assetsRes = results[5], checkoutsRes = results[6];
-      if (jobsRes.error) throw jobsRes.error;
+      // A failed query used to come back as an empty list, so the dashboard
+      // looked like there was nothing to show (or nothing to clear). Any
+      // failure now throws, and the caller shows it on screen.
+      var failed = [jobsRes, rowsRes, reqsRes, deliveriesRes, assetsRes, checkoutsRes].filter(function(r){ return r && r.error; })[0];
+      if (failed) throw failed.error;
       var jobs = jobsRes.data || [];
       var rowsByJob = {}, openReqByJob = {};
       (rowsRes.data || []).forEach(function(r){
@@ -7569,6 +7766,7 @@
         var jobName = jobMeta.project || job.name || "Untitled job";
         var when = [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ");
         var driverEmail = driverEmailById[d.driver_id] || "Unassigned";
+        if (d.van) driverEmail += " · " + d.van;
         return '<div class="jd-delivery-row">' +
           '<span class="jd-delivery-job">' + escHtml(jobName) + '</span>' +
           '<span class="jd-delivery-driver">' + escHtml(driverEmail) + '</span>' +
@@ -7616,6 +7814,7 @@
         applySlipPoc({name: delivery.poc_name, phone: delivery.poc_phone, email: delivery.poc_email});
         if (delivery.scheduled_date) cloudEl("assignDeliveryDate").value = delivery.scheduled_date;
         if (delivery.scheduled_time) cloudEl("assignDeliveryTime").value = delivery.scheduled_time;
+        cloudEl("assignVanSelect").value = delivery.van || "";
         loadDriversForAssign().then(function(){
           if (delivery.driver_id) cloudEl("assignDriverSelect").value = delivery.driver_id;
         });
@@ -7718,7 +7917,12 @@
   // While the staff dashboard is open it stays live: a delivery signed on a
   // driver's phone (or any other change to deliveries, checkouts or requests)
   // updates it on its own instead of only when it's reopened.
-  var jdLiveChannel = null, jdLiveTimer = null;
+  // Live changes come through a realtime channel, but if that channel drops
+  // or never connects, changes don't show up at all. So the dashboard also
+  // re-reads itself every minute while it's open, and says so if the channel
+  // is down.
+  var JD_POLL_MS = 60000;
+  var jdLiveChannel = null, jdLiveTimer = null, jdPollTimer = null;
   function scheduleJdLiveRefresh(){
     clearTimeout(jdLiveTimer);
     jdLiveTimer = setTimeout(function(){
@@ -7733,10 +7937,19 @@
       .on("postgres_changes", {event: "*", schema: "public", table: "eq_delivery_requests"}, scheduleJdLiveRefresh)
       .subscribe(function(status){
         if (status === "SUBSCRIBED") scheduleJdLiveRefresh();
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT"){
+          // don't cover up a load error that's already showing
+          if (!cloudEl("jdMsg").textContent) jdMsg("Live updates are paused - the dashboard refreshes every minute.", "bad");
+        }
       });
+    clearInterval(jdPollTimer);
+    jdPollTimer = setInterval(function(){
+      if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+    }, JD_POLL_MS);
   }
   function stopJdLive(){
     clearTimeout(jdLiveTimer);
+    clearInterval(jdPollTimer);
     if (jdLiveChannel){ cloud.sb.removeChannel(jdLiveChannel); jdLiveChannel = null; }
   }
   function openJobsDashboardModal(){
@@ -7830,10 +8043,17 @@
     clearTimeout(dashOnlyRefreshTimer);
     dashOnlyRefreshTimer = setTimeout(loadDashboardOnlyData, 400);
   }
+  var dashOnlyPollTimer = null;
   function openDashboardOnlyView(){
     cloudEl("dashOnlyUserEmail").textContent = (cloud.user && cloud.user.email) || "";
     cloudEl("dashboardOnlyView").hidden = false;
     loadDashboardOnlyData();
+    // This screen is left up all day, so it re-reads itself every minute on
+    // top of the live channel (see JD_POLL_MS for why).
+    clearInterval(dashOnlyPollTimer);
+    dashOnlyPollTimer = setInterval(function(){
+      if (!cloudEl("dashboardOnlyView").hidden) loadDashboardOnlyData();
+    }, JD_POLL_MS);
     if (dashOnlyChannel){ cloud.sb.removeChannel(dashOnlyChannel); }
     dashOnlyChannel = cloud.sb.channel("dashboard-view-" + cloud.clientId)
       .on("postgres_changes", {event: "*", schema: "public", table: "eq_jobs"}, scheduleDashOnlyRefresh)
@@ -7845,6 +8065,9 @@
         // a (re)connect could have missed changes made while it was down -
         // pull a fresh copy once the channel is back up
         if (status === "SUBSCRIBED") loadDashboardOnlyData();
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT"){
+          if (!cloudEl("dashOnlyMsg").textContent) dashOnlyMsg("Live updates are paused - this screen refreshes every minute.", "bad");
+        }
       });
   }
   var dashOnlySignOutBtnEl = cloudEl("dashOnlySignOutBtn");
@@ -7978,6 +8201,32 @@
   function assetCheckoutFor(assetId){
     return assetCheckoutsCache.filter(function(c){ return c.asset_id === assetId && !c.returned_at; })[0];
   }
+
+  // ---------- consumables (counted by quantity) ----------
+  // Quantity picked per asset id. Only consumables ever differ from 1, and it's
+  // reset whenever a pick list is reset (see the three places that clear the Sets).
+  var assetPickQty = {};
+  function isConsumable(a){ return !!(a && a.consumable); }
+  function assetQtyFor(id){ return assetPickQty[id] || 1; }
+  // How many of a consumable are still on the shelf: the stock count minus
+  // whatever open checkouts are holding.
+  function consumableOnHand(a, checkouts){
+    var held = (checkouts || []).filter(function(c){ return c.asset_id === a.id && !c.returned_at; })
+      .reduce(function(sum, c){ return sum + (Number(c.quantity) || 1); }, 0);
+    return Math.max(0, (Number(a.stock_qty) || 0) - held);
+  }
+  // {asset id: qty} for the picks that are more than one unit. Anything not in
+  // the map is 1, which keeps requests and assignments without consumables
+  // exactly as they were.
+  function buildAssetQtyMap(ids){
+    var m = {};
+    ids.forEach(function(id){ var q = assetQtyFor(id); if (q !== 1) m[id] = q; });
+    return m;
+  }
+  function assetNameById(id){
+    var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+    return a ? (a.label || "Untitled asset") : "Unknown asset";
+  }
   function loadAssets(){
     var list = cloudEl("assetsList");
     list.textContent = "Loading...";
@@ -8001,30 +8250,65 @@
       list.textContent = "";
     });
   }
+  // Everything about an asset a person might search on, lowercased and joined
+  // so a search term can't accidentally match across two fields.
+  // checkout = the asset's open checkout (or null), jobName = that job's name.
+  // Shared by the asset picker and the Asset Audit page search.
+  function assetSearchText(a, checkout, jobName){
+    return [
+      a.label, a.category, a.barcode, a.manufacturer, a.model, a.description, a.notes,
+      checkout ? "checked out" : "available",
+      checkout ? (jobName || "") : "",
+      checkout ? (checkout.poc_name || "") : "",
+      checkout ? (checkout.checked_out_by || "") : ""
+    ].map(function(v){ return String(v || "").toLowerCase(); }).join(" \n ");
+  }
+  // Every word typed must appear somewhere in the text (any field, any order).
+  function assetMatchesSearch(text, typed){
+    var terms = String(typed || "").toLowerCase().split(/\s+/).filter(Boolean);
+    return terms.every(function(t){ return text.indexOf(t) !== -1; });
+  }
+  function pickerSearchText(a){
+    var checkout = assetCheckoutFor(a.id);
+    return assetSearchText(a, checkout, checkout ? assetJobNameById[checkout.job_id] : "");
+  }
   function renderAssetsList(){
     var list = cloudEl("assetsList");
     if (!assetsCache.length){ list.innerHTML = ""; assetsMsg("No assets yet."); return; }
+    // Every word typed has to match somewhere on the asset (any field), so
+    // "pelican 4" finds "Pelican case #4" and "moving blankets out" finds the
+    // blankets that are checked out.
+    var searchEl = cloudEl("assetsPickSearch");
+    var typed = searchEl ? searchEl.value.trim() : "";
+    var visible = typed ? assetsCache.filter(function(a){
+      return assetMatchesSearch(pickerSearchText(a), typed);
+    }) : assetsCache;
+    if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
-    list.innerHTML = assetsCache.map(function(a){
-      var checkout = assetCheckoutFor(a.id);
-      var out = !!checkout;
-      var pickCheckbox = (assetPickerMode && !out)
-        ? '<input type="checkbox" class="asset-pick" data-asset-pick="' + a.id + '"' + (activeAssetPickedIds().has(a.id) ? " checked" : "") + '>'
+    list.innerHTML = visible.map(function(a){
+      var consumable = isConsumable(a);
+      var checkout = consumable ? null : assetCheckoutFor(a.id);
+      var onHand = consumable ? consumableOnHand(a, assetCheckoutsCache) : 0;
+      var out = consumable ? onHand <= 0 : !!assetCheckoutFor(a.id);
+      var picked = activeAssetPickedIds().has(a.id);
+      var pickCheckbox = (assetPickerMode && (!out || picked))
+        ? '<input type="checkbox" class="asset-pick" data-asset-pick="' + a.id + '"' + (picked ? " checked" : "") + '>' +
+          (consumable && picked ? '<input type="number" class="asset-pick-qty" min="1" step="1" data-asset-qty="' + a.id + '" value="' + assetQtyFor(a.id) + '" aria-label="Quantity">' : "")
         : "";
-      var returnBtn = out
+      var returnBtn = (out && checkout)
         ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>'
         : "";
       var subBits = [a.category, [a.manufacturer, a.model].filter(Boolean).join(" "), a.barcode ? "BarCode " + a.barcode : ""].filter(function(v){ return v && String(v).trim(); });
       var subLine = subBits.join(" · ");
       var descLine = a.description ? '<div class="asset-sub">' + escHtml(a.description) + '</div>' : "";
-      var jobName = out ? (assetJobNameById[checkout.job_id] || "a job") : "";
+      var jobName = (out && checkout) ? (assetJobNameById[checkout.job_id] || "a job") : "";
       // formatWhen() is shared with the Jobs list and always prefixes
       // "Updated " (right there, that's correct) - strip it back off here,
       // since "out since Updated Oct 3..." reads wrong for a checkout time.
       // Only computed when actually checked out - checkout is undefined for
       // an available asset, and formatWhen(undefined) throws.
-      var outLine = out
-        ? '<div class="asset-sub asset-assigned">Assigned to <b>' + escHtml(jobName) + '</b> · out since ' + escHtml(formatWhen(checkout.checked_out_at).replace(/^Updated\s+/, "")) + '</div>'
+      var outLine = (out && checkout)
+        ? '<div class="asset-sub asset-assigned">Assigned to <b>' + escHtml(jobName) + '</b>' + (checkout.poc_name ? ' · received by <b>' + escHtml(checkout.poc_name) + '</b>' : '') + ' · out since ' + escHtml(formatWhen(checkout.checked_out_at).replace(/^Updated\s+/, "")) + '</div>'
         : "";
       return '<div class="asset-row" data-asset-id="' + a.id + '">' +
         pickCheckbox +
@@ -8034,7 +8318,7 @@
           descLine +
           outLine +
         '</div>' +
-        '<span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (out ? "Checked out" : "Available") + '</span>' +
+        '<span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (consumable ? onHand + " in stock" : (out ? "Checked out" : "Available")) + '</span>' +
         returnBtn +
       '</div>';
     }).join("");
@@ -8046,6 +8330,8 @@
   function openAssetsModal(target){
     assetPickerMode = true;
     assetPickerTarget = target || "assign";
+    var searchEl = cloudEl("assetsPickSearch");
+    if (searchEl) searchEl.value = "";
     cloudEl("assetsPickerActions").hidden = false;
     cloudEl("assetsBackdrop").hidden = false;
     loadAssets();
@@ -8109,7 +8395,32 @@
     if (!ev.target.classList || !ev.target.classList.contains("asset-pick")) return;
     var id = ev.target.dataset.assetPick;
     var set = activeAssetPickedIds();
-    if (ev.target.checked) set.add(id); else set.delete(id);
+    if (ev.target.checked){
+      set.add(id);
+      if (!assetPickQty[id]) assetPickQty[id] = 1;
+    } else {
+      set.delete(id);
+      delete assetPickQty[id];
+    }
+    // redraw so a checked consumable gets its quantity box straight away
+    renderAssetsList();
+  });
+  // Quantity for a consumable: whole number, at least 1, and no more than is
+  // on the shelf (checkouts already out are subtracted; picks in other forms
+  // aren't reserved until the delivery is assigned).
+  document.addEventListener("change", function(ev){
+    if (!ev.target.classList || !ev.target.classList.contains("asset-pick-qty")) return;
+    var qid = ev.target.dataset.assetQty;
+    var qa = assetsCache.filter(function(x){ return x.id === qid; })[0];
+    var max = qa ? Math.max(1, consumableOnHand(qa, assetCheckoutsCache)) : 1;
+    var n = Math.floor(Number(ev.target.value));
+    if (!(n >= 1)) n = 1;
+    if (n > max){
+      assetsMsg("Only " + max + " in stock.", "bad");
+      n = max;
+    }
+    ev.target.value = n;
+    assetPickQty[qid] = n;
   });
 
   function updateAssignAssetsCount(){
@@ -8119,7 +8430,20 @@
   function updateDeliveryAssetsCount(){
     var el = cloudEl("deliveryAssetsCount");
     if (el) el.textContent = String(deliveryAssetPickedIds.size);
+    // Names as well as the count, so it's clear what's going on the request
+    // (and that the picks made earlier are still there).
+    var list = cloudEl("deliveryAssetsList");
+    if (list){
+      var labels = Array.from(deliveryAssetPickedIds).map(function(id){
+        var q = assetQtyFor(id);
+        return assetNameById(id) + (q > 1 ? " ×" + q : "");
+      });
+      list.textContent = labels.length ? "Assets: " + labels.join(", ") : "";
+    }
   }
+  var assetsPickSearchEl = cloudEl("assetsPickSearch");
+  if (assetsPickSearchEl) assetsPickSearchEl.addEventListener("input", renderAssetsList);
+
   var assetsUseSelectedBtnEl = cloudEl("assetsUseSelectedBtn");
   if (assetsUseSelectedBtnEl) assetsUseSelectedBtnEl.addEventListener("click", function(){
     if (assetPickerTarget === "request") updateDeliveryAssetsCount();
@@ -8193,8 +8517,9 @@
     if (auditStatusFilter === "out" && !out) return false;
     if (auditCategoryFilter && (a.category || "") !== auditCategoryFilter) return false;
     if (auditSearchTerm){
-      var hay = [a.label, a.barcode, a.manufacturer, a.model, a.category, a.description].join(" ").toLowerCase();
-      if (hay.indexOf(auditSearchTerm) === -1) return false;
+      var openCheckout = auditOpenCheckoutFor(a.id);
+      var auditText = assetSearchText(a, openCheckout, openCheckout ? (auditJobNameById[openCheckout.job_id] || "") : "");
+      if (!assetMatchesSearch(auditText, auditSearchTerm)) return false;
     }
     return true;
   }
@@ -8207,7 +8532,14 @@
     body.innerHTML = visible.map(function(a){
       var checkout = auditOpenCheckoutFor(a.id);
       var out = !!checkout;
+      var consumable = isConsumable(a);
+      var onHand = consumable ? consumableOnHand(a, auditCheckoutsCache) : 0;
       var jobName = out ? (checkout.job_id ? (auditJobNameById[checkout.job_id] || "Unknown job") : "Unknown job") : "";
+      // A consumable can have several checkouts open at once (one per delivery),
+      // so list each one with its quantity rather than just the first.
+      var consumableOut = consumable ? auditCheckoutsCache.filter(function(c){ return c.asset_id === a.id && !c.returned_at; }).map(function(c){
+        return "×" + (Number(c.quantity) || 1) + " " + escHtml(c.job_id ? (auditJobNameById[c.job_id] || "Unknown job") : "Unknown job") + (c.poc_name ? " · " + escHtml(c.poc_name) : "");
+      }).join("<br>") : "";
       return '<tr data-asset-id="' + a.id + '">' +
         '<td>' + escHtml(a.label || "Untitled asset") + '</td>' +
         '<td>' + escHtml(a.category || "") + '</td>' +
@@ -8215,8 +8547,8 @@
         '<td>' + escHtml(a.manufacturer || "") + '</td>' +
         '<td>' + escHtml(a.model || "") + '</td>' +
         '<td class="asset-audit-desc">' + escHtml(a.description || "") + '</td>' +
-        '<td><span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (out ? "Checked out" : "Available") + '</span></td>' +
-        '<td>' + (out ? escHtml(jobName) : "") + '</td>' +
+        '<td><span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (consumable ? onHand + " in stock" : (out ? "Checked out" : "Available")) + '</span></td>' +
+        '<td>' + (consumable ? consumableOut : (out ? escHtml(jobName) + (checkout.poc_name ? '<div class="asset-audit-poc">Received by ' + escHtml(checkout.poc_name) + '</div>' : '') : "")) + '</td>' +
         '<td class="asset-audit-actions">' +
           (out ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>' : '') +
           '<button type="button" class="asset-audit-edit" data-audit-edit="' + a.id + '">Edit</button>' +
@@ -8270,10 +8602,17 @@
     cloudEl("assetEditModel").value = asset ? (asset.model || "") : "";
     cloudEl("assetEditDescription").value = asset ? (asset.description || "") : "";
     cloudEl("assetEditNotes").value = asset ? (asset.notes || "") : "";
+    cloudEl("assetEditConsumable").checked = !!(asset && asset.consumable);
+    cloudEl("assetEditStock").value = String(asset && asset.consumable ? (asset.stock_qty || 0) : 0);
+    syncAssetEditStockField();
     assetEditMsg("");
     cloudEl("assetEditBackdrop").hidden = false;
   }
   function closeAssetEditModal(){ cloudEl("assetEditBackdrop").hidden = true; }
+  // The stock count only means something for a consumable, so only show it then.
+  function syncAssetEditStockField(){
+    cloudEl("assetEditStockLabel").hidden = !cloudEl("assetEditConsumable").checked;
+  }
   function assetEditMsg(text, kind){
     var m = cloudEl("assetEditMsg");
     m.textContent = text || "";
@@ -8287,6 +8626,9 @@
   var assetEditBackdropEl = cloudEl("assetEditBackdrop");
   if (assetEditBackdropEl) assetEditBackdropEl.addEventListener("click", function(ev){ if (ev.target === assetEditBackdropEl) closeAssetEditModal(); });
 
+  var assetEditConsumableEl = cloudEl("assetEditConsumable");
+  if (assetEditConsumableEl) assetEditConsumableEl.addEventListener("change", syncAssetEditStockField);
+
   var assetEditSaveBtnEl = cloudEl("assetEditSaveBtn");
   if (assetEditSaveBtnEl) assetEditSaveBtnEl.addEventListener("click", function(){
     var label = cloudEl("assetEditLabel").value.trim();
@@ -8299,6 +8641,8 @@
       model: cloudEl("assetEditModel").value.trim(),
       description: cloudEl("assetEditDescription").value.trim(),
       notes: cloudEl("assetEditNotes").value.trim(),
+      consumable: cloudEl("assetEditConsumable").checked,
+      stock_qty: cloudEl("assetEditConsumable").checked ? Math.max(0, Math.floor(Number(cloudEl("assetEditStock").value) || 0)) : 0,
       updated_by: cloud.clientId
     };
     assetEditSaveBtnEl.disabled = true;
@@ -8363,6 +8707,7 @@
         return '<div class="asset-history-row">' +
           '<div class="ahr-job">' + escHtml(jobName) + '</div>' +
           '<div class="ahr-line">Out ' + escHtml(outWhen) + (c.checked_out_by ? " by " + escHtml(c.checked_out_by) : "") + '</div>' +
+          (c.poc_name ? '<div class="ahr-line">Received by POC ' + escHtml(c.poc_name) + '</div>' : '') +
           '<div class="ahr-line">' + statusLine + '</div>' +
         '</div>';
       }).join("");
@@ -8421,6 +8766,10 @@
     }
     var name = "<strong>" + escHtml(asset.label || asset.barcode) + "</strong>";
     var open = auditOpenCheckoutFor(asset.id);
+    if (isConsumable(asset)){
+      showScanResult("bad", name + " is a consumable - pick it by quantity from Request or Assign, not by scan.", []);
+      return;
+    }
     if (assetScanMode === "out"){
       if (open){
         showScanResult("bad", name + " is already checked out to " + escHtml(auditJobNameById[open.job_id] || "another job") + ". Scan it in first.", []);
@@ -8625,8 +8974,10 @@
     cloudEl("assignDriverSelect").innerHTML = '<option value="">Loading drivers...</option>';
     cloudEl("assignDeliveryDate").value = todayLocalIso();
     cloudEl("assignDeliveryTime").value = "";
+    cloudEl("assignVanSelect").value = "";
     applySlipPoc({});
     assetPickedIds = new Set();
+    assetPickQty = {};
     updateAssignAssetsCount();
     assignDriverMsg("");
   }
@@ -8664,12 +9015,22 @@
     }
     var driverId = cloudEl("assignDriverSelect").value;
     if (!driverId){ assignDriverMsg("Pick a driver first.", "bad"); return; }
+    var van = cloudEl("assignVanSelect").value || "";
     var scheduledDate = cloudEl("assignDeliveryDate").value || null;
     var scheduledTime = cloudEl("assignDeliveryTime").value || "";
     var pocName = cloudEl("assignPocName").value.trim();
     var pocPhone = cloudEl("assignPocPhone").value.trim();
     var pocEmail = cloudEl("assignPocEmail").value.trim();
     var assetIds = Array.from(assetPickedIds);
+    // A consumable can't go out for more than is on the shelf right now.
+    var shortOnStock = assetIds.filter(function(aid){
+      var ca = assetsCache.filter(function(x){ return x.id === aid; })[0];
+      return isConsumable(ca) && assetQtyFor(aid) > consumableOnHand(ca, assetCheckoutsCache);
+    });
+    if (shortOnStock.length){
+      assignDriverMsg("Not enough in stock for " + shortOnStock.map(assetNameById).join(", ") + ". Lower the quantity, or update the stock count first.", "bad");
+      return;
+    }
     var items = selRows.map(function(r){
       return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber, notes: r.notes};
     });
@@ -8678,14 +9039,16 @@
     assignDriverBtnEl.disabled = true;
     assignDriverMsg("Assigning...");
     cloud.sb.from("eq_deliveries").insert({
-      id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds,
-      poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
+      id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds, asset_qty: buildAssetQtyMap(assetIds),
+      poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, van: van, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
       status: "assigned", updated_by: cloud.clientId
     }).then(function(r){
       if (r.error) throw r.error;
       if (!assetIds.length) return null;
       var checkoutRows = assetIds.map(function(aid){
-        return {id: cloudUuid(), asset_id: aid, job_id: cloud.jobId, delivery_id: deliveryId, checked_out_by: (cloud.user && cloud.user.email) || ""};
+        // poc_name: the person these assets are handed to - the POC on the
+        // assignment, not the staff member who made it (that's checked_out_by)
+        return {id: cloudUuid(), asset_id: aid, job_id: cloud.jobId, delivery_id: deliveryId, checked_out_by: (cloud.user && cloud.user.email) || "", poc_name: pocName, quantity: assetQtyFor(aid)};
       });
       return cloud.sb.from("eq_asset_checkouts").insert(checkoutRows);
     }).then(function(r){
@@ -8757,6 +9120,7 @@
         '<div class="driver-card-head"><span class="driver-job">' + (i + 1) + '. ' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span>' +
           (when ? '<span class="driver-when">' + escHtml(when) + '</span>' : '') +
         '</div>' +
+        (d.van ? '<div class="driver-address"><b>' + escHtml(d.van) + '</b></div>' : '') +
         (address ? '<div class="driver-address">' + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : '') +
         '<div class="driver-card-stats">' +
           '<span><b>' + itemCount + '</b> item' + (itemCount === 1 ? "" : "s") + '</span>' +
@@ -8821,12 +9185,13 @@
     }).join("");
     return "<thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead><tbody>" + rows + "</tbody>";
   }
-  function assetItemsTableHtml(ids){
+  function assetItemsTableHtml(ids, qtyMap){
     var rows = (ids || []).map(function(id){
       var a = assetsCache.filter(function(x){ return x.id === id; })[0];
-      return "<tr><td>" + escHtml(a ? a.label : "Unknown asset") + "</td><td>" + escHtml(a ? a.category : "") + "</td></tr>";
+      var q = (qtyMap && qtyMap[id]) || 1;
+      return "<tr><td>" + escHtml(a ? a.label : "Unknown asset") + "</td><td>" + escHtml(a ? a.category : "") + "</td><td>" + escHtml(String(q)) + "</td></tr>";
     }).join("");
-    return "<thead><tr><th>Asset</th><th>Category</th></tr></thead><tbody>" + rows + "</tbody>";
+    return "<thead><tr><th>Asset</th><th>Category</th><th>Qty</th></tr></thead><tbody>" + rows + "</tbody>";
   }
   function deliverySignMsg(text, kind){
     var m = cloudEl("deliverySignMsg");
@@ -8846,6 +9211,7 @@
       "<div><b>" + escHtml(jobName) + (jobNum ? " — " + escHtml(jobNum) : "") + "</b></div>" +
       (address ? "<div>" + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : "") +
       (when ? "<div>" + escHtml(when) + "</div>" : "") +
+      (delivery.van ? "<div>Van: <b>" + escHtml(delivery.van) + "</b></div>" : "") +
       (delivery.poc_name ? "<div>POC: " + escHtml(delivery.poc_name) + (delivery.poc_phone ? " · " + escHtml(delivery.poc_phone) : "") + "</div>" : "");
 
     cloudEl("deliverySignItemsTable").innerHTML = deliveryItemsTableHtml(delivery.items);
@@ -8858,10 +9224,12 @@
     cloudEl("assetSlipSection").hidden = !hasAssets;
     var assetSigned = hasAssets && !!delivery.asset_signed_at;
     if (hasAssets){
-      cloudEl("deliverySignAssetsTable").innerHTML = assetItemsTableHtml(delivery.asset_ids);
+      cloudEl("deliverySignAssetsTable").innerHTML = assetItemsTableHtml(delivery.asset_ids, delivery.asset_qty);
       cloudEl("deliverySignAssetDone").hidden = !assetSigned;
       cloudEl("deliverySignAssetFields").hidden = assetSigned;
-      cloudEl("assetSignerName").value = "";
+      // The POC is who the assets are handed to, so they're the default signer
+      // on the asset slip - the driver can still type someone else over it.
+      cloudEl("assetSignerName").value = delivery.poc_name || "";
     }
 
     deliverySignMsg("");
@@ -8902,8 +9270,18 @@
       currentDelivery = Object.assign(currentDelivery, patch);
       cloudEl("deliverySignEquipDone").hidden = false;
       cloudEl("deliverySignEquipFields").hidden = true;
-      deliverySignMsg("Signed. Thank you!", "good");
-      if (patch.status === "delivered") setTimeout(function(){ closeDeliverySignModal(); loadDriverDeliveries(); }, 1200);
+      deliverySignMsg("Signed. Emailing the slip...", "good");
+      var eqDeliveryId = currentDelivery.id;
+      var eqPdf = buildSignedSlipPdfBase64(currentDelivery, "equipment", name, patch.signed_at, patch.signature_data);
+      sendSignedSlipEmail(eqDeliveryId, "equipment", eqPdf, name).then(function(emailErr){
+        loadDriverDeliveries();
+        if (emailErr){
+          deliverySignMsg("Signed, but the slip email didn't send: " + emailErr + ". Let the warehouse know this delivery was signed.", "bad");
+          return;
+        }
+        deliverySignMsg("Signed. Slip emailed. Thank you!", "good");
+        setTimeout(closeDeliverySignModal, 1200);
+      });
     }).catch(function(e){
       deliverySignSubmitBtnEl.disabled = false;
       deliverySignMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't submit: " + (e && e.message ? e.message : e), "bad");
@@ -8926,8 +9304,18 @@
       currentDelivery = Object.assign(currentDelivery, patch);
       cloudEl("deliverySignAssetDone").hidden = false;
       cloudEl("deliverySignAssetFields").hidden = true;
-      deliverySignMsg("Signed. Thank you!", "good");
-      if (patch.status === "delivered") setTimeout(function(){ closeDeliverySignModal(); loadDriverDeliveries(); }, 1200);
+      deliverySignMsg("Signed. Emailing the slip...", "good");
+      var assetDeliveryId = currentDelivery.id;
+      var assetPdf = buildSignedSlipPdfBase64(currentDelivery, "assets", name, patch.asset_signed_at, patch.asset_signature_data);
+      sendSignedSlipEmail(assetDeliveryId, "assets", assetPdf, name).then(function(emailErr){
+        if (patch.status === "delivered") loadDriverDeliveries();
+        if (emailErr){
+          deliverySignMsg("Signed, but the asset slip email didn't send: " + emailErr + ". Let the warehouse know this was signed.", "bad");
+          return;
+        }
+        deliverySignMsg("Signed. Slip emailed. Thank you!", "good");
+        if (patch.status === "delivered") setTimeout(closeDeliverySignModal, 1200);
+      });
     }).catch(function(e){
       assetSignSubmitBtnEl.disabled = false;
       deliverySignMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't submit: " + (e && e.message ? e.message : e), "bad");
