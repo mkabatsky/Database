@@ -8103,6 +8103,31 @@
     cancelScheduledDelivery(cancelBtn.dataset.jdCancelDelivery, cancelBtn);
   });
 
+  // Puts a cancelled delivery's equipment back to available for delivery: the
+  // Date Shipped is cleared on each row that was on it. Rows are matched by
+  // BarCode within the delivery's job (the BarCodes are kept on the delivery).
+  function releaseDeliveryRows(d){
+    var barcodes = {};
+    ((d && d.items) || []).forEach(function(it){
+      var b = String(it.barcode || "").trim();
+      if (b) barcodes[b] = true;
+    });
+    if (!d || !Object.keys(barcodes).length) return Promise.resolve();
+    return cloud.sb.from("eq_rows").select("id,data").eq("job_id", d.job_id).eq("deleted", false).then(function(r){
+      if (r.error) throw r.error;
+      var shipped = (r.data || []).filter(function(row){
+        var data = row.data || {};
+        return barcodes[String(data.barcode || "").trim()] && String(data.dateShipped || "").trim();
+      });
+      return Promise.all(shipped.map(function(row){
+        var data = Object.assign({}, row.data, {dateShipped: ""});
+        return cloud.sb.from("eq_rows").update({data: data, updated_by: cloud.clientId}).eq("id", row.id).then(function(u){
+          if (u.error) throw u.error;
+        });
+      }));
+    });
+  }
+
   // Staff only. Cancels a scheduled delivery that hasn't been signed off: it
   // comes off the dashboard and the driver's list (status "cancelled", the
   // row is kept), and any assets checked out for it go back into stock.
@@ -8126,6 +8151,8 @@
       return cloud.sb.from("eq_asset_checkouts").update({returned_at: nowIso, returned_by: (cloud.user && cloud.user.email) || ""}).in("id", openIds);
     }).then(function(r){
       if (r && r.error) throw r.error;
+      return releaseDeliveryRows(d);
+    }).then(function(){
       showSnackbar("Delivery cancelled.");
       if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
       if (!cloudEl("pendingDeliveriesBackdrop").hidden) loadPendingDeliveries();
