@@ -7772,6 +7772,8 @@
           '<span class="jd-delivery-driver">' + escHtml(driverEmail) + '</span>' +
           (when ? '<span class="jd-delivery-when">' + escHtml(when) + '</span>' : '<span class="jd-delivery-when">No time set</span>') +
           (opts.readOnly ? '' : '<button type="button" class="jd-delivery-slip-btn" data-jd-delivery-slip="' + d.id + '">Create delivery slip</button>') +
+          // staff only: the dashboard-view screen is read-only, so no cancel there either
+          (opts.readOnly ? '' : '<button type="button" class="jd-delivery-cancel-btn" data-jd-cancel-delivery="' + d.id + '">Cancel delivery</button>') +
         '</div>';
       }).join("") +
       '</div>';
@@ -8094,6 +8096,44 @@
     if (!slipBtn) return;
     createDeliverySlipFromDashboard(slipBtn.dataset.jdDeliverySlip);
   });
+
+  document.addEventListener("click", function(ev){
+    var cancelBtn = ev.target.closest && ev.target.closest("[data-jd-cancel-delivery]");
+    if (!cancelBtn) return;
+    cancelScheduledDelivery(cancelBtn.dataset.jdCancelDelivery, cancelBtn);
+  });
+
+  // Staff only. Cancels a scheduled delivery that hasn't been signed off: it
+  // comes off the dashboard and the driver's list (status "cancelled", the
+  // row is kept), and any assets checked out for it go back into stock.
+  function cancelScheduledDelivery(deliveryId, btn){
+    if (cloud.role && cloud.role !== "staff"){ showSnackbar("Only staff can cancel a delivery."); return; }
+    var d = jdDeliveriesCache.filter(function(x){ return x.id === deliveryId; })[0];
+    var job = d && d.eq_jobs ? d.eq_jobs : {};
+    var jobName = (job.meta && job.meta.project) || job.name || "this delivery";
+    var when = d ? [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ") : "";
+    if (!confirm("Cancel the delivery for " + jobName + (when ? " (" + when + ")" : "") + "?\n\nIt comes off the dashboard and the driver's list, and any assets out for it go back into stock.")) return;
+    btn.disabled = true;
+    var nowIso = new Date().toISOString();
+    cloud.sb.from("eq_deliveries").update({status: "cancelled", updated_by: cloud.clientId}).eq("id", deliveryId).eq("status", "assigned").select("id").then(function(r){
+      if (r.error) throw r.error;
+      if (!r.data || !r.data.length) throw new Error("it was already signed off or cancelled");
+      return cloud.sb.from("eq_asset_checkouts").select("id,returned_at").eq("delivery_id", deliveryId);
+    }).then(function(r){
+      if (r.error) throw r.error;
+      var openIds = (r.data || []).filter(function(c){ return !c.returned_at; }).map(function(c){ return c.id; });
+      if (!openIds.length) return null;
+      return cloud.sb.from("eq_asset_checkouts").update({returned_at: nowIso, returned_by: (cloud.user && cloud.user.email) || ""}).in("id", openIds);
+    }).then(function(r){
+      if (r && r.error) throw r.error;
+      showSnackbar("Delivery cancelled.");
+      if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+      if (!cloudEl("pendingDeliveriesBackdrop").hidden) loadPendingDeliveries();
+    }).catch(function(e){
+      btn.disabled = false;
+      showSnackbar("Couldn't cancel: " + (isNetworkProblem(e) ? "you're offline" : (e && e.message ? e.message : e)));
+    });
+  }
 
   var jobsDashboardBtnEl = cloudEl("jobsDashboardBtn");
   if (jobsDashboardBtnEl) jobsDashboardBtnEl.addEventListener("click", openJobsDashboardModal);
