@@ -928,6 +928,11 @@
   .asset-audit-table .asset-audit-actions button{padding:5px 9px;font-size:12px;}
   .asset-audit-slide{display:flex;gap:8px;justify-content:flex-end;margin:0 0 6px;}
   .asset-audit-slide button{padding:4px 10px;font-size:12px;}
+  .asset-audit-slide-spacer{flex:1 1 auto;}
+  .asset-audit-cols-wrap{position:relative;}
+  .asset-audit-cols-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:5;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;box-shadow:0 6px 18px rgba(0,0,0,.15);}
+  .asset-audit-cols-menu[hidden]{display:none;}
+  .asset-audit-col-option{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer;}
   /* full screen: the window fills the screen and the table takes the rest of it */
   #assetAuditBackdrop.asset-audit-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
   #assetAuditBackdrop.asset-audit-fullscreen .asset-audit-table-wrap{max-height:calc(100vh - 230px);}
@@ -1545,7 +1550,12 @@
       <button type="button" id="assetAuditImportBtn">Upload spreadsheet</button>
       <input type="file" id="assetAuditImportFile" accept=".xlsx,.xls" hidden="">
     </div>
-    <div class="asset-audit-slide" role="group" aria-label="Slide the table sideways">
+    <div class="asset-audit-slide" role="group" aria-label="Table columns and sliding">
+      <div class="asset-audit-cols-wrap">
+        <button type="button" id="assetAuditColumnsBtn" aria-expanded="false" aria-controls="assetAuditColumnsMenu">Columns &#9662;</button>
+        <div class="asset-audit-cols-menu" id="assetAuditColumnsMenu" hidden=""></div>
+      </div>
+      <span class="asset-audit-slide-spacer"></span>
       <button type="button" id="assetAuditSlideLeftBtn" title="Slide left" aria-label="Slide left">&#9664; Slide left</button>
       <button type="button" id="assetAuditSlideRightBtn" title="Slide right" aria-label="Slide right">Slide right &#9654;</button>
     </div>
@@ -8781,6 +8791,66 @@
   if (assetAuditCategoryFilterEl) assetAuditCategoryFilterEl.addEventListener("change", function(){
     auditCategoryFilter = assetAuditCategoryFilterEl.value;
     renderAssetAuditTable();
+  });
+
+  // Which columns the Assets table shows. Cells are hidden by position, in the
+  // same order as the header, so this doesn't touch how rows are built. The
+  // choice is remembered on this device (a per-viewer convenience only).
+  var ASSET_AUDIT_COLS = [
+    {key: "label", title: "Label"}, {key: "category", title: "Category"},
+    {key: "barcode", title: "BarCode"}, {key: "make", title: "Make"},
+    {key: "model", title: "Model"}, {key: "description", title: "Description"},
+    {key: "status", title: "Status"}, {key: "job", title: "Assigned job"}
+  ];
+  var ASSET_AUDIT_COLS_KEY = "eqdb.assetAuditColumns";
+  function assetAuditVisibleCols(){
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem(ASSET_AUDIT_COLS_KEY) || "null"); } catch (e) { saved = null; }
+    var vis = {};
+    ASSET_AUDIT_COLS.forEach(function(c){ vis[c.key] = !(saved && saved[c.key] === false); });
+    return vis;
+  }
+  function saveAssetAuditVisibleCols(vis){
+    try { localStorage.setItem(ASSET_AUDIT_COLS_KEY, JSON.stringify(vis)); } catch (e) { /* private window - just not remembered */ }
+  }
+  function applyAssetAuditColumns(){
+    var table = document.querySelector("#assetAuditBackdrop .asset-audit-table");
+    if (!table) return;
+    var vis = assetAuditVisibleCols();
+    ASSET_AUDIT_COLS.forEach(function(c, i){
+      Array.prototype.forEach.call(table.rows, function(row){
+        if (row.cells[i]) row.cells[i].style.display = vis[c.key] ? "" : "none";
+      });
+    });
+  }
+  function buildAssetAuditColumnsMenu(){
+    var menu = cloudEl("assetAuditColumnsMenu");
+    if (!menu) return;
+    var vis = assetAuditVisibleCols();
+    menu.innerHTML = ASSET_AUDIT_COLS.map(function(c){
+      return '<label class="asset-audit-col-option"><input type="checkbox" data-asset-col="' + c.key + '"' + (vis[c.key] ? " checked" : "") + '> ' + escHtml(c.title) + '</label>';
+    }).join("");
+  }
+  var realRenderAssetAuditTable = renderAssetAuditTable;
+  renderAssetAuditTable = function(){
+    realRenderAssetAuditTable();
+    applyAssetAuditColumns();
+  };
+  var assetAuditColumnsBtnEl = cloudEl("assetAuditColumnsBtn");
+  if (assetAuditColumnsBtnEl) assetAuditColumnsBtnEl.addEventListener("click", function(){
+    var menu = cloudEl("assetAuditColumnsMenu");
+    buildAssetAuditColumnsMenu();
+    menu.hidden = !menu.hidden;
+    assetAuditColumnsBtnEl.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  var assetAuditColumnsMenuEl = cloudEl("assetAuditColumnsMenu");
+  if (assetAuditColumnsMenuEl) assetAuditColumnsMenuEl.addEventListener("change", function(ev){
+    var key = ev.target && ev.target.dataset ? ev.target.dataset.assetCol : null;
+    if (!key) return;
+    var vis = assetAuditVisibleCols();
+    vis[key] = ev.target.checked;
+    saveAssetAuditVisibleCols(vis);
+    applyAssetAuditColumns();
   });
 
   // Full screen for the Assets window (same toggle as the Jobs Dashboard).
