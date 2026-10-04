@@ -945,6 +945,8 @@
   /* full screen: the window fills the screen and the table takes the rest of it */
   #assetAuditBackdrop.asset-audit-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
   #assetAuditBackdrop.asset-audit-fullscreen .asset-audit-table-wrap{max-height:calc(100vh - 230px);}
+  /* the Select assets picker opens in front of whatever window opened it (e.g. Edit delivery request) */
+  #assetsBackdrop{z-index:1200;}
   /* the Select assets picker: a scrolling table, wider window, full screen */
   #assetsBackdrop .modal-panel{width:min(1600px, 98vw);max-width:98vw;}
   #assetsBackdrop.assets-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
@@ -7636,14 +7638,10 @@
       }).join("");
       var actionsHtml = "";
       if (req.status === "submitted"){
-        actionsHtml = '<button type="button" class="primary" data-pd-action="fulfilled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Mark fulfilled</button>' +
-          '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>' +
+        actionsHtml = '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>' +
           '<button type="button" data-pd-edit="' + req.id + '">Edit</button>';
-        if (req.job_id === cloud.jobId){
-          actionsHtml += '<button type="button" data-pd-slip="' + req.id + '">Create delivery slip</button>';
-        } else {
-          actionsHtml += '<span class="pd-slip-hint">Open ' + escHtml(jobName) + ' to create a delivery slip for this</span>';
-        }
+        // works from here for any job: if it isn't the one open, that job opens first
+        actionsHtml += '<button type="button" class="primary" data-pd-slip="' + req.id + '">Create Delivery Slip</button>';
       }
       return '<div class="pd-card">' +
         '<div class="pd-card-head"><span class="pd-job">' + escHtml(jobName) + '</span><span class="pd-status-badge ' + req.status + '">' + escHtml(req.status) + '</span></div>' +
@@ -7676,6 +7674,28 @@
   // barcode) and opens the existing packing-slip modal, which already offers
   // both "Print packing slip" and "Export signable slip" for whatever's
   // selected - no separate slip format needed for delivery requests.
+  // The request is for a job that isn't open: open that job, wait for its items
+  // to load, then build the slip from the request as usual.
+  function openSlipForRequestInJob(req){
+    cloud.sb.from("eq_jobs").select("id,name,meta").eq("id", req.job_id).maybeSingle().then(function(jr){
+      if (jr.error || !jr.data){ pdMsg("Couldn't open that job - it may have been deleted.", "bad"); return; }
+      closePendingDeliveriesModal();
+      openJob(jr.data);
+      var tries = 0;
+      (function waitForItems(){
+        if (cloud.jobId === req.job_id && rows.size){
+          openPackingSlipForRequest(req);
+          return;
+        }
+        if (++tries > 50){
+          showSnackbar("The job opened, but its items didn't load in time. Try Create delivery slip again.");
+          return;
+        }
+        setTimeout(waitForItems, 200);
+      })();
+    });
+  }
+
   function openPackingSlipForRequest(req){
     var barcodes = (req.items || []).map(function(it){ return it && it.barcode; }).filter(Boolean);
     var matchedIds = order.filter(function(id){
@@ -7693,6 +7713,12 @@
     activeDeliveryRequestId = req.id;
     resetAssignDriverFields();
     loadDriversForAssign();
+    // the assets the tech asked for come across too, so they show on the slip
+    // and go out on the assignment (with their quantities for consumables)
+    assetPickedIds = new Set(req.asset_ids || []);
+    assetPickQty = Object.assign({}, req.asset_qty || {});
+    updateAssignAssetsCount();
+    loadAssets(); // names for the asset slip
     // The tech who submitted this already gave a name/phone/email and a
     // requested date/time - no reason to make staff retype any of it here.
     applySlipPoc({name: req.contact_name, phone: req.contact_phone, email: req.contact_email});
@@ -7860,7 +7886,10 @@
     var slipBtn = ev.target.closest && ev.target.closest("[data-pd-slip]");
     if (slipBtn){
       var slipReq = pdReqsCache.filter(function(r){ return String(r.id) === slipBtn.dataset.pdSlip; })[0];
-      if (slipReq) openPackingSlipForRequest(slipReq);
+      if (slipReq){
+        if (slipReq.job_id === cloud.jobId) openPackingSlipForRequest(slipReq);
+        else openSlipForRequestInJob(slipReq);
+      }
       return;
     }
     var editBtn = ev.target.closest && ev.target.closest("[data-pd-edit]");
@@ -8620,6 +8649,10 @@
       return assetMatchesSearch(pickerSearchText(a), typed);
     }) : assetsCache;
     visible = sortAssetList(visible, pickSort, pickSortValue);
+    // what's already on this delivery comes first; the column sort applies within each group
+    var pickedNow = activeAssetPickedIds();
+    visible = visible.filter(function(a){ return pickedNow.has(a.id); })
+      .concat(visible.filter(function(a){ return !pickedNow.has(a.id); }));
     if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
     // A table, like the Assets page, so the columns can slide sideways and the
