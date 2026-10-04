@@ -6902,14 +6902,22 @@
   // caller just says so on screen.
   function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy){
     if (!pdfBase64) return Promise.resolve("The slip PDF couldn't be built (PDF library didn't load).");
+    // "Failed to send a request to the Edge Function" is the browser saying it
+    // couldn't reach the function at all - almost always because it isn't
+    // deployed yet, not a problem with the email itself.
+    function explain(msg){
+      if (/failed to send a request|failed to fetch|non-2xx/i.test(msg || ""))
+        return "the email service (send-signed-slip) couldn't be reached - check it's deployed under Edge Functions in Supabase";
+      return msg;
+    }
     return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64}).then(function(res){
-      if (res.error) return res.error.message;
+      if (res.error) return explain(res.error.message);
       var data = res.data || {};
-      if (data.error) return data.error;
-      if (data.emailError) return data.emailError;
+      if (data.error) return explain(data.error);
+      if (data.emailError) return explain(data.emailError);
       return "";
     }).catch(function(e){
-      return isNetworkProblem(e) ? "You're offline" : (e && e.message ? e.message : String(e));
+      return isNetworkProblem(e) ? "You're offline" : explain(e && e.message ? e.message : String(e));
     });
   }
 
@@ -7700,7 +7708,9 @@
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("status", "assigned")
         .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
       invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
-      cloud.sb.from("eq_assets").select("id,label").eq("deleted", false),
+      // no "deleted" filter here: this is only a name lookup, and an asset that
+      // was deleted while still out would otherwise show up with no name
+      cloud.sb.from("eq_assets").select("id,label"),
       cloud.sb.from("eq_asset_checkouts").select("*")
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
@@ -7835,8 +7845,10 @@
     box.innerHTML = '<h3 class="jd-deliveries-title">Deployed assets</h3>' +
       '<div class="jd-deliveries-list">' +
       openCheckouts.map(function(c){
-        var asset = assetsById[c.asset_id] || {};
-        var assetLabel = asset.label || "Untitled asset";
+        var asset = assetsById[c.asset_id];
+        // "Untitled" only when the asset is there but has no label; a missing
+        // asset is reported as such rather than looking like a blank name
+        var assetLabel = asset ? (asset.label || "Untitled asset") : "Unknown asset (not in the asset list)";
         var jobName = c.job_id ? (jobNameById[c.job_id] || "Unknown job") : "Unknown job";
         var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
         return '<div class="jd-delivery-row">' +
@@ -8103,6 +8115,31 @@
     cancelScheduledDelivery(cancelBtn.dataset.jdCancelDelivery, cancelBtn);
   });
 
+  // Puts a cancelled delivery's equipment back to available for delivery: the
+  // Date Shipped is cleared on each row that was on it. Rows are matched by
+  // BarCode within the delivery's job (the BarCodes are kept on the delivery).
+  function releaseDeliveryRows(d){
+    var barcodes = {};
+    ((d && d.items) || []).forEach(function(it){
+      var b = String(it.barcode || "").trim();
+      if (b) barcodes[b] = true;
+    });
+    if (!d || !Object.keys(barcodes).length) return Promise.resolve();
+    return cloud.sb.from("eq_rows").select("id,data").eq("job_id", d.job_id).eq("deleted", false).then(function(r){
+      if (r.error) throw r.error;
+      var shipped = (r.data || []).filter(function(row){
+        var data = row.data || {};
+        return barcodes[String(data.barcode || "").trim()] && String(data.dateShipped || "").trim();
+      });
+      return Promise.all(shipped.map(function(row){
+        var data = Object.assign({}, row.data, {dateShipped: ""});
+        return cloud.sb.from("eq_rows").update({data: data, updated_by: cloud.clientId}).eq("id", row.id).then(function(u){
+          if (u.error) throw u.error;
+        });
+      }));
+    });
+  }
+
   // Staff only. Cancels a scheduled delivery that hasn't been signed off: it
   // comes off the dashboard and the driver's list (status "cancelled", the
   // row is kept), and any assets checked out for it go back into stock.
@@ -8126,6 +8163,8 @@
       return cloud.sb.from("eq_asset_checkouts").update({returned_at: nowIso, returned_by: (cloud.user && cloud.user.email) || ""}).in("id", openIds);
     }).then(function(r){
       if (r && r.error) throw r.error;
+      return releaseDeliveryRows(d);
+    }).then(function(){
       showSnackbar("Delivery cancelled.");
       if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
       if (!cloudEl("pendingDeliveriesBackdrop").hidden) loadPendingDeliveries();
@@ -9094,9 +9133,14 @@
     }).then(function(r){
       assignDriverBtnEl.disabled = false;
       if (r && r.error){ assignDriverMsg("Delivery created, but checking out assets failed: " + r.error.message, "bad"); return; }
-      resetAssignDriverFields();
-      loadDriversForAssign();
-      assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + ".", "good");
+      // Keep the driver, van, date, time and POC on screen after saving, so
+      // what was just assigned visibly stays put. Only the picked assets are
+      // cleared - they're checked out now.
+      assetPickedIds = new Set();
+      assetPickQty = {};
+      updateAssignAssetsCount();
+      loadDriversForAssign().then(function(){ cloudEl("assignDriverSelect").value = driverId; });
+      assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + (van ? " in " + van : "") + ". Saved.", "good");
     }).catch(function(e){
       assignDriverBtnEl.disabled = false;
       assignDriverMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't assign: " + (e && e.message ? e.message : e), "bad");
