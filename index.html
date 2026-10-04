@@ -9094,9 +9094,14 @@
     }).then(function(r){
       assignDriverBtnEl.disabled = false;
       if (r && r.error){ assignDriverMsg("Delivery created, but checking out assets failed: " + r.error.message, "bad"); return; }
-      resetAssignDriverFields();
-      loadDriversForAssign();
-      assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + ".", "good");
+      // Keep the driver, van, date, time and POC on screen after saving, so
+      // what was just assigned visibly stays put. Only the picked assets are
+      // cleared - they're checked out now.
+      assetPickedIds = new Set();
+      assetPickQty = {};
+      updateAssignAssetsCount();
+      loadDriversForAssign().then(function(){ cloudEl("assignDriverSelect").value = driverId; });
+      assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + (van ? " in " + van : "") + ". Saved.", "good");
     }).catch(function(e){
       assignDriverBtnEl.disabled = false;
       assignDriverMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't assign: " + (e && e.message ? e.message : e), "bad");
