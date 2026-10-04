@@ -6901,7 +6901,7 @@
   // "" on success or with the reason it failed. The signature is already saved
   // by the time this runs, so a failed email never un-signs anything - the
   // caller just says so on screen.
-  function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy){
+  function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy, signatureDataUrl){
     if (!pdfBase64) return Promise.resolve("The slip PDF couldn't be built (PDF library didn't load).");
     // "Failed to send a request to the Edge Function" is the browser saying it
     // couldn't reach the function at all - almost always because it isn't
@@ -6911,7 +6911,7 @@
         return "the email service (send-signed-slip) couldn't be reached - check it's deployed under Edge Functions in Supabase";
       return msg;
     }
-    return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64}).then(function(res){
+    return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64, signatureDataUrl: signatureDataUrl || ""}).then(function(res){
       if (res.error) return explain(res.error.message);
       var data = res.data || {};
       if (data.error) return explain(data.error);
@@ -6921,6 +6921,44 @@
       return isNetworkProblem(e) ? "You're offline" : explain(e && e.message ? e.message : String(e));
     });
   }
+
+  // The asset slip printed on its own page after the delivery slip, whenever
+  // the delivery has assets picked on it - same job details, a table of the
+  // assets (label, description, category, qty) and a Received By line.
+  function buildAssetSlipPrintHtml(){
+    var ids = Array.from(assetPickedIds);
+    if (!ids.length) return "";
+    var jobLine = deliveryJobLine();
+    var rows = ids.map(function(id){
+      var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+      var q = assetQtyFor(id);
+      return "<tr><td>" + escHtml(a ? (a.label || "Untitled asset") : "Asset not found") +
+        (a && a.description ? "<br><small>" + escHtml(a.description) + "</small>" : "") + "</td><td>" +
+        escHtml(a ? (a.category || "") : "") + "</td><td style='text-align:center'>" + q + "</td></tr>";
+    }).join("");
+    var total = ids.reduce(function(sum, id){ return sum + assetQtyFor(id); }, 0);
+    var poc = cloudEl("assignPocName") ? cloudEl("assignPocName").value.trim() : "";
+    return '<div class="packing-slip-doc" style="font-family:Arial,sans-serif;color:#1a1a18">' +
+      '<h1 style="color:#1a3a6b;margin:0 0 6px;font-size:22px">Asset Delivery Slip</h1>' +
+      '<div style="font-size:12px;color:#444;margin-bottom:10px">Job: ' + escHtml(jobLine || "—") +
+        ' &nbsp;|&nbsp; Address: ' + escHtml(meta.address || "—") +
+        ' &nbsp;|&nbsp; Vendor: ' + escHtml(meta.vendor || "—") +
+        (poc ? ' &nbsp;|&nbsp; POC: ' + escHtml(poc) : "") + '</div>' +
+      '<table class="ps-table"><thead><tr><th>Asset</th><th>Category</th><th>Qty</th></tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+        '<tfoot><tr><td colspan="2" style="text-align:right"><b>Total Items:</b></td><td style="text-align:center"><b>' + total + '</b></td></tr></tfoot></table>' +
+      '<div style="margin-top:40px;display:flex;gap:40px">' +
+        '<div style="flex:1;border-top:1px solid #222;padding-top:4px">Received By</div>' +
+        '<div style="flex:1;border-top:1px solid #222;padding-top:4px">Date</div></div>' +
+      '</div>';
+  }
+  // Wraps the base app's print function: a slip with assets picked on it
+  // prints the asset slip after it, on its own page.
+  var printDeliverySlipOnly = printPackingSlipFrame;
+  printPackingSlipFrame = function(docHtml, landscape){
+    var assetPage = buildAssetSlipPrintHtml();
+    printDeliverySlipOnly(assetPage ? docHtml + '<div style="page-break-before:always"></div>' + assetPage : docHtml, landscape);
+  };
 
   function submitDeliveryRequest(){
     var selRows = getSelectedRows();
@@ -7737,11 +7775,21 @@
       var jobNameById = {};
       jobs.forEach(function(j){ jobNameById[j.id] = (j.meta && j.meta.project) || j.name || "Untitled job"; });
       var openCheckouts = (checkoutsRes.data || []).filter(function(c){ return !c.returned_at; });
-      return {
-        jobs: jobs, rowsByJob: rowsByJob, openReqByJob: openReqByJob,
-        deliveries: deliveriesRes && deliveriesRes.data || [], driverEmailById: driverEmailById,
-        assetsById: assetsById, jobNameById: jobNameById, openCheckouts: openCheckouts
-      };
+      // Any asset a checkout points at that the list above didn't include is
+      // fetched by id, so the deployed-assets list always names what's out.
+      var missingIds = Array.from(new Set(openCheckouts.map(function(c){ return c.asset_id; })
+        .filter(function(id){ return id && !assetsById[id]; })));
+      var extraAssets = missingIds.length
+        ? cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model,description").in("id", missingIds)
+        : Promise.resolve(null);
+      return extraAssets.then(function(er){
+        if (er && er.data) er.data.forEach(function(a){ assetsById[a.id] = a; });
+        return {
+          jobs: jobs, rowsByJob: rowsByJob, openReqByJob: openReqByJob,
+          deliveries: deliveriesRes && deliveriesRes.data || [], driverEmailById: driverEmailById,
+          assetsById: assetsById, jobNameById: jobNameById, openCheckouts: openCheckouts
+        };
+      });
     });
   }
 
@@ -7821,6 +7869,14 @@
         renderRows();
         activeDeliveryRequestId = null;
         resetAssignDriverFields();
+        // The assets already on this delivery come back into the form too, so
+        // the asset slip prints with them. It's already saved, so it can't be
+        // assigned again from here.
+        assetPickedIds = new Set(delivery.asset_ids || []);
+        assetPickQty = Object.assign({}, delivery.asset_qty || {});
+        updateAssignAssetsCount();
+        assignSavedDeliveryId = delivery.id;
+        loadAssets(); // names for the asset slip
         // This delivery already has a driver, schedule and POC from when it
         // was first assigned - re-show all of it instead of making staff
         // redo it from scratch just to reprint.
@@ -8809,6 +8865,7 @@
   // ---------- download/upload spreadsheet ----------
   var ASSET_COL_LABEL_TO_KEY = {
     "label": "label", "asset": "label", "name": "label", "asset label": "label",
+    "asset name": "label", "item": "label", "item name": "label", "equipment": "label", "equipment name": "label", "asset tag": "label",
     "category": "category",
     "barcode": "barcode", "bar code": "barcode",
     "make": "manufacturer", "manufacturer": "manufacturer",
@@ -8987,7 +9044,15 @@
         if (existing){ updates.push(Object.assign({id: existing.id}, fields)); }
         else { inserts.push(Object.assign({id: cloudUuid()}, fields)); }
       }
-      if (!inserts.length && !updates.length){ assetAuditMsg("No usable rows found in that file.", "bad"); return; }
+      if (!inserts.length && !updates.length){
+        // say which of the two it is, and what the file's headers were
+        var headersFound = (aoa[headerRowIdx] || []).map(function(v){ return String(v || "").trim(); }).filter(Boolean).join(", ");
+        var hasLabelCol = Object.keys(colMap).some(function(idx){ return colMap[idx] === "label"; });
+        assetAuditMsg(hasLabelCol
+          ? "No rows had a value in the Label column. Fill in Label for each asset and try again."
+          : "No Label column found. Name the column with the asset names Label (or Asset, Asset Name, Item, or Equipment). Headers read: " + headersFound + ".", "bad");
+        return;
+      }
       assetAuditMsg("Importing...");
       Promise.all(
         (inserts.length ? [cloud.sb.from("eq_assets").insert(inserts.map(function(f){ return Object.assign({}, f, {updated_by: cloud.clientId}); }))] : [])
@@ -9377,7 +9442,7 @@
       deliverySignMsg("Signed. Emailing the slip...", "good");
       var eqDeliveryId = currentDelivery.id;
       var eqPdf = buildSignedSlipPdfBase64(currentDelivery, "equipment", name, patch.signed_at, patch.signature_data);
-      sendSignedSlipEmail(eqDeliveryId, "equipment", eqPdf, name).then(function(emailErr){
+      sendSignedSlipEmail(eqDeliveryId, "equipment", eqPdf, name, patch.signature_data).then(function(emailErr){
         loadDriverDeliveries();
         if (emailErr){
           deliverySignMsg("Signed, but the slip email didn't send: " + emailErr + ". Let the warehouse know this delivery was signed.", "bad");
@@ -9417,7 +9482,7 @@
       deliverySignMsg("Signed. Emailing the slip...", "good");
       var assetDeliveryId = currentDelivery.id;
       var assetPdf = buildSignedSlipPdfBase64(currentDelivery, "assets", name, patch.asset_signed_at, patch.asset_signature_data);
-      sendSignedSlipEmail(assetDeliveryId, "assets", assetPdf, name).then(function(emailErr){
+      sendSignedSlipEmail(assetDeliveryId, "assets", assetPdf, name, patch.asset_signature_data).then(function(emailErr){
         if (patch.status === "delivered") loadDriverDeliveries();
         if (emailErr){
           deliverySignMsg("Signed, but the asset slip email didn't send: " + emailErr + ". Let the warehouse know this was signed.", "bad");
