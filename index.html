@@ -6850,7 +6850,8 @@
       head = [["Asset", "Category", "Qty"]];
       body = (delivery.asset_ids || []).map(function(id){
         var a = assetsCache.filter(function(x){ return x.id === id; })[0];
-        return [a ? a.label : "Unknown asset", a ? a.category : "", String((delivery.asset_qty || {})[id] || 1)];
+        var name = a ? (a.label || "Untitled asset") + (a.description ? "\n" + a.description : "") : "Asset not found";
+        return [name, a ? a.category : "", String((delivery.asset_qty || {})[id] || 1)];
       });
     } else {
       var items = delivery.items || [];
@@ -7710,7 +7711,7 @@
       invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
       // no "deleted" filter here: this is only a name lookup, and an asset that
       // was deleted while still out would otherwise show up with no name
-      cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model"),
+      cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model,description"),
       cloud.sb.from("eq_asset_checkouts").select("*")
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
@@ -7851,12 +7852,13 @@
         // id on the end tells apart two assets that look alike.
         var shortId = "#" + String(c.asset_id || "").slice(0, 6);
         var assetLabel = asset
-          ? (asset.label || asset.barcode || [asset.manufacturer, asset.model].filter(Boolean).join(" ") || asset.category || "Asset") + " " + shortId
+          ? (asset.label || asset.barcode || [asset.manufacturer, asset.model].filter(Boolean).join(" ") || asset.category || "Asset")
           : "Asset not found " + shortId;
+        var assetDesc = asset && asset.description ? String(asset.description) : "";
         var jobName = c.job_id ? (jobNameById[c.job_id] || "Unknown job") : "Unknown job";
         var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
         return '<div class="jd-delivery-row">' +
-          '<span class="jd-delivery-job">' + escHtml(assetLabel) + '</span>' +
+          '<span class="jd-delivery-job">' + escHtml(assetLabel) + (assetDesc ? ' <span style="font-weight:400;color:#666">' + escHtml(assetDesc) + '</span>' : '') + '</span>' +
           '<span class="jd-delivery-driver">' + escHtml(jobName) + '</span>' +
           '<span class="jd-delivery-when">out since ' + escHtml(since) + '</span>' +
         '</div>';
@@ -9192,7 +9194,7 @@
     return Promise.all([
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("driver_id", cloud.user.id).eq("status", "assigned")
         .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
-      cloud.sb.from("eq_assets").select("id,label,category")
+      cloud.sb.from("eq_assets").select("id,label,category,description")
     ]).then(function(results){
       var delRes = results[0], assetsRes = results[1];
       if (delRes.error){ driverMsg("Couldn't load: " + delRes.error.message, "bad"); return; }
@@ -9289,7 +9291,8 @@
     var rows = (ids || []).map(function(id){
       var a = assetsCache.filter(function(x){ return x.id === id; })[0];
       var q = (qtyMap && qtyMap[id]) || 1;
-      return "<tr><td>" + escHtml(a ? a.label : "Unknown asset") + "</td><td>" + escHtml(a ? a.category : "") + "</td><td>" + escHtml(String(q)) + "</td></tr>";
+      var name = a ? escHtml(a.label || "Untitled asset") + (a.description ? "<br><small>" + escHtml(a.description) + "</small>" : "") : "Asset not found";
+      return "<tr><td>" + name + "</td><td>" + escHtml(a ? a.category : "") + "</td><td>" + escHtml(String(q)) + "</td></tr>";
     }).join("");
     return "<thead><tr><th>Asset</th><th>Category</th><th>Qty</th></tr></thead><tbody>" + rows + "</tbody>";
   }
