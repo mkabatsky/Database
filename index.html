@@ -7368,7 +7368,8 @@
 
   function loadPendingDeliveries(){
     var list = cloudEl("pdList");
-    list.textContent = "Loading...";
+    // keep what's on screen during the minute-by-minute refresh instead of flashing "Loading..."
+    if (!pdReqsCache.length) list.textContent = "Loading...";
     return cloud.sb.from("eq_delivery_requests").select("*, eq_jobs(name, meta)").eq("status", pdStatus).order("created_at", {ascending: false}).then(function(r){
       if (r.error){ pdMsg("Couldn't load: " + r.error.message, "bad"); list.textContent = ""; return; }
       renderPdList(r.data || []);
@@ -7415,11 +7416,20 @@
     }).join("");
   }
 
+  // Re-reads itself while open, for the same reason as the dashboard does.
+  var pdPollTimer = null;
   function openPendingDeliveriesModal(){
     cloudEl("pendingDeliveriesBackdrop").hidden = false;
     loadPendingDeliveries();
+    clearInterval(pdPollTimer);
+    pdPollTimer = setInterval(function(){
+      if (!cloudEl("pendingDeliveriesBackdrop").hidden) loadPendingDeliveries();
+    }, 60000);
   }
-  function closePendingDeliveriesModal(){ cloudEl("pendingDeliveriesBackdrop").hidden = true; }
+  function closePendingDeliveriesModal(){
+    cloudEl("pendingDeliveriesBackdrop").hidden = true;
+    clearInterval(pdPollTimer);
+  }
 
   // Pre-selects exactly the rows on this delivery request (matched by
   // barcode) and opens the existing packing-slip modal, which already offers
@@ -7679,7 +7689,11 @@
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
           usersRes = results[4], assetsRes = results[5], checkoutsRes = results[6];
-      if (jobsRes.error) throw jobsRes.error;
+      // A failed query used to come back as an empty list, so the dashboard
+      // looked like there was nothing to show (or nothing to clear). Any
+      // failure now throws, and the caller shows it on screen.
+      var failed = [jobsRes, rowsRes, reqsRes, deliveriesRes, assetsRes, checkoutsRes].filter(function(r){ return r && r.error; })[0];
+      if (failed) throw failed.error;
       var jobs = jobsRes.data || [];
       var rowsByJob = {}, openReqByJob = {};
       (rowsRes.data || []).forEach(function(r){
@@ -7887,7 +7901,12 @@
   // While the staff dashboard is open it stays live: a delivery signed on a
   // driver's phone (or any other change to deliveries, checkouts or requests)
   // updates it on its own instead of only when it's reopened.
-  var jdLiveChannel = null, jdLiveTimer = null;
+  // Live changes come through a realtime channel, but if that channel drops
+  // or never connects, changes don't show up at all. So the dashboard also
+  // re-reads itself every minute while it's open, and says so if the channel
+  // is down.
+  var JD_POLL_MS = 60000;
+  var jdLiveChannel = null, jdLiveTimer = null, jdPollTimer = null;
   function scheduleJdLiveRefresh(){
     clearTimeout(jdLiveTimer);
     jdLiveTimer = setTimeout(function(){
@@ -7902,10 +7921,19 @@
       .on("postgres_changes", {event: "*", schema: "public", table: "eq_delivery_requests"}, scheduleJdLiveRefresh)
       .subscribe(function(status){
         if (status === "SUBSCRIBED") scheduleJdLiveRefresh();
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT"){
+          // don't cover up a load error that's already showing
+          if (!cloudEl("jdMsg").textContent) jdMsg("Live updates are paused - the dashboard refreshes every minute.", "bad");
+        }
       });
+    clearInterval(jdPollTimer);
+    jdPollTimer = setInterval(function(){
+      if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+    }, JD_POLL_MS);
   }
   function stopJdLive(){
     clearTimeout(jdLiveTimer);
+    clearInterval(jdPollTimer);
     if (jdLiveChannel){ cloud.sb.removeChannel(jdLiveChannel); jdLiveChannel = null; }
   }
   function openJobsDashboardModal(){
@@ -7999,10 +8027,17 @@
     clearTimeout(dashOnlyRefreshTimer);
     dashOnlyRefreshTimer = setTimeout(loadDashboardOnlyData, 400);
   }
+  var dashOnlyPollTimer = null;
   function openDashboardOnlyView(){
     cloudEl("dashOnlyUserEmail").textContent = (cloud.user && cloud.user.email) || "";
     cloudEl("dashboardOnlyView").hidden = false;
     loadDashboardOnlyData();
+    // This screen is left up all day, so it re-reads itself every minute on
+    // top of the live channel (see JD_POLL_MS for why).
+    clearInterval(dashOnlyPollTimer);
+    dashOnlyPollTimer = setInterval(function(){
+      if (!cloudEl("dashboardOnlyView").hidden) loadDashboardOnlyData();
+    }, JD_POLL_MS);
     if (dashOnlyChannel){ cloud.sb.removeChannel(dashOnlyChannel); }
     dashOnlyChannel = cloud.sb.channel("dashboard-view-" + cloud.clientId)
       .on("postgres_changes", {event: "*", schema: "public", table: "eq_jobs"}, scheduleDashOnlyRefresh)
@@ -8014,6 +8049,9 @@
         // a (re)connect could have missed changes made while it was down -
         // pull a fresh copy once the channel is back up
         if (status === "SUBSCRIBED") loadDashboardOnlyData();
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT"){
+          if (!cloudEl("dashOnlyMsg").textContent) dashOnlyMsg("Live updates are paused - this screen refreshes every minute.", "bad");
+        }
       });
   }
   var dashOnlySignOutBtnEl = cloudEl("dashOnlySignOutBtn");
