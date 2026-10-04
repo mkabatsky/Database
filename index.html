@@ -6902,14 +6902,22 @@
   // caller just says so on screen.
   function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy){
     if (!pdfBase64) return Promise.resolve("The slip PDF couldn't be built (PDF library didn't load).");
+    // "Failed to send a request to the Edge Function" is the browser saying it
+    // couldn't reach the function at all - almost always because it isn't
+    // deployed yet, not a problem with the email itself.
+    function explain(msg){
+      if (/failed to send a request|failed to fetch|non-2xx/i.test(msg || ""))
+        return "the email service (send-signed-slip) couldn't be reached - check it's deployed under Edge Functions in Supabase";
+      return msg;
+    }
     return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64}).then(function(res){
-      if (res.error) return res.error.message;
+      if (res.error) return explain(res.error.message);
       var data = res.data || {};
-      if (data.error) return data.error;
-      if (data.emailError) return data.emailError;
+      if (data.error) return explain(data.error);
+      if (data.emailError) return explain(data.emailError);
       return "";
     }).catch(function(e){
-      return isNetworkProblem(e) ? "You're offline" : (e && e.message ? e.message : String(e));
+      return isNetworkProblem(e) ? "You're offline" : explain(e && e.message ? e.message : String(e));
     });
   }
 
@@ -7700,7 +7708,9 @@
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("status", "assigned")
         .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
       invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
-      cloud.sb.from("eq_assets").select("id,label").eq("deleted", false),
+      // no "deleted" filter here: this is only a name lookup, and an asset that
+      // was deleted while still out would otherwise show up with no name
+      cloud.sb.from("eq_assets").select("id,label"),
       cloud.sb.from("eq_asset_checkouts").select("*")
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
@@ -7835,8 +7845,10 @@
     box.innerHTML = '<h3 class="jd-deliveries-title">Deployed assets</h3>' +
       '<div class="jd-deliveries-list">' +
       openCheckouts.map(function(c){
-        var asset = assetsById[c.asset_id] || {};
-        var assetLabel = asset.label || "Untitled asset";
+        var asset = assetsById[c.asset_id];
+        // "Untitled" only when the asset is there but has no label; a missing
+        // asset is reported as such rather than looking like a blank name
+        var assetLabel = asset ? (asset.label || "Untitled asset") : "Unknown asset (not in the asset list)";
         var jobName = c.job_id ? (jobNameById[c.job_id] || "Unknown job") : "Unknown job";
         var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
         return '<div class="jd-delivery-row">' +
@@ -8134,6 +8146,7 @@
   function cancelScheduledDelivery(deliveryId, btn){
     if (cloud.role && cloud.role !== "staff"){ showSnackbar("Only staff can cancel a delivery."); return; }
     var d = jdDeliveriesCache.filter(function(x){ return x.id === deliveryId; })[0];
+    if (d && d.signed_at){ showSnackbar("The equipment slip is already signed, so this delivery can't be cancelled."); return; }
     var job = d && d.eq_jobs ? d.eq_jobs : {};
     var jobName = (job.meta && job.meta.project) || job.name || "this delivery";
     var when = d ? [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ") : "";
@@ -9330,10 +9343,11 @@
     var name = cloudEl("deliverySignerName").value.trim();
     if (!name){ deliverySignMsg("Type the signer's name first.", "bad"); return; }
     if (!currentDeliveryPad || currentDeliveryPad.isEmpty()){ deliverySignMsg("Sign in the box first.", "bad"); return; }
-    // Signing the equipment slip completes the delivery and takes it off the
-    // driver's list, even when assets were also on it - the asset slip can
-    // still be signed first if the driver chooses to, but isn't required.
-    var patch = {signed_by: name, signature_data: currentDeliveryPad.toDataUrl(), signed_at: new Date().toISOString(), updated_by: cloud.clientId, status: "delivered"};
+    // With assets on the delivery, it isn't finished until the asset slip is
+    // signed too - so the delivery stays open on the driver's list and the
+    // asset slip stays on screen to sign right after this one.
+    var assetsPending = !!(currentDelivery.asset_ids && currentDelivery.asset_ids.length) && !currentDelivery.asset_signed_at;
+    var patch = {signed_by: name, signature_data: currentDeliveryPad.toDataUrl(), signed_at: new Date().toISOString(), updated_by: cloud.clientId, status: assetsPending ? "assigned" : "delivered"};
     deliverySignSubmitBtnEl.disabled = true;
     deliverySignMsg("Submitting...");
     cloud.sb.from("eq_deliveries").update(patch).eq("id", currentDelivery.id).then(function(r){
@@ -9349,6 +9363,12 @@
         loadDriverDeliveries();
         if (emailErr){
           deliverySignMsg("Signed, but the slip email didn't send: " + emailErr + ". Let the warehouse know this delivery was signed.", "bad");
+          return;
+        }
+        if (assetsPending){
+          deliverySignMsg("Equipment slip signed and emailed. Now sign the asset slip below - the delivery isn't finished until it's signed.", "good");
+          var assetSection = cloudEl("assetSlipSection");
+          if (assetSection && assetSection.scrollIntoView) assetSection.scrollIntoView({behavior: "smooth", block: "start"});
           return;
         }
         deliverySignMsg("Signed. Slip emailed. Thank you!", "good");
