@@ -929,6 +929,11 @@
   .asset-audit-slide{display:flex;gap:8px;justify-content:flex-end;margin:0 0 6px;}
   .asset-audit-slide button{padding:4px 10px;font-size:12px;}
   .asset-audit-slide-spacer{flex:1 1 auto;}
+  /* column widths: drag the edge of a header to resize; cells cut off with … */
+  .asset-audit-table td{overflow:hidden;text-overflow:ellipsis;}
+  .asset-audit-table th{position:sticky;}
+  .asset-col-resize{position:absolute;right:-4px;top:0;bottom:0;width:9px;cursor:col-resize;z-index:2;touch-action:none;}
+  .asset-col-resize:hover{background:rgba(26,58,107,.18);}
   .asset-audit-cols-wrap{position:relative;}
   .asset-audit-cols-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:5;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;box-shadow:0 6px 18px rgba(0,0,0,.15);}
   .asset-audit-cols-menu[hidden]{display:none;}
@@ -8719,12 +8724,11 @@
     }
     return true;
   }
-  // Asset audit cells are kept to 20 characters so every asset fits on one
-  // line; the full text shows on hover.
+  // Asset audit cells keep their full text; the column width decides how much
+  // shows (drag a column's edge to widen or narrow it) and the rest shows on hover.
   function cellText(v){
     var s = String(v == null ? "" : v);
-    var shown = s.length > 20 ? s.slice(0, 19) + "…" : s;
-    return '<span title="' + escHtml(s) + '">' + escHtml(shown) + '</span>';
+    return '<span title="' + escHtml(s) + '">' + escHtml(s) + '</span>';
   }
   function renderAssetAuditTable(){
     var body = cloudEl("assetAuditBody");
@@ -8822,7 +8826,75 @@
         if (row.cells[i]) row.cells[i].style.display = vis[c.key] ? "" : "none";
       });
     });
+    applyAssetAuditWidths();
   }
+
+  // Column widths, set by dragging the edge of a column header (double-click the
+  // edge to go back to the default). Remembered on this device.
+  var ASSET_AUDIT_KEYS = ASSET_AUDIT_COLS.map(function(c){ return c.key; }).concat("actions");
+  var ASSET_AUDIT_DEFAULT_W = {label: 240, category: 120, barcode: 150, make: 120, model: 150, description: 260, status: 130, job: 180, actions: 250};
+  var ASSET_AUDIT_WIDTHS_KEY = "eqdb.assetAuditWidths";
+  function assetAuditSavedWidths(){
+    try { return JSON.parse(localStorage.getItem(ASSET_AUDIT_WIDTHS_KEY) || "{}") || {}; } catch (e) { return {}; }
+  }
+  function applyAssetAuditWidths(){
+    var table = document.querySelector("#assetAuditBackdrop .asset-audit-table");
+    if (!table || !table.tHead) return;
+    var saved = assetAuditSavedWidths();
+    var ths = table.tHead.rows[0].cells;
+    var total = 0;
+    table.style.tableLayout = "fixed";
+    Array.prototype.forEach.call(ths, function(th, i){
+      var key = ASSET_AUDIT_KEYS[i];
+      var w = saved[key] || ASSET_AUDIT_DEFAULT_W[key] || 150;
+      th.style.width = w + "px";
+      if (th.style.display !== "none") total += w;
+    });
+    table.style.width = total + "px";
+  }
+  function setAssetAuditWidth(i, w){
+    var table = document.querySelector("#assetAuditBackdrop .asset-audit-table");
+    if (!table) return;
+    var saved = assetAuditSavedWidths();
+    saved[ASSET_AUDIT_KEYS[i]] = w;
+    try { localStorage.setItem(ASSET_AUDIT_WIDTHS_KEY, JSON.stringify(saved)); } catch (e) { /* not remembered */ }
+    applyAssetAuditWidths();
+  }
+  // a handle on the right edge of each header (not the last one) for dragging
+  (function attachAssetAuditResizers(){
+    var table = document.querySelector("#assetAuditBackdrop .asset-audit-table");
+    if (!table || !table.tHead) return;
+    var ths = table.tHead.rows[0].cells;
+    Array.prototype.forEach.call(ths, function(th, i){
+      if (i === ths.length - 1) return;
+      var handle = document.createElement("span");
+      handle.className = "asset-col-resize";
+      handle.title = "Drag to resize. Double-click to reset this column.";
+      th.appendChild(handle);
+      handle.addEventListener("pointerdown", function(ev){
+        ev.preventDefault();
+        ev.stopPropagation();
+        handle.setPointerCapture(ev.pointerId);
+        var startX = ev.clientX, startW = th.getBoundingClientRect().width;
+        function move(e){ setAssetAuditWidth(i, Math.max(60, Math.round(startW + e.clientX - startX))); }
+        function up(){
+          handle.removeEventListener("pointermove", move);
+          handle.removeEventListener("pointerup", up);
+          handle.removeEventListener("pointercancel", up);
+        }
+        handle.addEventListener("pointermove", move);
+        handle.addEventListener("pointerup", up);
+        handle.addEventListener("pointercancel", up);
+      });
+      handle.addEventListener("dblclick", function(ev){
+        ev.stopPropagation();
+        var saved = assetAuditSavedWidths();
+        delete saved[ASSET_AUDIT_KEYS[i]];
+        try { localStorage.setItem(ASSET_AUDIT_WIDTHS_KEY, JSON.stringify(saved)); } catch (e) { /* not remembered */ }
+        applyAssetAuditWidths();
+      });
+    });
+  })();
   function buildAssetAuditColumnsMenu(){
     var menu = cloudEl("assetAuditColumnsMenu");
     if (!menu) return;
