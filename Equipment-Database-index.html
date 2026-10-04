@@ -926,6 +926,20 @@
   .asset-audit-table tr:last-child td{border-bottom:none;}
   .asset-audit-table .asset-audit-actions{display:flex;gap:6px;flex-wrap:nowrap;}
   .asset-audit-table .asset-audit-actions button{padding:5px 9px;font-size:12px;}
+  .asset-audit-slide{display:flex;gap:8px;justify-content:flex-end;margin:0 0 6px;}
+  .asset-audit-slide button{padding:4px 10px;font-size:12px;}
+  /* full screen: the window fills the screen and the table takes the rest of it */
+  #assetAuditBackdrop.asset-audit-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
+  #assetAuditBackdrop.asset-audit-fullscreen .asset-audit-table-wrap{max-height:calc(100vh - 230px);}
+  /* the Select assets picker: a scrolling table, wider window, full screen */
+  #assetsBackdrop .modal-panel{width:min(1600px, 98vw);max-width:98vw;}
+  #assetsBackdrop.assets-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
+  #assetsList{overflow:auto;max-height:52vh;border:1px solid var(--border);border-radius:8px;}
+  #assetsBackdrop.assets-fullscreen #assetsList{max-height:calc(100vh - 300px);}
+  .assets-pick-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:13px;}
+  .assets-pick-table th, .assets-pick-table td{padding:7px 9px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
+  .assets-pick-table th{position:sticky;top:0;background:var(--surface-alt);z-index:1;}
+  .assets-pick-table td input[type="number"]{width:64px;}
   .asset-audit-table .asset-audit-actions .asset-audit-delete{color:var(--danger);border-color:var(--danger);}
 
   /* =================== asset add/edit modal (shared by both) =================== */
@@ -1473,6 +1487,9 @@
   <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="assetsTitle">
     <div class="modal-head">
       <h2 id="assetsTitle">Select assets</h2>
+      <button class="icon-btn" id="assetsFullscreenBtn" title="Full screen" aria-label="Full screen" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 1-2 2h3"></path></svg>
+      </button>
       <button class="icon-btn" id="assetsCloseBtn" title="Close" aria-label="Close" type="button">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
@@ -1488,6 +1505,10 @@
       <button type="button" class="primary" id="assetNewBtn">Add asset</button>
     </div>
     <input type="search" id="assetsPickSearch" class="assets-pick-search" placeholder="Search any field: label, category, barcode, make, model, notes, job, status..." autocomplete="off">
+    <div class="asset-audit-slide" role="group" aria-label="Slide the list sideways">
+      <button type="button" id="assetsSlideLeftBtn" title="Slide left" aria-label="Slide left">&#9664; Slide left</button>
+      <button type="button" id="assetsSlideRightBtn" title="Slide right" aria-label="Slide right">Slide right &#9654;</button>
+    </div>
     <div class="assets-list" id="assetsList"></div>
     <div class="assets-msg" id="assetsMsg" aria-live="polite"></div>
     <div class="modal-actions" id="assetsPickerActions" hidden="">
@@ -1501,6 +1522,9 @@
   <div class="modal-panel packing-slip-modal-panel jobs-dashboard-panel" role="dialog" aria-modal="true" aria-labelledby="assetAuditTitle">
     <div class="modal-head">
       <h2 id="assetAuditTitle">Assets</h2>
+      <button class="icon-btn" id="assetAuditFullscreenBtn" title="Full screen" aria-label="Full screen" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M3 16v3a2 2 0 0 1-2 2h3"></path></svg>
+      </button>
       <button class="icon-btn" id="assetAuditCloseBtn" title="Close" aria-label="Close" type="button">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
@@ -1521,7 +1545,11 @@
       <button type="button" id="assetAuditImportBtn">Upload spreadsheet</button>
       <input type="file" id="assetAuditImportFile" accept=".xlsx,.xls" hidden="">
     </div>
-    <div class="asset-audit-table-wrap">
+    <div class="asset-audit-slide" role="group" aria-label="Slide the table sideways">
+      <button type="button" id="assetAuditSlideLeftBtn" title="Slide left" aria-label="Slide left">&#9664; Slide left</button>
+      <button type="button" id="assetAuditSlideRightBtn" title="Slide right" aria-label="Slide right">Slide right &#9654;</button>
+    </div>
+    <div class="asset-audit-table-wrap" id="assetAuditTableWrap">
       <table class="asset-audit-table">
         <thead><tr><th>Label</th><th>Category</th><th>BarCode</th><th>Make</th><th>Model</th><th>Description</th><th>Status</th><th>Assigned job</th><th></th></tr></thead>
         <tbody id="assetAuditBody"></tbody>
@@ -8431,7 +8459,12 @@
     }) : assetsCache;
     if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
-    list.innerHTML = visible.map(function(a){
+    // A table, like the Assets page, so the columns can slide sideways and the
+    // window can go full screen with every column in view.
+    var pickHeaders = ["Pick", "Label", "Category", "BarCode", "Make", "Model", "Description", "Status", "Job / received by", ""];
+    list.innerHTML = '<table class="assets-pick-table"><thead><tr>' +
+      pickHeaders.map(function(h){ return "<th>" + escHtml(h) + "</th>"; }).join("") +
+      '</tr></thead><tbody>' + visible.map(function(a){
       var consumable = isConsumable(a);
       var checkout = consumable ? null : assetCheckoutFor(a.id);
       var onHand = consumable ? consumableOnHand(a, assetCheckoutsCache) : 0;
@@ -8444,30 +8477,24 @@
       var returnBtn = (out && checkout)
         ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>'
         : "";
-      var subBits = [a.category, [a.manufacturer, a.model].filter(Boolean).join(" "), a.barcode ? "BarCode " + a.barcode : ""].filter(function(v){ return v && String(v).trim(); });
-      var subLine = subBits.join(" · ");
-      var descLine = a.description ? '<div class="asset-sub">' + escHtml(a.description) + '</div>' : "";
       var jobName = (out && checkout) ? (assetJobNameById[checkout.job_id] || "a job") : "";
-      // formatWhen() is shared with the Jobs list and always prefixes
-      // "Updated " (right there, that's correct) - strip it back off here,
-      // since "out since Updated Oct 3..." reads wrong for a checkout time.
-      // Only computed when actually checked out - checkout is undefined for
-      // an available asset, and formatWhen(undefined) throws.
-      var outLine = (out && checkout)
-        ? '<div class="asset-sub asset-assigned">Assigned to <b>' + escHtml(jobName) + '</b>' + (checkout.poc_name ? ' · received by <b>' + escHtml(checkout.poc_name) + '</b>' : '') + ' · out since ' + escHtml(formatWhen(checkout.checked_out_at).replace(/^Updated\s+/, "")) + '</div>'
+      var jobCell = (out && checkout)
+        ? escHtml(jobName) + (checkout.poc_name ? " · " + escHtml(checkout.poc_name) : "")
         : "";
-      return '<div class="asset-row" data-asset-id="' + a.id + '">' +
-        pickCheckbox +
-        '<div class="asset-info">' +
-          '<div class="asset-label">' + escHtml(a.label || "Untitled asset") + '</div>' +
-          (subLine ? '<div class="asset-sub">' + escHtml(subLine) + '</div>' : "") +
-          descLine +
-          outLine +
-        '</div>' +
-        '<span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (consumable ? onHand + " in stock" : (out ? "Checked out" : "Available")) + '</span>' +
-        returnBtn +
-      '</div>';
-    }).join("");
+      var statusText = consumable ? onHand + " in stock" : (out ? "Checked out" : "Available");
+      return '<tr data-asset-id="' + a.id + '">' +
+        '<td>' + pickCheckbox + '</td>' +
+        '<td>' + escHtml(a.label || "Untitled asset") + '</td>' +
+        '<td>' + escHtml(a.category || "") + '</td>' +
+        '<td>' + escHtml(a.barcode || "") + '</td>' +
+        '<td>' + escHtml(a.manufacturer || "") + '</td>' +
+        '<td>' + escHtml(a.model || "") + '</td>' +
+        '<td>' + escHtml(a.description || "") + '</td>' +
+        '<td><span class="asset-status-badge ' + (out ? "out" : "available") + '">' + escHtml(statusText) + '</span></td>' +
+        '<td>' + jobCell + '</td>' +
+        '<td>' + returnBtn + '</td>' +
+      '</tr>';
+    }).join("") + '</tbody></table>';
   }
   // Picker-only now - the top bar's "Assets" button opens the fuller Asset
   // Audit page instead (see "asset audit" section below); this modal is
@@ -8490,6 +8517,19 @@
   if (assetsCloseBtnEl) assetsCloseBtnEl.addEventListener("click", closeAssetsModal);
   var assetsBackdropEl = cloudEl("assetsBackdrop");
   if (assetsBackdropEl) assetsBackdropEl.addEventListener("click", function(ev){ if (ev.target === assetsBackdropEl) closeAssetsModal(); });
+  // Full screen and sliding for the picker, same as the Assets page.
+  var assetsFullscreenBtnEl = cloudEl("assetsFullscreenBtn");
+  if (assetsFullscreenBtnEl) assetsFullscreenBtnEl.addEventListener("click", function(){
+    cloudEl("assetsBackdrop").classList.toggle("assets-fullscreen");
+  });
+  function slideAssetsList(dir){
+    var list = cloudEl("assetsList");
+    if (list) list.scrollBy({left: dir * 300, behavior: "smooth"});
+  }
+  var assetsSlideLeftBtnEl = cloudEl("assetsSlideLeftBtn");
+  if (assetsSlideLeftBtnEl) assetsSlideLeftBtnEl.addEventListener("click", function(){ slideAssetsList(-1); });
+  var assetsSlideRightBtnEl = cloudEl("assetsSlideRightBtn");
+  if (assetsSlideRightBtnEl) assetsSlideRightBtnEl.addEventListener("click", function(){ slideAssetsList(1); });
 
   var assetNewBtnEl = cloudEl("assetNewBtn");
   if (assetNewBtnEl) assetNewBtnEl.addEventListener("click", function(){
@@ -8742,6 +8782,21 @@
     auditCategoryFilter = assetAuditCategoryFilterEl.value;
     renderAssetAuditTable();
   });
+
+  // Full screen for the Assets window (same toggle as the Jobs Dashboard).
+  var assetAuditFullscreenBtnEl = cloudEl("assetAuditFullscreenBtn");
+  if (assetAuditFullscreenBtnEl) assetAuditFullscreenBtnEl.addEventListener("click", function(){
+    cloudEl("assetAuditBackdrop").classList.toggle("asset-audit-fullscreen");
+  });
+  // Slide the table sideways, the way the database's own table does.
+  function slideAssetAuditTable(dir){
+    var wrap = cloudEl("assetAuditTableWrap");
+    if (wrap) wrap.scrollBy({left: dir * 300, behavior: "smooth"});
+  }
+  var assetAuditSlideLeftBtnEl = cloudEl("assetAuditSlideLeftBtn");
+  if (assetAuditSlideLeftBtnEl) assetAuditSlideLeftBtnEl.addEventListener("click", function(){ slideAssetAuditTable(-1); });
+  var assetAuditSlideRightBtnEl = cloudEl("assetAuditSlideRightBtn");
+  if (assetAuditSlideRightBtnEl) assetAuditSlideRightBtnEl.addEventListener("click", function(){ slideAssetAuditTable(1); });
 
   // ---------- add/edit asset modal (shared by both) ----------
   function openAssetEditModal(asset){
