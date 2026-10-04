@@ -7710,7 +7710,7 @@
       invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
       // no "deleted" filter here: this is only a name lookup, and an asset that
       // was deleted while still out would otherwise show up with no name
-      cloud.sb.from("eq_assets").select("id,label"),
+      cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model"),
       cloud.sb.from("eq_asset_checkouts").select("*")
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
@@ -7846,9 +7846,13 @@
       '<div class="jd-deliveries-list">' +
       openCheckouts.map(function(c){
         var asset = assetsById[c.asset_id];
-        // "Untitled" only when the asset is there but has no label; a missing
-        // asset is reported as such rather than looking like a blank name
-        var assetLabel = asset ? (asset.label || "Untitled asset") : "Unknown asset (not in the asset list)";
+        // Name from whatever the asset has - its label, else its BarCode, make
+        // and model, or category - so a row is never just "Untitled". The short
+        // id on the end tells apart two assets that look alike.
+        var shortId = "#" + String(c.asset_id || "").slice(0, 6);
+        var assetLabel = asset
+          ? (asset.label || asset.barcode || [asset.manufacturer, asset.model].filter(Boolean).join(" ") || asset.category || "Asset") + " " + shortId
+          : "Asset not found " + shortId;
         var jobName = c.job_id ? (jobNameById[c.job_id] || "Unknown job") : "Unknown job";
         var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
         return '<div class="jd-delivery-row">' +
