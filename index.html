@@ -1268,6 +1268,7 @@
       </button>
     </div>
     <p class="modal-sub">Sends the warehouse a pick slip (PDF) and this list, by email, for the items checked in the table (and/or any assets picked below).</p>
+    <p class="modal-sub delivery-job-info" id="deliveryJobInfo"></p>
     <div class="delivery-item-list">
       <table>
         <thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead>
@@ -6619,12 +6620,28 @@
       return;
     }
     renderDeliveryItemsList(selRows);
+    renderDeliveryJobInfo();
     deliveryMsg("");
     cloudEl("deliveryDate").value = todayLocalIso();
     cloudEl("deliveryTime").value = "";
     deliveryAssetPickedIds = new Set();
     updateDeliveryAssetsCount();
     cloudEl("deliveryRequestBackdrop").hidden = false;
+  }
+  // Job name, job number and address shown at the top of the request, so the
+  // person submitting (and anyone reading the email or pick slip) can see
+  // exactly which job the equipment or assets are going to. Taken from the
+  // job's own details - the same values the email and PDF already use.
+  function renderDeliveryJobInfo(){
+    var el = cloudEl("deliveryJobInfo");
+    if (!el) return;
+    var name = meta.project || "";
+    var num = meta.projectNumber ? String(meta.projectNumber).trim() : "";
+    var addr = String(meta.address || "").trim();
+    el.innerHTML =
+      "<b>Job:</b> " + (name ? escHtml(name) : "<span class=\"delivery-job-missing\">not set - add it under Project &amp; Job Details</span>") + "<br>" +
+      "<b>Job #:</b> " + (num ? escHtml(num) : "<span class=\"delivery-job-missing\">not set</span>") + "<br>" +
+      "<b>Address:</b> " + (addr ? escHtml(addr) : "<span class=\"delivery-job-missing\">not set</span>");
   }
   function closeDeliveryRequestModal(){ cloudEl("deliveryRequestBackdrop").hidden = true; }
 
@@ -6751,6 +6768,140 @@
       theme: "grid"
     });
     return doc.output("datauristring").split(",")[1];
+  }
+
+  // The signed copy of a driver's equipment slip or asset slip, emailed by
+  // send-signed-slip the moment it's signed. Built from the delivery itself
+  // (not the staff user's currently-open job), so it carries that delivery's
+  // own job/address/van/POC plus the signer's name and signature.
+  function buildSignedSlipPdfBase64(delivery, kind, signedBy, signedAtIso, signatureDataUrl){
+    if (typeof window.jspdf === "undefined") return "";
+    var jsPDFCtor = window.jspdf.jsPDF;
+    var doc = new jsPDFCtor({unit: "pt", format: "letter", orientation: "landscape"});
+    var pageW = doc.internal.pageSize.getWidth();
+    var NAVY = [26, 58, 107];
+    var margin = 40;
+    var job = delivery.eq_jobs || {};
+    var jm = job.meta || {};
+    var isAssets = kind === "assets";
+    var jobLine = [jm.project || job.name, jm.projectNumber].filter(function(v){ return v && String(v).trim(); }).join(" - ");
+    var when = [driverFormatDate(delivery.scheduled_date), formatDeliveryTime(delivery.scheduled_time)].filter(Boolean).join(" ");
+    var signedText = new Date(signedAtIso).toLocaleString(undefined, {dateStyle: "medium", timeStyle: "short"});
+
+    doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(19);
+    doc.text(isAssets ? "Asset Delivery Slip" : "Delivery Slip", margin, 34);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+    doc.text("Signed " + signedText, margin, 50);
+
+    var badgeSize = 30, badgeX = pageW - margin - badgeSize, badgeY = 14;
+    doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.roundedRect(badgeX, badgeY, badgeSize, badgeSize, 4, 4, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(12);
+    doc.text("AU", badgeX + badgeSize / 2, badgeY + badgeSize / 2 + 4, {align: "center"});
+
+    var ruleY = 64;
+    doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+    doc.setLineWidth(1.5);
+    doc.line(margin, ruleY, pageW - margin, ruleY);
+
+    var metaTop = ruleY + 22;
+    var col1X = margin, col2X = margin + 230, col3X = margin + 460;
+    function metaField(x, y, label, value){
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(102, 102, 102);
+      doc.text(label.toUpperCase(), x, y);
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(26, 26, 24);
+      doc.text(String(value || "—"), x, y + 14);
+    }
+    metaField(col1X, metaTop, "Job", jobLine);
+    metaField(col1X, metaTop + 34, "POC", [delivery.poc_name, delivery.poc_phone].filter(Boolean).join(" · "));
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(102, 102, 102);
+    doc.text("ADDRESS", col2X, metaTop);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(26, 26, 24);
+    doc.text(doc.splitTextToSize(jm.address || "—", 210), col2X, metaTop + 14);
+    metaField(col3X, metaTop, "Van", delivery.van || "");
+    metaField(col3X, metaTop + 34, "Scheduled", when);
+
+    var tableStartY = metaTop + 34 + 28;
+    var head, body, foot = null;
+    if (isAssets){
+      head = [["Asset", "Category"]];
+      body = (delivery.asset_ids || []).map(function(id){
+        var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+        return [a ? a.label : "Unknown asset", a ? a.category : ""];
+      });
+    } else {
+      var items = delivery.items || [];
+      head = [["BarCode", "Manufacturer", "Model", "Device Type", "Qty", "Serial Number"]];
+      body = items.map(function(r){
+        return [r.barcode, r.manufacturer, r.model, r.deviceType, (r.totalQty === "" || r.totalQty == null) ? "" : String(r.totalQty), r.serialNumber];
+      });
+      var totalQty = items.reduce(function(sum, r){ return sum + (Number(r.totalQty) || 0); }, 0);
+      foot = [[
+        {content: "Total Items:", colSpan: 4, styles: {halign: "right"}},
+        {content: String(totalQty), styles: {halign: "center"}},
+        ""
+      ]];
+    }
+    var tableOpts = {
+      head: head,
+      body: body,
+      startY: tableStartY,
+      margin: {left: margin, right: margin},
+      styles: {fontSize: 9, cellPadding: 4, lineWidth: 0.5, lineColor: [90, 98, 107], overflow: "visible"},
+      headStyles: {fillColor: NAVY, textColor: 255, fontStyle: "bold"},
+      alternateRowStyles: {fillColor: [242, 244, 247]},
+      theme: "grid"
+    };
+    if (foot){
+      tableOpts.foot = foot;
+      tableOpts.footStyles = {fillColor: [255, 255, 255], textColor: [26, 26, 24], fontStyle: "bold", lineWidth: 0.5, lineColor: [90, 98, 107]};
+    }
+    doc.autoTable(tableOpts);
+
+    var sigY = doc.lastAutoTable.finalY + 26;
+    if (sigY > 440){ doc.addPage(); sigY = 60; }
+    doc.setFont(undefined, "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(102, 102, 102);
+    doc.text("SIGNED BY", margin, sigY);
+    doc.text("SIGNATURE", col2X, sigY);
+    doc.setFont(undefined, "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(26, 26, 24);
+    doc.text(String(signedBy || ""), margin, sigY + 14);
+    if (signatureDataUrl) doc.addImage(signatureDataUrl, "PNG", col2X, sigY + 4, 200, 60);
+    return doc.output("datauristring").split(",")[1];
+  }
+
+  // Emails the signed slip (send-signed-slip) for one delivery. Resolves with
+  // "" on success or with the reason it failed. The signature is already saved
+  // by the time this runs, so a failed email never un-signs anything - the
+  // caller just says so on screen.
+  function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy){
+    if (!pdfBase64) return Promise.resolve("The slip PDF couldn't be built (PDF library didn't load).");
+    return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64}).then(function(res){
+      if (res.error) return res.error.message;
+      var data = res.data || {};
+      if (data.error) return data.error;
+      if (data.emailError) return data.emailError;
+      return "";
+    }).catch(function(e){
+      return isNetworkProblem(e) ? "You're offline" : (e && e.message ? e.message : String(e));
+    });
   }
 
   function submitDeliveryRequest(){
@@ -7210,7 +7361,7 @@
   function loadPendingDeliveries(){
     var list = cloudEl("pdList");
     list.textContent = "Loading...";
-    return cloud.sb.from("eq_delivery_requests").select("*, eq_jobs(name)").eq("status", pdStatus).order("created_at", {ascending: false}).then(function(r){
+    return cloud.sb.from("eq_delivery_requests").select("*, eq_jobs(name, meta)").eq("status", pdStatus).order("created_at", {ascending: false}).then(function(r){
       if (r.error){ pdMsg("Couldn't load: " + r.error.message, "bad"); list.textContent = ""; return; }
       renderPdList(r.data || []);
     }).catch(function(e){
@@ -7225,7 +7376,11 @@
     if (!reqs.length){ list.innerHTML = ""; pdMsg("No " + pdStatus + " delivery requests."); return; }
     pdMsg("");
     list.innerHTML = reqs.map(function(req){
-      var jobName = (req.eq_jobs && req.eq_jobs.name) || "Untitled job";
+      var jobMeta = (req.eq_jobs && req.eq_jobs.meta) || {};
+      var jobName = jobMeta.project || (req.eq_jobs && req.eq_jobs.name) || "Untitled job";
+      var jobNumber = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
+      var jobAddress = String(jobMeta.address || "").trim();
+      var jobDetailHtml = '<div class="pd-job-detail">' + (jobNumber ? "Job #" + escHtml(jobNumber) : "Job # not set") + " · " + (jobAddress ? escHtml(jobAddress) : "Address not set") + '</div>';
       var itemsHtml = (req.items || []).map(function(it){
         return "<li>" + escHtml([it.barcode, it.manufacturer, it.model, it.deviceType].filter(Boolean).join(" - ")) + (it.totalQty != null ? " (qty " + escHtml(String(it.totalQty)) + ")" : "") + "</li>";
       }).join("");
@@ -7242,6 +7397,7 @@
       }
       return '<div class="pd-card">' +
         '<div class="pd-card-head"><span class="pd-job">' + escHtml(jobName) + '</span><span class="pd-status-badge ' + req.status + '">' + escHtml(req.status) + '</span></div>' +
+        jobDetailHtml +
         '<div class="pd-when">' + escHtml(pdFormatWhen(req.created_at)) + (req.requested_date ? " - requested for " + escHtml(req.requested_date) + (req.requested_time ? " " + escHtml(req.requested_time) : "") : "") + '</div>' +
         '<div class="pd-who">' + escHtml(req.contact_name || req.requested_by_name || "") + (req.contact_phone ? " - " + escHtml(req.contact_phone) : "") + (req.contact_email ? " - " + escHtml(req.contact_email) : "") + '</div>' +
         '<ul class="pd-items">' + itemsHtml + '</ul>' +
@@ -8909,8 +9065,18 @@
       currentDelivery = Object.assign(currentDelivery, patch);
       cloudEl("deliverySignEquipDone").hidden = false;
       cloudEl("deliverySignEquipFields").hidden = true;
-      deliverySignMsg("Signed. Thank you!", "good");
-      if (patch.status === "delivered") setTimeout(function(){ closeDeliverySignModal(); loadDriverDeliveries(); }, 1200);
+      deliverySignMsg("Signed. Emailing the slip...", "good");
+      var eqDeliveryId = currentDelivery.id;
+      var eqPdf = buildSignedSlipPdfBase64(currentDelivery, "equipment", name, patch.signed_at, patch.signature_data);
+      sendSignedSlipEmail(eqDeliveryId, "equipment", eqPdf, name).then(function(emailErr){
+        loadDriverDeliveries();
+        if (emailErr){
+          deliverySignMsg("Signed, but the slip email didn't send: " + emailErr + ". Let the warehouse know this delivery was signed.", "bad");
+          return;
+        }
+        deliverySignMsg("Signed. Slip emailed. Thank you!", "good");
+        setTimeout(closeDeliverySignModal, 1200);
+      });
     }).catch(function(e){
       deliverySignSubmitBtnEl.disabled = false;
       deliverySignMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't submit: " + (e && e.message ? e.message : e), "bad");
@@ -8933,8 +9099,18 @@
       currentDelivery = Object.assign(currentDelivery, patch);
       cloudEl("deliverySignAssetDone").hidden = false;
       cloudEl("deliverySignAssetFields").hidden = true;
-      deliverySignMsg("Signed. Thank you!", "good");
-      if (patch.status === "delivered") setTimeout(function(){ closeDeliverySignModal(); loadDriverDeliveries(); }, 1200);
+      deliverySignMsg("Signed. Emailing the slip...", "good");
+      var assetDeliveryId = currentDelivery.id;
+      var assetPdf = buildSignedSlipPdfBase64(currentDelivery, "assets", name, patch.asset_signed_at, patch.asset_signature_data);
+      sendSignedSlipEmail(assetDeliveryId, "assets", assetPdf, name).then(function(emailErr){
+        if (patch.status === "delivered") loadDriverDeliveries();
+        if (emailErr){
+          deliverySignMsg("Signed, but the asset slip email didn't send: " + emailErr + ". Let the warehouse know this was signed.", "bad");
+          return;
+        }
+        deliverySignMsg("Signed. Slip emailed. Thank you!", "good");
+        if (patch.status === "delivered") setTimeout(closeDeliverySignModal, 1200);
+      });
     }).catch(function(e){
       assetSignSubmitBtnEl.disabled = false;
       deliverySignMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't submit: " + (e && e.message ? e.message : e), "bad");
