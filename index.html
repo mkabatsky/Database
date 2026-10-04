@@ -954,6 +954,14 @@
   .assets-pick-table th, .assets-pick-table td{padding:7px 9px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
   .assets-pick-table th{position:sticky;top:0;background:var(--surface-alt);z-index:1;}
   .assets-pick-table td input[type="number"]{width:64px;}
+  /* partial shipments: the "Qty to ship" boxes above the slip */
+  .ship-qty-panel{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:0 0 12px;background:var(--surface-alt);}
+  .ship-qty-head{font-size:12.5px;font-weight:700;margin-bottom:8px;}
+  .ship-qty-row{display:flex;align-items:center;gap:12px;font-size:13px;padding:4px 0;flex-wrap:wrap;}
+  .ship-qty-name{flex:1 1 220px;min-width:0;}
+  .ship-qty-name small{color:var(--ink-muted);}
+  .ship-qty-left{color:var(--ink-muted);white-space:nowrap;}
+  .ship-qty-row input[type="number"]{width:84px;font:inherit;padding:6px 8px;border:1px solid var(--border);border-radius:6px;}
   .asset-audit-table .asset-audit-actions .asset-audit-delete{color:var(--danger);border-color:var(--danger);}
 
   /* =================== asset add/edit modal (shared by both) =================== */
@@ -2455,9 +2463,49 @@
     input.title = blocked ? "Can't ship yet — this item " + reason + " first." : "";
   }
 
+  // ---------- quantities and partial shipments ----------
+  // Qty Sent adds up what has gone out on packing slips, so an item can ship in
+  // parts. Qty Remaining is Total QTY minus Qty Sent. Both are worked out, not
+  // typed in.
+  var lastShipQty = new Map();     // row -> qty that just went out on a slip (used once, by the print)
+  var shipQtyOverride = new Map(); // row -> the "Qty to ship" typed in the slip preview
+  function rowTotal(r){ return Number(r.totalQty) || 0; }
+  function rowSent(r){ return Number(r.qtySent) || 0; }
+  function rowRemaining(r){ return Math.max(0, rowTotal(r) - rowSent(r)); }
+  // Rows shipped before partial shipments existed have no Qty Sent. A Date
+  // Shipped on one of those means everything went out.
+  function normalizeSentQty(r){
+    if (r.qtySent === undefined || r.qtySent === null || r.qtySent === ""){
+      r.qtySent = isIsoDateString(r.dateShipped) ? rowTotal(r) : 0;
+    }
+    r.qtyRemaining = rowRemaining(r);
+  }
+  // an item only counts as shipped once nothing is left to ship
+  function isFullyShipped(r){
+    return isIsoDateString(r.dateShipped) && rowRemaining(r) === 0;
+  }
+  // what goes on the next slip for this row: the typed box value, or all that remains
+  function qtyToShip(r){
+    normalizeSentQty(r);
+    var typed = shipQtyOverride.get(r);
+    var q = typed !== undefined ? Math.min(typed, rowRemaining(r)) : rowRemaining(r);
+    return Math.max(0, q);
+  }
+  // the qty printed on the slip: the amount the print that just ran shipped.
+  // applyShipDateToSelection has already moved Qty Sent by then, so this uses
+  // the amount it recorded, once.
+  function slipQty(r){
+    if (lastShipQty.has(r)){
+      var v = lastShipQty.get(r);
+      lastShipQty.delete(r);
+      return v;
+    }
+    return qtyToShip(r);
+  }
+
   function matchesStatusFilter(row){
     if (statusFilter === "all") return true;
-    var shipped = isIsoDateString(row.dateShipped);
+    var shipped = isFullyShipped(row);
     if (statusFilter === "shipped") return shipped;
     var received = isIsoDateString(row.dateReceived);
     if (statusFilter === "not-received") return !received;
@@ -2553,6 +2601,18 @@
         input.type = c.type === "number" ? "number" : c.type === "date" ? "date" : "text";
         if (c.type === "number") input.min = "0";
         if (c.mono) input.className = "mono";
+        // Qty Sent and Qty Remaining are worked out (see rowRemaining), so they're shown, not typed
+        if (c.key === "qtySent" || c.key === "qtyRemaining"){
+          normalizeSentQty(r);
+          input.readOnly = true;
+          input.tabIndex = -1;
+          input.title = "Worked out from Total QTY and what has already shipped";
+        }
+        // an item that's been received gets its full quantity as Qty Received,
+        // unless a different number was typed (partial receipt)
+        if (c.key === "qtyReceived" && isIsoDateString(r.dateReceived) && (r.qtyReceived === undefined || r.qtyReceived === null || r.qtyReceived === "")){
+          r.qtyReceived = rowTotal(r);
+        }
         input.value = r[c.key] === undefined || r[c.key] === null ? "" : r[c.key];
         input.dataset.rowId = id;
         input.dataset.field = c.key;
@@ -2577,6 +2637,12 @@
           }
           var v = c.type === "number" ? sanitizeNumber(input.value) : c.type === "date" ? sanitizeDate(input.value) : input.value;
           r[c.key] = v;
+          // a Date Shipped typed in by hand means the whole item went out;
+          // clearing it means none did
+          if (c.key === "dateShipped"){
+            r.qtySent = v ? rowTotal(r) : 0;
+            r.qtyRemaining = rowRemaining(r);
+          }
           if (c.key === "barcode" || c.key === "dateReceived"){
             var shipBox = tr.querySelector('input[data-field="dateShipped"]');
             if (shipBox) applyShipInputState(shipBox, r);
@@ -3381,7 +3447,8 @@
 
     var totalQty = 0;
     var rowsHtml = selRows.map(function(r){
-      var qty = Number(r.totalQty) || 0;
+      // the qty going out on this slip (all that remains, or the partial amount)
+      var qty = slipQty(r);
       totalQty += qty;
       var qtyText = (r.totalQty === "" || r.totalQty === undefined || r.totalQty === null) ? "" : String(qty);
       return "<tr>" +
@@ -3936,6 +4003,7 @@
   // the table keeps track of what's actually been shipped and when
   function applyShipDateToSelection(shipDate){
     var applied = 0, skipped = 0;
+    lastShipQty = new Map();
     // snapshot first — this loop mutates selectedIds, which order.filter()
     // inside getSelectedRows() would otherwise be iterating live
     var ids = order.filter(function(id){ return selectedIds.has(id); });
@@ -3943,8 +4011,16 @@
       var r = rows.get(id);
       if (!r) return;
       if (shipBlockReason(r) || shipDate < r.dateReceived){ skipped++; return; }
+      var q = qtyToShip(r);
+      if (q <= 0){ skipped++; return; }
+      r.qtySent = rowSent(r) + q;
+      r.qtyRemaining = rowRemaining(r);
       r.dateShipped = shipDate;
-      selectedIds.delete(id); // shipped — no longer selectable for another packing slip/label run
+      lastShipQty.set(r, q);
+      shipQtyOverride.delete(r);
+      // fully shipped leaves the selection; a partly shipped item stays selected
+      // so the rest can go on a later slip
+      if (rowRemaining(r) === 0) selectedIds.delete(id);
       applied++;
     });
     if (applied){ persist(); renderRows(); }
@@ -7463,6 +7539,43 @@
     return html;
   };
 
+  // ---------- partial shipments: "Qty to ship" for each item on the slip ----------
+  // Above the slip preview, one box per selected item: the amount that goes on
+  // this slip. It starts at everything remaining; lower it for a partial
+  // shipment. Changing a box redraws the slip so its Qty and Total match.
+  var realRenderPackingSlipPreview = renderPackingSlipPreview;
+  renderPackingSlipPreview = function(){
+    realRenderPackingSlipPreview();
+    var selRows = getSelectedRows();
+    if (!selRows.length) return;
+    var boxes = selRows.map(function(r, i){
+      var label = [r.manufacturer, r.model].filter(function(v){ return v && String(v).trim(); }).join(" ") || r.barcode || "Item";
+      return '<label class="ship-qty-row">' +
+        '<span class="ship-qty-name">' + escHtml(label) + ' <small>' + escHtml(r.barcode || "") + '</small></span>' +
+        '<span class="ship-qty-left">' + rowRemaining(r) + ' of ' + rowTotal(r) + ' left</span>' +
+        '<input type="number" min="0" step="1" data-ship-idx="' + i + '" value="' + qtyToShip(r) + '" aria-label="Qty to ship">' +
+      '</label>';
+    }).join("");
+    el.packingSlipPreview.insertAdjacentHTML("afterbegin",
+      '<div class="ship-qty-panel"><div class="ship-qty-head">Qty to ship on this slip</div>' + boxes + '</div>');
+  };
+
+  document.addEventListener("change", function(ev){
+    if (!ev.target.dataset || ev.target.dataset.shipIdx === undefined) return;
+    var selRows = getSelectedRows();
+    var r = selRows[Number(ev.target.dataset.shipIdx)];
+    if (!r) return;
+    var n = Math.floor(Number(ev.target.value));
+    if (!(n >= 0)) n = 0;
+    var max = rowRemaining(r);
+    if (n > max){
+      showSnackbar("Only " + max + " left to ship for this item.");
+      n = max;
+    }
+    shipQtyOverride.set(r, n);
+    renderPackingSlipPreview();
+  });
+
   // ---------- pending deliveries (staff only) ----------
   var pdStatus = "submitted";
   var pdReqsCache = []; // last loaded list, so a card's buttons can look up its own request
@@ -8363,6 +8476,13 @@
     var ids = Array.from(selectedIds);
     if (!ids.length){ transferMsg("Nothing is checked anymore.", "bad"); closeTransferModal(); return; }
     var destJob = transferJobsCache.filter(function(j){ return j.id === destId; })[0];
+    // copy the items' details now, before they're removed from this job's table
+    var movedItems = ids.map(function(id){
+      var r = rows.get(id) || {};
+      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber};
+    });
+    var fromJobInfo = {name: meta.project || "Untitled job", number: meta.projectNumber ? String(meta.projectNumber).trim() : ""};
+    var toJobName = destJob ? (destJob.name || "Untitled job") : "the other job";
     transferConfirmBtnEl.disabled = true;
     transferMsg("Transferring...");
     cloud.sb.from("eq_rows").update({job_id: destId, updated_by: cloud.clientId}).in("id", ids).then(function(r){
@@ -8376,7 +8496,16 @@
       renderRows();
       writeCache();
       closeTransferModal();
-      showSnackbar("Transferred " + ids.length + " item" + (ids.length === 1 ? "" : "s") + " to " + (destJob ? (destJob.name || "Untitled job") : "the other job") + ".");
+      showSnackbar("Transferred " + ids.length + " item" + (ids.length === 1 ? "" : "s") + " to " + toJobName + ".");
+      // Let the warehouse know what moved. The transfer is already saved, so
+      // an email problem is reported but doesn't undo the move.
+      invokeFn("send-transfer-notice", {fromJob: fromJobInfo, toJob: {name: toJobName}, items: movedItems}).then(function(res){
+        var data = res.data || {};
+        var err = res.error ? res.error.message : (data.error || data.emailError || "");
+        if (err) showSnackbar("Transferred, but the transfer email didn't send: " + err);
+      }).catch(function(e){
+        showSnackbar("Transferred, but the transfer email didn't send: " + (e && e.message ? e.message : e));
+      });
     }).catch(function(e){
       transferConfirmBtnEl.disabled = false;
       transferMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't transfer: " + (e && e.message ? e.message : e), "bad");
@@ -8607,10 +8736,31 @@
     returnBtn.disabled = true;
     cloud.sb.from("eq_asset_checkouts").update({returned_at: new Date().toISOString(), returned_by: (cloud.user && cloud.user.email) || ""}).eq("id", checkoutId).then(function(r){
       returnBtn.disabled = false;
-      if (r.error){ assetsMsg("Couldn't mark returned: " + r.error.message, "bad"); return; }
+      if (r.error){ assetsMsg("Couldn't mark returned: " + r.error.message, "bad"); return null; }
+      // Let the warehouse know what came back. The return itself is already
+      // saved, so an email failure is reported but doesn't undo anything.
+      return invokeFn("send-assets-returned", {checkoutIds: [checkoutId]}).then(function(res){
+        if (res.error) return res.error.message;
+        var data = res.data || {};
+        return data.error || data.emailError || "";
+      }).catch(function(e){
+        return e && e.message ? e.message : String(e);
+      });
+    }).then(function(emailErr){
+      if (emailErr === null) return; // the return itself failed - message already shown
       // this same button/handler is shared by the old picker modal and the
       // newer Asset Audit page - refresh whichever one is actually open
-      if (!cloudEl("assetAuditBackdrop").hidden) loadAssetAudit(); else loadAssets();
+      var onAudit = !cloudEl("assetAuditBackdrop").hidden;
+      var reload = onAudit ? loadAssetAudit() : loadAssets();
+      Promise.resolve(reload).then(function(){
+        if (!emailErr){
+          var okMsg = "Returned. The warehouse has been emailed.";
+          if (onAudit) assetAuditMsg(okMsg, "good"); else assetsMsg(okMsg, "good");
+          return;
+        }
+        var msg = "Marked returned, but the return email didn't send: " + emailErr;
+        if (onAudit) assetAuditMsg(msg, "bad"); else assetsMsg(msg, "bad");
+      });
     }).catch(function(e){
       returnBtn.disabled = false;
       assetsMsg("Couldn't mark returned: " + (e && e.message ? e.message : e), "bad");
