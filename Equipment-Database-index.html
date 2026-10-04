@@ -7636,11 +7636,10 @@
       }).join("");
       var actionsHtml = "";
       if (req.status === "submitted"){
-        actionsHtml = '<button type="button" class="primary" data-pd-action="fulfilled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Mark fulfilled</button>' +
-          '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>' +
+        actionsHtml = '<button type="button" data-pd-action="cancelled" data-pd-id="' + req.id + '" data-pd-job="' + req.job_id + '">Cancel</button>' +
           '<button type="button" data-pd-edit="' + req.id + '">Edit</button>';
         // works from here for any job: if it isn't the one open, that job opens first
-        actionsHtml += '<button type="button" data-pd-slip="' + req.id + '">Create delivery slip</button>';
+        actionsHtml += '<button type="button" class="primary" data-pd-slip="' + req.id + '">Create Delivery Slip</button>';
       }
       return '<div class="pd-card">' +
         '<div class="pd-card-head"><span class="pd-job">' + escHtml(jobName) + '</span><span class="pd-status-badge ' + req.status + '">' + escHtml(req.status) + '</span></div>' +
