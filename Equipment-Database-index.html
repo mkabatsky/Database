@@ -9699,6 +9699,15 @@
       // assets are already checked out, so this delivery can't be assigned
       // again from here; a new slip (Create delivery slip) starts clean.
       assignSavedDeliveryId = deliveryId;
+      // The request this slip came from is now a scheduled delivery, so it comes
+      // off Pending (the delivery itself shows under Scheduled).
+      if (activeDeliveryRequestId){
+        var assignedRequestId = activeDeliveryRequestId;
+        activeDeliveryRequestId = null;
+        cloud.sb.from("eq_delivery_requests").update({status: "fulfilled"}).eq("id", assignedRequestId).then(function(){
+          requestedBarcodesJobId = null; refreshRequestedBarcodesIfNeeded();
+        });
+      }
       loadDriversForAssign().then(function(){ cloudEl("assignDriverSelect").value = driverId; });
       var assetNames = assetIds.map(function(id){
         var q = assetQtyFor(id);
