@@ -945,6 +945,8 @@
   /* full screen: the window fills the screen and the table takes the rest of it */
   #assetAuditBackdrop.asset-audit-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
   #assetAuditBackdrop.asset-audit-fullscreen .asset-audit-table-wrap{max-height:calc(100vh - 230px);}
+  /* the Select assets picker opens in front of whatever window opened it (e.g. Edit delivery request) */
+  #assetsBackdrop{z-index:1200;}
   /* the Select assets picker: a scrolling table, wider window, full screen */
   #assetsBackdrop .modal-panel{width:min(1600px, 98vw);max-width:98vw;}
   #assetsBackdrop.assets-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
@@ -8647,6 +8649,10 @@
       return assetMatchesSearch(pickerSearchText(a), typed);
     }) : assetsCache;
     visible = sortAssetList(visible, pickSort, pickSortValue);
+    // what's already on this delivery comes first; the column sort applies within each group
+    var pickedNow = activeAssetPickedIds();
+    visible = visible.filter(function(a){ return pickedNow.has(a.id); })
+      .concat(visible.filter(function(a){ return !pickedNow.has(a.id); }));
     if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
     // A table, like the Assets page, so the columns can slide sideways and the
