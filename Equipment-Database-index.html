@@ -918,7 +918,7 @@
   .asset-audit-table{width:100%;border-collapse:collapse;font-size:13px;}
   .asset-audit-table th, .asset-audit-table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
   .asset-audit-table th{position:sticky;top:0;background:var(--surface-alt);z-index:1;}
-  .asset-audit-table td.asset-audit-desc{white-space:normal;max-width:220px;}
+  .asset-audit-table td.asset-audit-desc{white-space:nowrap;max-width:none;}
   .asset-audit-table tr:last-child td{border-bottom:none;}
   .asset-audit-table .asset-audit-actions{display:flex;gap:6px;flex-wrap:nowrap;}
   .asset-audit-table .asset-audit-actions button{padding:5px 9px;font-size:12px;}
@@ -6901,7 +6901,7 @@
   // "" on success or with the reason it failed. The signature is already saved
   // by the time this runs, so a failed email never un-signs anything - the
   // caller just says so on screen.
-  function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy){
+  function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy, signatureDataUrl){
     if (!pdfBase64) return Promise.resolve("The slip PDF couldn't be built (PDF library didn't load).");
     // "Failed to send a request to the Edge Function" is the browser saying it
     // couldn't reach the function at all - almost always because it isn't
@@ -6911,7 +6911,7 @@
         return "the email service (send-signed-slip) couldn't be reached - check it's deployed under Edge Functions in Supabase";
       return msg;
     }
-    return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64}).then(function(res){
+    return invokeFn("send-signed-slip", {deliveryId: deliveryId, kind: kind, signedBy: signedBy, pdfBase64: pdfBase64, signatureDataUrl: signatureDataUrl || ""}).then(function(res){
       if (res.error) return explain(res.error.message);
       var data = res.data || {};
       if (data.error) return explain(data.error);
@@ -8665,6 +8665,13 @@
     }
     return true;
   }
+  // Asset audit cells are kept to 20 characters so every asset fits on one
+  // line; the full text shows on hover.
+  function cellText(v){
+    var s = String(v == null ? "" : v);
+    var shown = s.length > 20 ? s.slice(0, 19) + "…" : s;
+    return '<span title="' + escHtml(s) + '">' + escHtml(shown) + '</span>';
+  }
   function renderAssetAuditTable(){
     var body = cloudEl("assetAuditBody");
     if (!auditAssetsCache.length){ body.innerHTML = ""; assetAuditMsg("No assets yet."); return; }
@@ -8683,12 +8690,12 @@
         return "×" + (Number(c.quantity) || 1) + " " + escHtml(c.job_id ? (auditJobNameById[c.job_id] || "Unknown job") : "Unknown job") + (c.poc_name ? " · " + escHtml(c.poc_name) : "");
       }).join("<br>") : "";
       return '<tr data-asset-id="' + a.id + '">' +
-        '<td>' + escHtml(a.label || "Untitled asset") + '</td>' +
-        '<td>' + escHtml(a.category || "") + '</td>' +
-        '<td>' + escHtml(a.barcode || "") + '</td>' +
-        '<td>' + escHtml(a.manufacturer || "") + '</td>' +
-        '<td>' + escHtml(a.model || "") + '</td>' +
-        '<td class="asset-audit-desc">' + escHtml(a.description || "") + '</td>' +
+        '<td>' + cellText(a.label || "Untitled asset") + '</td>' +
+        '<td>' + cellText(a.category || "") + '</td>' +
+        '<td>' + cellText(a.barcode || "") + '</td>' +
+        '<td>' + cellText(a.manufacturer || "") + '</td>' +
+        '<td>' + cellText(a.model || "") + '</td>' +
+        '<td class="asset-audit-desc">' + cellText(a.description || "") + '</td>' +
         '<td><span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (consumable ? onHand + " in stock" : (out ? "Checked out" : "Available")) + '</span></td>' +
         '<td>' + (consumable ? consumableOut : (out ? escHtml(jobName) + (checkout.poc_name ? '<div class="asset-audit-poc">Received by ' + escHtml(checkout.poc_name) + '</div>' : '') : "")) + '</td>' +
         '<td class="asset-audit-actions">' +
@@ -9053,23 +9060,42 @@
           : "No Label column found. Name the column with the asset names Label (or Asset, Asset Name, Item, or Equipment). Headers read: " + headersFound + ".", "bad");
         return;
       }
-      assetAuditMsg("Importing...");
-      Promise.all(
-        (inserts.length ? [cloud.sb.from("eq_assets").insert(inserts.map(function(f){ return Object.assign({}, f, {updated_by: cloud.clientId}); }))] : [])
-        .concat(updates.map(function(f){
-          var id = f.id;
-          var fieldsOnly = Object.assign({}, f);
-          delete fieldsOnly.id;
-          fieldsOnly.updated_by = cloud.clientId;
-          return cloud.sb.from("eq_assets").update(fieldsOnly).eq("id", id);
-        }))
-      ).then(function(results){
-        var errored = results.filter(function(r){ return r && r.error; });
+      assetAuditMsg("Importing " + inserts.length + " new and " + updates.length + " updated...");
+      // New assets go in chunks of 200 rows, one after another, and the
+      // summary says exactly how many made it in - a single request for a
+      // long list could fail partway and look like only part of the file came in.
+      var insertRows = inserts.map(function(f){ return Object.assign({}, f, {updated_by: cloud.clientId}); });
+      var chunks = [];
+      for (var ci = 0; ci < insertRows.length; ci += 200) chunks.push(insertRows.slice(ci, ci + 200));
+      var insertedOk = 0, insertError = null;
+      var insertChain = chunks.reduce(function(p, chunk){
+        return p.then(function(){
+          if (insertError) return null;
+          return cloud.sb.from("eq_assets").insert(chunk).then(function(r){
+            if (r.error) insertError = r.error.message;
+            else insertedOk += chunk.length;
+          });
+        });
+      }, Promise.resolve());
+      var updateErrors = [];
+      var updateChain = Promise.all(updates.map(function(f){
+        var id = f.id;
+        var fieldsOnly = Object.assign({}, f);
+        delete fieldsOnly.id;
+        fieldsOnly.updated_by = cloud.clientId;
+        return cloud.sb.from("eq_assets").update(fieldsOnly).eq("id", id).then(function(r){
+          if (r.error) updateErrors.push(r.error.message);
+        });
+      }));
+      Promise.all([insertChain, updateChain]).then(function(){
         // loadAssetAudit() clears the message when it (re)loads, so the
         // summary has to be shown AFTER that reload finishes, not before.
         return loadAssetAudit().then(function(){
-          if (errored.length){ assetAuditMsg("Imported with errors: " + errored[0].error.message, "bad"); }
-          else { assetAuditMsg("Imported " + inserts.length + " new, updated " + updates.length + ".", "good"); }
+          var msg = "Imported " + insertedOk + " of " + inserts.length + " new asset" + (inserts.length === 1 ? "" : "s") + ", updated " + (updates.length - updateErrors.length) + ".";
+          msg += " Assets in the database now: " + auditAssetsCache.length + ".";
+          if (insertError) msg += " Stopped at an error: " + insertError + ".";
+          if (updateErrors.length) msg += " " + updateErrors.length + " update(s) failed: " + updateErrors[0] + ".";
+          assetAuditMsg(msg, (insertError || updateErrors.length) ? "bad" : "good");
         });
       }).catch(function(e){
         assetAuditMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't import: " + (e && e.message ? e.message : e), "bad");
@@ -9442,7 +9468,7 @@
       deliverySignMsg("Signed. Emailing the slip...", "good");
       var eqDeliveryId = currentDelivery.id;
       var eqPdf = buildSignedSlipPdfBase64(currentDelivery, "equipment", name, patch.signed_at, patch.signature_data);
-      sendSignedSlipEmail(eqDeliveryId, "equipment", eqPdf, name).then(function(emailErr){
+      sendSignedSlipEmail(eqDeliveryId, "equipment", eqPdf, name, patch.signature_data).then(function(emailErr){
         loadDriverDeliveries();
         if (emailErr){
           deliverySignMsg("Signed, but the slip email didn't send: " + emailErr + ". Let the warehouse know this delivery was signed.", "bad");
@@ -9482,7 +9508,7 @@
       deliverySignMsg("Signed. Emailing the slip...", "good");
       var assetDeliveryId = currentDelivery.id;
       var assetPdf = buildSignedSlipPdfBase64(currentDelivery, "assets", name, patch.asset_signed_at, patch.asset_signature_data);
-      sendSignedSlipEmail(assetDeliveryId, "assets", assetPdf, name).then(function(emailErr){
+      sendSignedSlipEmail(assetDeliveryId, "assets", assetPdf, name, patch.asset_signature_data).then(function(emailErr){
         if (patch.status === "delivered") loadDriverDeliveries();
         if (emailErr){
           deliverySignMsg("Signed, but the asset slip email didn't send: " + emailErr + ". Let the warehouse know this was signed.", "bad");
