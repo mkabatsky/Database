@@ -8363,6 +8363,13 @@
     var ids = Array.from(selectedIds);
     if (!ids.length){ transferMsg("Nothing is checked anymore.", "bad"); closeTransferModal(); return; }
     var destJob = transferJobsCache.filter(function(j){ return j.id === destId; })[0];
+    // copy the items' details now, before they're removed from this job's table
+    var movedItems = ids.map(function(id){
+      var r = rows.get(id) || {};
+      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber};
+    });
+    var fromJobInfo = {name: meta.project || "Untitled job", number: meta.projectNumber ? String(meta.projectNumber).trim() : ""};
+    var toJobName = destJob ? (destJob.name || "Untitled job") : "the other job";
     transferConfirmBtnEl.disabled = true;
     transferMsg("Transferring...");
     cloud.sb.from("eq_rows").update({job_id: destId, updated_by: cloud.clientId}).in("id", ids).then(function(r){
@@ -8376,7 +8383,16 @@
       renderRows();
       writeCache();
       closeTransferModal();
-      showSnackbar("Transferred " + ids.length + " item" + (ids.length === 1 ? "" : "s") + " to " + (destJob ? (destJob.name || "Untitled job") : "the other job") + ".");
+      showSnackbar("Transferred " + ids.length + " item" + (ids.length === 1 ? "" : "s") + " to " + toJobName + ".");
+      // Let the warehouse know what moved. The transfer is already saved, so
+      // an email problem is reported but doesn't undo the move.
+      invokeFn("send-transfer-notice", {fromJob: fromJobInfo, toJob: {name: toJobName}, items: movedItems}).then(function(res){
+        var data = res.data || {};
+        var err = res.error ? res.error.message : (data.error || data.emailError || "");
+        if (err) showSnackbar("Transferred, but the transfer email didn't send: " + err);
+      }).catch(function(e){
+        showSnackbar("Transferred, but the transfer email didn't send: " + (e && e.message ? e.message : e));
+      });
     }).catch(function(e){
       transferConfirmBtnEl.disabled = false;
       transferMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't transfer: " + (e && e.message ? e.message : e), "bad");
