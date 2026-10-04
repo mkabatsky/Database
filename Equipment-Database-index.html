@@ -934,6 +934,10 @@
   .asset-audit-table th{position:sticky;}
   .asset-col-resize{position:absolute;right:-4px;top:0;bottom:0;width:9px;cursor:col-resize;z-index:2;touch-action:none;}
   .asset-col-resize:hover{background:rgba(26,58,107,.18);}
+  /* sortable headers: click to sort, click again to flip (like the database) */
+  .asset-audit-table thead th[data-sort], .assets-pick-table thead th[data-sort]{cursor:pointer;user-select:none;}
+  .asset-audit-table thead th.active, .assets-pick-table thead th.active{color:var(--ink);}
+  .sort-arrow{display:inline-block;min-width:8px;font-size:10px;opacity:.8;}
   .asset-audit-cols-wrap{position:relative;}
   .asset-audit-cols-menu{position:absolute;left:0;top:calc(100% + 4px);z-index:5;min-width:200px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;box-shadow:0 6px 18px rgba(0,0,0,.15);}
   .asset-audit-cols-menu[hidden]{display:none;}
@@ -1570,7 +1574,17 @@
     </div>
     <div class="asset-audit-table-wrap" id="assetAuditTableWrap">
       <table class="asset-audit-table">
-        <thead><tr><th>Label</th><th>Category</th><th>BarCode</th><th>Make</th><th>Model</th><th>Description</th><th>Status</th><th>Assigned job</th><th></th></tr></thead>
+        <thead><tr>
+          <th data-sort="label">Label <span class="sort-arrow" data-arrow></span></th>
+          <th data-sort="category">Category <span class="sort-arrow" data-arrow></span></th>
+          <th data-sort="barcode">BarCode <span class="sort-arrow" data-arrow></span></th>
+          <th data-sort="manufacturer">Make <span class="sort-arrow" data-arrow></span></th>
+          <th data-sort="model">Model <span class="sort-arrow" data-arrow></span></th>
+          <th data-sort="description">Description <span class="sort-arrow" data-arrow></span></th>
+          <th data-sort="status">Status <span class="sort-arrow" data-arrow></span></th>
+          <th data-sort="job">Assigned job <span class="sort-arrow" data-arrow></span></th>
+          <th></th>
+        </tr></thead>
         <tbody id="assetAuditBody"></tbody>
       </table>
     </div>
@@ -8476,13 +8490,18 @@
     var visible = typed ? assetsCache.filter(function(a){
       return assetMatchesSearch(pickerSearchText(a), typed);
     }) : assetsCache;
+    visible = sortAssetList(visible, pickSort, pickSortValue);
     if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
     // A table, like the Assets page, so the columns can slide sideways and the
     // window can go full screen with every column in view.
     var pickHeaders = ["Pick", "Label", "Category", "BarCode", "Make", "Model", "Description", "Status", "Job / received by", ""];
+    var pickHeaderKeys = [null, "label", "category", "barcode", "manufacturer", "model", "description", "status", "job", null];
     list.innerHTML = '<table class="assets-pick-table"><thead><tr>' +
-      pickHeaders.map(function(h){ return "<th>" + escHtml(h) + "</th>"; }).join("") +
+      pickHeaders.map(function(h, i){
+        var k = pickHeaderKeys[i];
+        return "<th" + (k ? ' data-sort="' + k + '"' : "") + ">" + escHtml(h) + (k ? ' <span class="sort-arrow" data-arrow></span>' : "") + "</th>";
+      }).join("") +
       '</tr></thead><tbody>' + visible.map(function(a){
       var consumable = isConsumable(a);
       var checkout = consumable ? null : assetCheckoutFor(a.id);
@@ -8514,6 +8533,7 @@
         '<td>' + returnBtn + '</td>' +
       '</tr>';
     }).join("") + '</tbody></table>';
+    updateSortArrows(list.querySelector(".assets-pick-table"), pickSort);
   }
   // Picker-only now - the top bar's "Assets" button opens the fuller Asset
   // Audit page instead (see "asset audit" section below); this modal is
@@ -8737,7 +8757,7 @@
   function renderAssetAuditTable(){
     var body = cloudEl("assetAuditBody");
     if (!auditAssetsCache.length){ body.innerHTML = ""; assetAuditMsg("No assets yet."); return; }
-    var visible = auditAssetsCache.filter(assetAuditMatchesFilters);
+    var visible = sortAssetList(auditAssetsCache.filter(assetAuditMatchesFilters), auditSort, auditSortValue);
     if (!visible.length){ body.innerHTML = ""; assetAuditMsg("No assets match your search/filters."); return; }
     assetAuditMsg("");
     body.innerHTML = visible.map(function(a){
@@ -8907,10 +8927,58 @@
       return '<label class="asset-audit-col-option"><input type="checkbox" data-asset-col="' + c.key + '"' + (vis[c.key] ? " checked" : "") + '> ' + escHtml(c.title) + '</label>';
     }).join("");
   }
+  // ---------- column sorting (like the database: click a header to sort,
+  // click again to flip; the arrow shows which way it's sorted) ----------
+  var auditSort = {key: null, dir: "asc"};
+  var pickSort = {key: null, dir: "asc"};
+  // natural order, so "Van 2" sorts before "Van 10"
+  function sortAssetList(list, st, valueOf){
+    if (!st.key) return list;
+    var sorted = list.slice();
+    sorted.sort(function(a, b){
+      var cmp = String(valueOf(a, st.key) || "").localeCompare(String(valueOf(b, st.key) || ""), undefined, {numeric: true, sensitivity: "base"});
+      return st.dir === "asc" ? cmp : -cmp;
+    });
+    return sorted;
+  }
+  function auditSortValue(a, key){
+    var c = auditOpenCheckoutFor(a.id);
+    if (key === "status") return c ? "Checked out" : "Available";
+    if (key === "job") return c ? (auditJobNameById[c.job_id] || "") : "";
+    return a[key] || "";
+  }
+  function pickSortValue(a, key){
+    var c = assetCheckoutFor(a.id);
+    if (key === "status") return c ? "Checked out" : "Available";
+    if (key === "job") return c ? (assetJobNameById[c.job_id] || "") : "";
+    return a[key] || "";
+  }
+  function updateSortArrows(table, st){
+    if (!table || !table.tHead) return;
+    Array.prototype.forEach.call(table.tHead.rows[0].cells, function(th){
+      var k = th.dataset.sort;
+      th.classList.toggle("active", !!k && k === st.key);
+      var arrow = th.querySelector("[data-arrow]");
+      if (arrow) arrow.textContent = (k && k === st.key) ? (st.dir === "asc" ? "▲" : "▼") : "";
+    });
+  }
+  document.addEventListener("click", function(ev){
+    if (ev.target.closest && ev.target.closest(".asset-col-resize")) return; // the resize handle isn't a sort
+    var th = ev.target.closest && ev.target.closest(".asset-audit-table thead th[data-sort], .assets-pick-table thead th[data-sort]");
+    if (!th) return;
+    var isAudit = !!th.closest(".asset-audit-table");
+    var st = isAudit ? auditSort : pickSort;
+    var key = th.dataset.sort;
+    if (st.key === key) st.dir = st.dir === "asc" ? "desc" : "asc";
+    else { st.key = key; st.dir = "asc"; }
+    if (isAudit) renderAssetAuditTable(); else renderAssetsList();
+  });
+
   var realRenderAssetAuditTable = renderAssetAuditTable;
   renderAssetAuditTable = function(){
     realRenderAssetAuditTable();
     applyAssetAuditColumns();
+    updateSortArrows(document.querySelector("#assetAuditBackdrop .asset-audit-table"), auditSort);
   };
   var assetAuditColumnsBtnEl = cloudEl("assetAuditColumnsBtn");
   if (assetAuditColumnsBtnEl) assetAuditColumnsBtnEl.addEventListener("click", function(){
@@ -9186,7 +9254,7 @@
   var assetAuditExportBtnEl = cloudEl("assetAuditExportBtn");
   if (assetAuditExportBtnEl) assetAuditExportBtnEl.addEventListener("click", function(){
     if (typeof XLSX === "undefined"){ assetAuditMsg("Excel export library failed to load — check your connection.", "bad"); return; }
-    var visible = auditAssetsCache.filter(assetAuditMatchesFilters);
+    var visible = sortAssetList(auditAssetsCache.filter(assetAuditMatchesFilters), auditSort, auditSortValue);
     var header = ["Label", "Category", "BarCode", "Make", "Model", "Description", "Notes", "Status", "Assigned Job"];
     var aoa = [header];
     visible.forEach(function(a){
