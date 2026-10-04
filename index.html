@@ -703,6 +703,8 @@
   body.role-tech .asset-audit-edit, body.role-tech .asset-audit-delete{display:none !important;}
   /* a viewer can't request anything, delivery or otherwise */
   body.role-viewer #assetAuditRequestBtn{display:none !important;}
+  /* checking assets out and in is a staff action */
+  body.role-viewer #assetAuditScanBtn, body.role-tech #assetAuditScanBtn{display:none !important;}
 
   /* =================== delivery request modal =================== */
   .modal-backdrop#deliveryRequestBackdrop[hidden]{display:none;}
@@ -718,6 +720,11 @@
   .delivery-item-list th, .delivery-item-list td{padding:5px 8px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
   .delivery-item-list th{position:sticky;top:0;background:var(--surface-alt);}
   .delivery-request-msg{font-size:13px;color:var(--ink-muted);min-height:18px;}
+  .edit-request-heading{margin:6px 0 4px;font-size:14px;}
+  .edit-request-heading span{font-weight:400;color:var(--ink-muted);font-size:12.5px;}
+  #editRequestItems{padding:6px 10px;}
+  .edit-item-row{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:4px 0;cursor:pointer;}
+  .edit-item-row em{color:var(--ink-muted);}
   .delivery-request-msg.bad{color:var(--danger);font-weight:600;}
   .delivery-request-msg.good{color:var(--success);font-weight:600;}
 
@@ -1233,6 +1240,7 @@
       <h3>Assign to a driver</h3>
       <div class="assign-driver-fields">
         <label>Driver<select id="assignDriverSelect"><option value="">No drivers yet</option></select></label>
+        <label>Van<select id="assignVanSelect"><option value="">No van</option><option value="Van 1">Van 1</option><option value="Van 2">Van 2</option><option value="Van 3">Van 3</option><option value="Van 4">Van 4</option><option value="Van 5">Van 5</option><option value="Van 6">Van 6</option><option value="Van 7">Van 7</option><option value="Van 8">Van 8</option><option value="Van 9">Van 9</option><option value="Van 10">Van 10</option><option value="Van 11">Van 11</option><option value="Van 12">Van 12</option><option value="Van 13">Van 13</option><option value="Van 14">Van 14</option><option value="Van 15">Van 15</option><option value="Van 16">Van 16</option><option value="Van 17">Van 17</option><option value="Van 18">Van 18</option><option value="Van 19">Van 19</option><option value="Van 20">Van 20</option></select></label>
         <label>Delivery date<input type="date" id="assignDeliveryDate"></label>
         <label>Delivery time<input type="time" id="assignDeliveryTime"></label>
         <label>POC name<input type="text" id="assignPocName"></label>
@@ -1500,6 +1508,7 @@
       <select id="assetAuditCategoryFilter"><option value="">All categories</option></select>
       <button type="button" id="assetAuditAddBtn">+ Add asset</button>
       <button type="button" id="assetAuditRequestBtn" title="Request one or more assets be delivered, without needing any equipment">Request assets</button>
+      <button type="button" id="assetAuditScanBtn" title="Scan an asset's barcode to check it out to this job or mark it back in">Scan assets</button>
       <button type="button" id="assetAuditExportBtn">Download spreadsheet</button>
       <button type="button" id="assetAuditImportBtn">Upload spreadsheet</button>
       <input type="file" id="assetAuditImportFile" accept=".xlsx,.xls" hidden="">
@@ -1552,19 +1561,26 @@
 
 <!-- ================= edit a pending delivery request (date/time only) ================= -->
 <div class="modal-backdrop" id="editRequestBackdrop" hidden="">
-  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="editRequestTitle">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="editRequestTitle">
     <div class="modal-head">
       <h2 id="editRequestTitle">Edit delivery request</h2>
       <button class="icon-btn" id="editRequestCloseBtn" title="Close" aria-label="Close" type="button">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Reschedule this request instead of submitting a second one for the same items.</p>
+    <p class="modal-sub">Change the POC, schedule, assets or items on this open request. Saving doesn't re-send the warehouse email.</p>
     <div class="delivery-fields">
+      <label>POC Name<input type="text" id="editRequestPocName" autocomplete="off"></label>
+      <label>Phone<input type="tel" id="editRequestPocPhone" autocomplete="off"></label>
+      <label class="field-wide">Email<input type="email" id="editRequestPocEmail" autocomplete="off"></label>
       <label>Requested date<input type="date" id="editRequestDate"></label>
       <label>Requested time<input type="time" id="editRequestTime"></label>
     </div>
+    <h3 class="edit-request-heading">Items <span id="editRequestItemsCount"></span></h3>
+    <p class="modal-sub">Check the items this request should include. Items added here come from this job's table.</p>
+    <div class="delivery-item-list" id="editRequestItems"></div>
     <div class="modal-actions">
+      <button type="button" id="editRequestAssetsBtn">Assets (<span id="editRequestAssetsCount">0</span>)</button>
       <button class="primary" id="editRequestSaveBtn" type="button">Save changes</button>
     </div>
     <div class="pd-msg" id="editRequestMsg" aria-live="polite"></div>
@@ -3900,28 +3916,58 @@
     notifyItemsShipped(selRows, shipDate);
     el.packingSlipPrintDoc.innerHTML = makePackingSlipHTML(selRows, shipDate);
     var fit = fitPackingSlipForPrint();
-    // the Labels feature's @page rule forces a 4x6 landscape label page for
-    // ANY print from this document — override it back to a normal page for
-    // the duration of this print, then remove the override afterward so a
-    // subsequent Labels print isn't affected by it
-    var pageOverride = document.createElement("style");
-    pageOverride.textContent = "@page { size: " + (fit.landscape ? "landscape" : "auto") + "; margin: 0.35in; }";
-    document.head.appendChild(pageOverride);
-    document.body.classList.add("printing-packing-slip");
-    setTimeout(function(){
-      window.print();
-      document.body.classList.remove("printing-packing-slip");
-      pageOverride.remove();
-      // Used to also silently auto-download the signable HTML slip here on
-      // every print - with the in-app Drivers page now handling signing,
-      // that file is no longer needed by default. "Export signable slip" is
-      // still right there as an explicit button for whoever still wants it.
-      showSnackbar(
-        "Date Shipped set to " + formatDateForMsg(shipDate) + " for " + result.applied + " item" + (result.applied === 1 ? "" : "s") +
-        (result.skipped ? " (" + result.skipped + " skipped — missing BarCode/Date Received, or ship date before Date Received)" : "") + "."
-      );
-    }, 30);
+    printPackingSlipFrame(el.packingSlipPrintDoc.innerHTML, fit.landscape);
+    // Used to also silently auto-download the signable HTML slip here on
+    // every print - with the in-app Drivers page now handling signing,
+    // that file is no longer needed by default. "Export signable slip" is
+    // still right there as an explicit button for whoever still wants it.
+    showSnackbar(
+      "Date Shipped set to " + formatDateForMsg(shipDate) + " for " + result.applied + " item" + (result.applied === 1 ? "" : "s") +
+      (result.skipped ? " (" + result.skipped + " skipped — missing BarCode/Date Received, or ship date before Date Received)" : "") + "."
+    );
   });
+
+  // Prints the slip inside its own hidden frame, with the same .ps-* rules
+  // the on-screen preview uses (copied straight from the loaded stylesheet,
+  // so the two can't drift apart). Printing from the live page instead
+  // inherited the whole app's print CSS - label page sizing, body padding,
+  // and dropped table-header backgrounds - so the paper never matched the
+  // preview.
+  function packingSlipCssText(){
+    var out = [];
+    Array.prototype.forEach.call(document.styleSheets, function(sheet){
+      var rules;
+      try { rules = sheet.cssRules; } catch (e) { return; }
+      Array.prototype.forEach.call(rules, function(rule){
+        if (rule.selectorText && /(^|[\s,>])(\.ps-|\.packing-slip-doc|\.ps-checkbox)/.test(rule.selectorText)) out.push(rule.cssText);
+      });
+    });
+    return out.join("\n");
+  }
+  function printPackingSlipFrame(docHtml, landscape){
+    var frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    frame.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden;";
+    document.body.appendChild(frame);
+    var win = frame.contentWindow;
+    var fdoc = win.document;
+    fdoc.open();
+    fdoc.write(
+      '<!doctype html><html><head><meta charset="utf-8"><title>Delivery Slip</title><style>' +
+      packingSlipCssText() +
+      '@page{size:' + (landscape ? "landscape" : "portrait") + ';margin:0.35in;}' +
+      '*{-webkit-print-color-adjust:exact;print-color-adjust:exact;}' +
+      'body{margin:0;background:#fff;color:#1a1a18;font-family:Arial,"Helvetica Neue",sans-serif;}' +
+      '.packing-slip-doc{box-shadow:none;max-width:none;padding:0;margin:0;border-radius:0;}' +
+      '</style></head><body>' + docHtml + '</body></html>'
+    );
+    fdoc.close();
+    setTimeout(function(){
+      win.focus();
+      win.print();
+      setTimeout(function(){ frame.remove(); }, 1000);
+    }, 150);
+  }
 
   // ---------- file download helper ----------
   function downloadBlob(blob, filename){
@@ -5157,6 +5203,7 @@
   var SCAN_LIB_SRC = "https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js";
   var scanBackdrop = document.getElementById("scanBackdrop");
   var scanMode = "find";
+  var scanCodeHandler = null; // set by roles.js to receive scans instead of the job table
   var scanStarting = false, scanLibPromise = null;
   var scanLastCode = "", scanLastAt = 0;
   var scanLog = [];
@@ -5384,6 +5431,9 @@
   }
 
   function handleScannedCode(code){
+    // the Assets page takes over the scanner for check-in/check-out (see
+    // roles.js); otherwise every scan goes to the job table as usual
+    if (scanCodeHandler){ scanCodeHandler(code); return; }
     scanFillFindBar(code);
     var norm = code.toLowerCase();
     var ids = order.filter(function(id){
@@ -7193,7 +7243,7 @@
       return '<div class="pd-card">' +
         '<div class="pd-card-head"><span class="pd-job">' + escHtml(jobName) + '</span><span class="pd-status-badge ' + req.status + '">' + escHtml(req.status) + '</span></div>' +
         '<div class="pd-when">' + escHtml(pdFormatWhen(req.created_at)) + (req.requested_date ? " - requested for " + escHtml(req.requested_date) + (req.requested_time ? " " + escHtml(req.requested_time) : "") : "") + '</div>' +
-        '<div class="pd-who">' + escHtml(req.requested_by_name || "") + (req.contact_phone ? " - " + escHtml(req.contact_phone) : "") + '</div>' +
+        '<div class="pd-who">' + escHtml(req.contact_name || req.requested_by_name || "") + (req.contact_phone ? " - " + escHtml(req.contact_phone) : "") + (req.contact_email ? " - " + escHtml(req.contact_email) : "") + '</div>' +
         '<ul class="pd-items">' + itemsHtml + '</ul>' +
         (req.email_error ? '<div class="pd-msg bad">Email failed: ' + escHtml(req.email_error) + '</div>' : '') +
         '<div class="pd-actions">' + actionsHtml + '</div>' +
@@ -7236,40 +7286,145 @@
     openPackingSlipModal();
   }
 
-  // Reschedules an open request in place (date/time only) instead of
-  // requiring a second request for the same items - see the duplicate-
-  // barcode block in submitDeliveryRequest() above, which this is the other
-  // half of.
-  var editingRequestId = null;
-  function openEditRequestModal(req){
-    editingRequestId = req.id;
-    cloudEl("editRequestDate").value = req.requested_date || "";
-    cloudEl("editRequestTime").value = req.requested_time || "";
-    editRequestMsg("");
-    cloudEl("editRequestBackdrop").hidden = false;
-  }
-  function closeEditRequestModal(){ cloudEl("editRequestBackdrop").hidden = true; }
+  // Edits an open request in place - POC, schedule, assets and the item
+  // list - instead of cancelling and re-submitting it. Items added here are
+  // checked against other open requests for the same job, same as a fresh
+  // submission, so an item still can't end up on two of them at once.
+  var editingRequest = null;
+  var editAssetPickedIds = new Set();
+  var editItemsState = []; // [{snapshot, inTable, checked}] - this job's table, plus anything already on the request
+
   function editRequestMsg(text, kind){
     var m = cloudEl("editRequestMsg");
     m.textContent = text || "";
     m.className = "pd-msg" + (kind ? " " + kind : "");
   }
+  function updateEditAssetsCount(){
+    var el = cloudEl("editRequestAssetsCount");
+    if (el) el.textContent = String(editAssetPickedIds.size);
+  }
+  function updateEditItemsCount(){
+    var n = editItemsState.filter(function(it){ return it.checked; }).length;
+    cloudEl("editRequestItemsCount").textContent = "(" + n + " selected)";
+  }
+  function renderEditItems(){
+    var box = cloudEl("editRequestItems");
+    if (!editItemsState.length){
+      box.innerHTML = '<div class="pd-msg">No items with a barcode in this job yet.</div>';
+    } else {
+      box.innerHTML = editItemsState.map(function(it, i){
+        var s = it.snapshot;
+        var label = [s.barcode, s.manufacturer, s.model, s.deviceType].filter(function(v){ return v && String(v).trim(); }).join(" - ") +
+          (s.totalQty != null && s.totalQty !== "" ? " (qty " + s.totalQty + ")" : "");
+        return '<label class="edit-item-row"><input type="checkbox" data-edit-item="' + i + '"' + (it.checked ? " checked" : "") + '> ' +
+          escHtml(label) + (it.inTable ? "" : ' <em>(no longer in this job\'s table)</em>') + '</label>';
+      }).join("");
+    }
+    updateEditItemsCount();
+  }
+  function openEditRequestModal(req){
+    editingRequest = req;
+    cloudEl("editRequestPocName").value = req.contact_name || "";
+    cloudEl("editRequestPocPhone").value = req.contact_phone || "";
+    cloudEl("editRequestPocEmail").value = req.contact_email || "";
+    cloudEl("editRequestDate").value = req.requested_date || "";
+    cloudEl("editRequestTime").value = req.requested_time || "";
+    editAssetPickedIds = new Set(req.asset_ids || []);
+    updateEditAssetsCount();
+    editRequestMsg("");
+    editItemsState = [];
+    renderEditItems();
+    cloudEl("editRequestBackdrop").hidden = false;
+    cloud.sb.from("eq_rows").select("id,data").eq("job_id", req.job_id).eq("deleted", false).then(function(r){
+      if (editingRequest !== req) return;
+      if (r.error){ editRequestMsg("Couldn't load this job's items: " + r.error.message, "bad"); return; }
+      var onRequest = (req.items || []).map(function(it){ return it && it.barcode ? String(it.barcode).trim() : ""; }).filter(Boolean);
+      var inTable = {};
+      var state = (r.data || []).map(function(row){ return row.data || {}; }).filter(function(d){
+        return d.barcode && String(d.barcode).trim();
+      }).map(function(d){
+        var bc = String(d.barcode).trim();
+        inTable[bc] = true;
+        return {
+          snapshot: {barcode: d.barcode, manufacturer: d.manufacturer, model: d.model, deviceType: d.deviceType, totalQty: d.totalQty, serialNumber: d.serialNumber},
+          inTable: true, checked: onRequest.indexOf(bc) !== -1
+        };
+      });
+      // anything already on the request but no longer in the table stays
+      // listed (and checked) so saving never drops it silently
+      (req.items || []).forEach(function(it){
+        var bc = it && it.barcode ? String(it.barcode).trim() : "";
+        if (bc && !inTable[bc]) state.push({snapshot: it, inTable: false, checked: true});
+      });
+      editItemsState = state;
+      renderEditItems();
+    });
+  }
+  function closeEditRequestModal(){ cloudEl("editRequestBackdrop").hidden = true; editingRequest = null; }
+
   var editRequestCloseBtnEl = cloudEl("editRequestCloseBtn");
   if (editRequestCloseBtnEl) editRequestCloseBtnEl.addEventListener("click", closeEditRequestModal);
   var editRequestBackdropEl = cloudEl("editRequestBackdrop");
   if (editRequestBackdropEl) editRequestBackdropEl.addEventListener("click", function(ev){ if (ev.target === editRequestBackdropEl) closeEditRequestModal(); });
+  var editRequestAssetsBtnEl = cloudEl("editRequestAssetsBtn");
+  if (editRequestAssetsBtnEl) editRequestAssetsBtnEl.addEventListener("click", function(){ openAssetsModal("edit"); });
+  document.addEventListener("change", function(ev){
+    var idx = ev.target.dataset && ev.target.dataset.editItem;
+    if (idx === undefined) return;
+    editItemsState[Number(idx)].checked = ev.target.checked;
+    updateEditItemsCount();
+  });
+
   var editRequestSaveBtnEl = cloudEl("editRequestSaveBtn");
   if (editRequestSaveBtnEl) editRequestSaveBtnEl.addEventListener("click", function(){
+    var req = editingRequest;
+    if (!req) return;
+    var pocName = cloudEl("editRequestPocName").value.trim();
     var dateIso = cloudEl("editRequestDate").value;
+    if (!pocName){ editRequestMsg("Enter the POC name.", "bad"); return; }
     if (!dateIso){ editRequestMsg("Pick a date.", "bad"); return; }
+    var chosenItems = editItemsState.filter(function(it){ return it.checked; }).map(function(it){ return it.snapshot; });
+    var assetIds = Array.from(editAssetPickedIds);
+    if (!chosenItems.length && !assetIds.length){ editRequestMsg("Keep at least one item or asset on the request.", "bad"); return; }
+    if (chosenItems.some(function(it){ return !it.barcode || !String(it.barcode).trim(); })){
+      editRequestMsg("One or more items have no barcode yet - generate labels for them first.", "bad");
+      return;
+    }
+    var onRequest = (req.items || []).map(function(it){ return it && it.barcode ? String(it.barcode).trim() : ""; });
+    var added = chosenItems.map(function(it){ return String(it.barcode).trim(); }).filter(function(bc){ return onRequest.indexOf(bc) === -1; });
+
     editRequestSaveBtnEl.disabled = true;
-    cloud.sb.from("eq_delivery_requests").update({
-      requested_date: dateIso, requested_time: cloudEl("editRequestTime").value || ""
-    }).eq("id", editingRequestId).then(function(r){
-      editRequestSaveBtnEl.disabled = false;
-      if (r.error){ editRequestMsg("Couldn't save: " + r.error.message, "bad"); return; }
-      closeEditRequestModal();
-      loadPendingDeliveries();
+    var lookup = added.length
+      ? cloud.sb.from("eq_delivery_requests").select("id,items").eq("job_id", req.job_id).eq("status", "submitted")
+      : Promise.resolve({data: []});
+    lookup.then(function(res){
+      if (res.error) throw res.error;
+      var taken = {};
+      (res.data || []).forEach(function(other){
+        if (other.id === req.id) return;
+        (other.items || []).forEach(function(it){ if (it && it.barcode) taken[String(it.barcode).trim()] = true; });
+      });
+      var clashes = added.filter(function(bc){ return taken[bc]; });
+      if (clashes.length){
+        editRequestSaveBtnEl.disabled = false;
+        editRequestMsg("Already on another open request: " + clashes.join(", ") + ". Remove those here, or edit that request instead.", "bad");
+        return null;
+      }
+      return cloud.sb.from("eq_delivery_requests").update({
+        contact_name: pocName,
+        contact_phone: cloudEl("editRequestPocPhone").value.trim(),
+        contact_email: cloudEl("editRequestPocEmail").value.trim(),
+        requested_date: dateIso,
+        requested_time: cloudEl("editRequestTime").value || "",
+        items: chosenItems,
+        asset_ids: assetIds
+      }).eq("id", req.id).then(function(r){
+        editRequestSaveBtnEl.disabled = false;
+        if (r.error) throw r.error;
+        requestedBarcodesJobId = null; refreshRequestedBarcodesIfNeeded();
+        closeEditRequestModal();
+        loadPendingDeliveries();
+      });
     }).catch(function(e){
       editRequestSaveBtnEl.disabled = false;
       editRequestMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't save: " + (e && e.message ? e.message : e), "bad");
@@ -7383,9 +7538,9 @@
     });
   }
 
-  function loadJobsDashboard(){
+  function loadJobsDashboard(quiet){
     var list = cloudEl("jdList");
-    list.textContent = "Loading...";
+    if (!quiet) list.textContent = "Loading...";
     jdMsg("");
     return fetchDashboardData().then(function(d){
       renderJdDeliveries(d.deliveries, d.driverEmailById);
@@ -7415,6 +7570,7 @@
         var jobName = jobMeta.project || job.name || "Untitled job";
         var when = [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ");
         var driverEmail = driverEmailById[d.driver_id] || "Unassigned";
+        if (d.van) driverEmail += " · " + d.van;
         return '<div class="jd-delivery-row">' +
           '<span class="jd-delivery-job">' + escHtml(jobName) + '</span>' +
           '<span class="jd-delivery-driver">' + escHtml(driverEmail) + '</span>' +
@@ -7462,6 +7618,7 @@
         applySlipPoc({name: delivery.poc_name, phone: delivery.poc_phone, email: delivery.poc_email});
         if (delivery.scheduled_date) cloudEl("assignDeliveryDate").value = delivery.scheduled_date;
         if (delivery.scheduled_time) cloudEl("assignDeliveryTime").value = delivery.scheduled_time;
+        cloudEl("assignVanSelect").value = delivery.van || "";
         loadDriversForAssign().then(function(){
           if (delivery.driver_id) cloudEl("assignDriverSelect").value = delivery.driver_id;
         });
@@ -7561,11 +7718,39 @@
     }).join("");
   }
 
+  // While the staff dashboard is open it stays live: a delivery signed on a
+  // driver's phone (or any other change to deliveries, checkouts or requests)
+  // updates it on its own instead of only when it's reopened.
+  var jdLiveChannel = null, jdLiveTimer = null;
+  function scheduleJdLiveRefresh(){
+    clearTimeout(jdLiveTimer);
+    jdLiveTimer = setTimeout(function(){
+      if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+    }, 400);
+  }
+  function startJdLive(){
+    stopJdLive();
+    jdLiveChannel = cloud.sb.channel("jobs-dashboard-" + cloud.clientId)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_deliveries"}, scheduleJdLiveRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_asset_checkouts"}, scheduleJdLiveRefresh)
+      .on("postgres_changes", {event: "*", schema: "public", table: "eq_delivery_requests"}, scheduleJdLiveRefresh)
+      .subscribe(function(status){
+        if (status === "SUBSCRIBED") scheduleJdLiveRefresh();
+      });
+  }
+  function stopJdLive(){
+    clearTimeout(jdLiveTimer);
+    if (jdLiveChannel){ cloud.sb.removeChannel(jdLiveChannel); jdLiveChannel = null; }
+  }
   function openJobsDashboardModal(){
     cloudEl("jobsDashboardBackdrop").hidden = false;
     loadJobsDashboard();
+    startJdLive();
   }
-  function closeJobsDashboardModal(){ cloudEl("jobsDashboardBackdrop").hidden = true; }
+  function closeJobsDashboardModal(){
+    cloudEl("jobsDashboardBackdrop").hidden = true;
+    stopJdLive();
+  }
 
   // Full-screen toggle (staff) - the dashboard-view account (below) always
   // renders full-screen by default, no toggle needed there.
@@ -7781,8 +7966,12 @@
   var assetPickerMode = false; // true when opened via "Assets" from the Create Delivery Slip flow
   var assetPickedIds = new Set(); // "assign" target (Create Delivery Slip -> Assign to a driver)
   var deliveryAssetPickedIds = new Set(); // "request" target (tech/PC Request Delivery)
-  var assetPickerTarget = "assign"; // which of the two Sets above the open picker is currently filling
-  function activeAssetPickedIds(){ return assetPickerTarget === "request" ? deliveryAssetPickedIds : assetPickedIds; }
+  var assetPickerTarget = "assign"; // which of the picker's Sets is currently being filled: "assign" | "request" | "edit"
+  function activeAssetPickedIds(){
+    if (assetPickerTarget === "request") return deliveryAssetPickedIds;
+    if (assetPickerTarget === "edit") return editAssetPickedIds;
+    return assetPickedIds;
+  }
 
   function assetsMsg(text, kind){
     var m = cloudEl("assetsMsg");
@@ -7936,7 +8125,9 @@
   }
   var assetsUseSelectedBtnEl = cloudEl("assetsUseSelectedBtn");
   if (assetsUseSelectedBtnEl) assetsUseSelectedBtnEl.addEventListener("click", function(){
-    if (assetPickerTarget === "request") updateDeliveryAssetsCount(); else updateAssignAssetsCount();
+    if (assetPickerTarget === "request") updateDeliveryAssetsCount();
+    else if (assetPickerTarget === "edit") updateEditAssetsCount();
+    else updateAssignAssetsCount();
     closeAssetsModal();
   });
 
@@ -8138,6 +8329,7 @@
     }
     var deleteBtn = ev.target.closest && ev.target.closest("[data-audit-delete]");
     if (deleteBtn){
+      if (cloud.role && cloud.role !== "staff"){ assetAuditMsg("Only full-access staff can delete assets.", "bad"); return; }
       var id = deleteBtn.dataset.auditDelete;
       if (auditOpenCheckoutFor(id)){ assetAuditMsg("This asset is checked out - mark it returned before deleting it.", "bad"); return; }
       var toDelete = auditAssetsCache.filter(function(a){ return a.id === id; })[0];
@@ -8200,6 +8392,89 @@
   // Lets a PC/tech (or staff) request one or more assets with no equipment
   // involved at all - still needs a job open, since every request is tied to
   // one (same as any other delivery request).
+  // ---------- scan assets in/out (staff) - reuses the app's own scanner
+  // (camera, Bluetooth scanner, typed or photo) with the job-table behavior
+  // swapped out for a check-in/check-out one ----------
+  var assetScanMode = "out"; // "out" = check out to the open job, "in" = mark returned
+
+  function ensureAssetScanModes(){
+    if (cloudEl("assetScanModes")) return;
+    var host = cloudEl("scanReader");
+    if (!host) return;
+    var box = document.createElement("div");
+    box.id = "assetScanModes";
+    box.className = "status-filter";
+    box.innerHTML = '<button type="button" class="active" data-asset-scan="out" title="Check this asset out to the job open right now">Scan out (to open job)</button>' +
+      '<button type="button" data-asset-scan="in" title="Mark this asset back in the shop">Scan in (return)</button>';
+    host.parentNode.insertBefore(box, host);
+    box.addEventListener("click", function(ev){
+      var b = ev.target.closest("button[data-asset-scan]");
+      if (!b) return;
+      assetScanMode = b.dataset.assetScan;
+      Array.prototype.forEach.call(box.querySelectorAll("button"), function(x){ x.classList.toggle("active", x === b); });
+    });
+  }
+
+  function handleAssetScan(code){
+    var norm = String(code || "").trim().toLowerCase();
+    var asset = auditAssetsCache.filter(function(a){ return String(a.barcode || "").trim().toLowerCase() === norm; })[0];
+    if (!asset){
+      showScanResult("bad", "No asset has the BarCode <strong>" + escHtml(code) + "</strong>.", []);
+      return;
+    }
+    var name = "<strong>" + escHtml(asset.label || asset.barcode) + "</strong>";
+    var open = auditOpenCheckoutFor(asset.id);
+    if (assetScanMode === "out"){
+      if (open){
+        showScanResult("bad", name + " is already checked out to " + escHtml(auditJobNameById[open.job_id] || "another job") + ". Scan it in first.", []);
+        return;
+      }
+      if (!cloud.jobId){ showScanResult("bad", "Open a job first - a scan out checks the asset out to the open job.", []); return; }
+      var newCheckout = {id: cloudUuid(), asset_id: asset.id, job_id: cloud.jobId, delivery_id: null, checked_out_at: new Date().toISOString(), checked_out_by: (cloud.user && cloud.user.email) || "", returned_at: null};
+      cloud.sb.from("eq_asset_checkouts").insert(newCheckout).then(function(r){
+        if (r.error){ showScanResult("bad", "Couldn't check out: " + escHtml(r.error.message), []); return; }
+        auditCheckoutsCache.push(newCheckout); // so a quick second scan can't check the same asset out twice
+        showScanResult("ok", name + " checked out to this job.", []);
+        loadAssetAudit();
+      });
+    } else {
+      if (!open){ showScanResult("bad", name + " is already in the shop.", []); return; }
+      var returnedAt = new Date().toISOString();
+      var returnedBy = (cloud.user && cloud.user.email) || "";
+      cloud.sb.from("eq_asset_checkouts").update({returned_at: returnedAt, returned_by: returnedBy}).eq("id", open.id).then(function(r){
+        if (r.error){ showScanResult("bad", "Couldn't mark returned: " + escHtml(r.error.message), []); return; }
+        open.returned_at = returnedAt;
+        showScanResult("ok", name + " is back in the shop.", []);
+        loadAssetAudit();
+      });
+    }
+  }
+
+  function openAssetScan(){
+    ensureAssetScanModes();
+    cloudEl("assetScanModes").hidden = false;
+    cloudEl("scanModeGroup").hidden = true;
+    cloudEl("scanList").hidden = true;
+    cloudEl("scanTitle").textContent = "Scan assets";
+    cloudEl("scanResult").innerHTML = "";
+    openScanModal();
+    scanCodeHandler = handleAssetScan; // set after openScanModal, which clears any handler
+    if (!auditAssetsCache.length) loadAssetAudit();
+  }
+  // Whenever the scanner closes (Done, X, or anything else), hand it back to the job table.
+  var scanBackdropEl = cloudEl("scanBackdrop");
+  if (scanBackdropEl) new MutationObserver(function(){
+    if (!scanBackdropEl.hidden) return;
+    scanCodeHandler = null;
+    var m = cloudEl("assetScanModes");
+    if (m) m.hidden = true;
+    cloudEl("scanModeGroup").hidden = false;
+    cloudEl("scanList").hidden = false;
+    cloudEl("scanTitle").textContent = "Scan barcode / QR code";
+  }).observe(scanBackdropEl, {attributes: true, attributeFilter: ["hidden"]});
+  var assetAuditScanBtnEl = cloudEl("assetAuditScanBtn");
+  if (assetAuditScanBtnEl) assetAuditScanBtnEl.addEventListener("click", openAssetScan);
+
   var assetAuditRequestBtnEl = cloudEl("assetAuditRequestBtn");
   if (assetAuditRequestBtnEl) assetAuditRequestBtnEl.addEventListener("click", function(){
     if (!cloud.jobId){ assetAuditMsg("Open a job first - every delivery request is tied to one.", "bad"); return; }
@@ -8353,6 +8628,7 @@
     cloudEl("assignDriverSelect").innerHTML = '<option value="">Loading drivers...</option>';
     cloudEl("assignDeliveryDate").value = todayLocalIso();
     cloudEl("assignDeliveryTime").value = "";
+    cloudEl("assignVanSelect").value = "";
     applySlipPoc({});
     assetPickedIds = new Set();
     updateAssignAssetsCount();
@@ -8392,6 +8668,7 @@
     }
     var driverId = cloudEl("assignDriverSelect").value;
     if (!driverId){ assignDriverMsg("Pick a driver first.", "bad"); return; }
+    var van = cloudEl("assignVanSelect").value || "";
     var scheduledDate = cloudEl("assignDeliveryDate").value || null;
     var scheduledTime = cloudEl("assignDeliveryTime").value || "";
     var pocName = cloudEl("assignPocName").value.trim();
@@ -8407,7 +8684,7 @@
     assignDriverMsg("Assigning...");
     cloud.sb.from("eq_deliveries").insert({
       id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds,
-      poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
+      poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, van: van, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
       status: "assigned", updated_by: cloud.clientId
     }).then(function(r){
       if (r.error) throw r.error;
@@ -8485,6 +8762,7 @@
         '<div class="driver-card-head"><span class="driver-job">' + (i + 1) + '. ' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span>' +
           (when ? '<span class="driver-when">' + escHtml(when) + '</span>' : '') +
         '</div>' +
+        (d.van ? '<div class="driver-address"><b>' + escHtml(d.van) + '</b></div>' : '') +
         (address ? '<div class="driver-address">' + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : '') +
         '<div class="driver-card-stats">' +
           '<span><b>' + itemCount + '</b> item' + (itemCount === 1 ? "" : "s") + '</span>' +
@@ -8574,6 +8852,7 @@
       "<div><b>" + escHtml(jobName) + (jobNum ? " — " + escHtml(jobNum) : "") + "</b></div>" +
       (address ? "<div>" + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : "") +
       (when ? "<div>" + escHtml(when) + "</div>" : "") +
+      (delivery.van ? "<div>Van: <b>" + escHtml(delivery.van) + "</b></div>" : "") +
       (delivery.poc_name ? "<div>POC: " + escHtml(delivery.poc_name) + (delivery.poc_phone ? " · " + escHtml(delivery.poc_phone) : "") + "</div>" : "");
 
     cloudEl("deliverySignItemsTable").innerHTML = deliveryItemsTableHtml(delivery.items);
@@ -8618,9 +8897,10 @@
     var name = cloudEl("deliverySignerName").value.trim();
     if (!name){ deliverySignMsg("Type the signer's name first.", "bad"); return; }
     if (!currentDeliveryPad || currentDeliveryPad.isEmpty()){ deliverySignMsg("Sign in the box first.", "bad"); return; }
-    var hasAssets = currentDelivery.asset_ids && currentDelivery.asset_ids.length > 0;
-    var patch = {signed_by: name, signature_data: currentDeliveryPad.toDataUrl(), signed_at: new Date().toISOString(), updated_by: cloud.clientId};
-    if (!hasAssets || currentDelivery.asset_signed_at) patch.status = "delivered";
+    // Signing the equipment slip completes the delivery and takes it off the
+    // driver's list, even when assets were also on it - the asset slip can
+    // still be signed first if the driver chooses to, but isn't required.
+    var patch = {signed_by: name, signature_data: currentDeliveryPad.toDataUrl(), signed_at: new Date().toISOString(), updated_by: cloud.clientId, status: "delivered"};
     deliverySignSubmitBtnEl.disabled = true;
     deliverySignMsg("Submitting...");
     cloud.sb.from("eq_deliveries").update(patch).eq("id", currentDelivery.id).then(function(r){
