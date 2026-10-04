@@ -914,8 +914,12 @@
   .asset-audit-toolbar input[type="search"]{flex:1 1 220px;min-width:160px;font:inherit;font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
   .asset-audit-toolbar select{font:inherit;font-size:13px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
   .asset-audit-toolbar button{padding:8px 12px;font-size:13px;white-space:nowrap;}
-  .asset-audit-table-wrap{max-height:62vh;overflow:auto;border:1px solid var(--border);border-radius:8px;}
-  .asset-audit-table{width:100%;border-collapse:collapse;font-size:13px;}
+  /* The Assets window is wide enough for every column; when the window is
+     narrower than the table, the table slides sideways (scrollbar at the bottom)
+     rather than squeezing or wrapping the columns. */
+  #assetAuditBackdrop .modal-panel{width:min(1600px, 98vw);max-width:98vw;}
+  .asset-audit-table-wrap{max-height:62vh;overflow:auto;border:1px solid var(--border);border-radius:8px;-webkit-overflow-scrolling:touch;}
+  .asset-audit-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:13px;}
   .asset-audit-table th, .asset-audit-table td{padding:8px 10px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
   .asset-audit-table th{position:sticky;top:0;background:var(--surface-alt);z-index:1;}
   .asset-audit-table td.asset-audit-desc{white-space:nowrap;max-width:none;}
