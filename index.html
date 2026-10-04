@@ -1282,6 +1282,7 @@
       <label>Requested date<input type="date" id="deliveryDate"></label>
       <label>Requested time<input type="time" id="deliveryTime"></label>
     </div>
+    <p class="modal-sub delivery-assets-list" id="deliveryAssetsList"></p>
     <div class="modal-actions">
       <button type="button" id="deliveryAssetsBtn">Assets (<span id="deliveryAssetsCount">0</span>)</button>
       <button class="primary" id="deliveryRequestSubmitBtn" type="button">Submit request</button>
@@ -1481,6 +1482,7 @@
       <input type="text" id="assetNewDescription" placeholder="Description (optional)">
       <button type="button" class="primary" id="assetNewBtn">Add asset</button>
     </div>
+    <input type="search" id="assetsPickSearch" class="assets-pick-search" placeholder="Search any field: label, category, barcode, make, model, notes, job, status..." autocomplete="off">
     <div class="assets-list" id="assetsList"></div>
     <div class="assets-msg" id="assetsMsg" aria-live="polite"></div>
     <div class="modal-actions" id="assetsPickerActions" hidden="">
@@ -1500,7 +1502,7 @@
     </div>
     <p class="modal-sub">Full-access staff only (view-only for PC - all jobs). Search, filter, and audit the shared asset pool.</p>
     <div class="asset-audit-toolbar">
-      <input type="search" id="assetAuditSearch" placeholder="Search label, barcode, make, model...">
+      <input type="search" id="assetAuditSearch" placeholder="Search any field: label, category, barcode, make, model, notes, job, status...">
       <select id="assetAuditStatusFilter">
         <option value="all">All statuses</option>
         <option value="available">Available</option>
@@ -1540,6 +1542,8 @@
       <label>Model<input type="text" id="assetEditModel"></label>
       <label class="field-wide">Description<input type="text" id="assetEditDescription"></label>
       <label class="field-wide">Notes<input type="text" id="assetEditNotes"></label>
+      <label class="field-wide asset-consumable-toggle"><input type="checkbox" id="assetEditConsumable"> Consumable - counted by quantity (packing tape rolls, blankets, boxes)</label>
+      <label id="assetEditStockLabel" hidden="">In stock<input type="number" min="0" step="1" id="assetEditStock"></label>
     </div>
     <div class="modal-actions">
       <button class="primary" id="assetEditSaveBtn" type="button">Add asset</button>
@@ -6625,8 +6629,12 @@
     cloudEl("deliveryDate").value = todayLocalIso();
     cloudEl("deliveryTime").value = "";
     deliveryAssetPickedIds = new Set();
+    assetPickQty = {};
     updateDeliveryAssetsCount();
     cloudEl("deliveryRequestBackdrop").hidden = false;
+    // Request Assets is for picking assets, so go straight to the picker
+    // instead of leaving the request empty behind an Assets (0) button.
+    if (opts.assetsOnly) openAssetsModal("request");
   }
   // Job name, job number and address shown at the top of the request, so the
   // person submitting (and anyone reading the email or pick slip) can see
@@ -6838,10 +6846,10 @@
     var tableStartY = metaTop + 34 + 28;
     var head, body, foot = null;
     if (isAssets){
-      head = [["Asset", "Category"]];
+      head = [["Asset", "Category", "Qty"]];
       body = (delivery.asset_ids || []).map(function(id){
         var a = assetsCache.filter(function(x){ return x.id === id; })[0];
-        return [a ? a.label : "Unknown asset", a ? a.category : ""];
+        return [a ? a.label : "Unknown asset", a ? a.category : "", String((delivery.asset_qty || {})[id] || 1)];
       });
     } else {
       var items = delivery.items || [];
@@ -6907,7 +6915,7 @@
   function submitDeliveryRequest(){
     var selRows = getSelectedRows();
     var assetIds = Array.from(deliveryAssetPickedIds);
-    if (!selRows.length && !assetIds.length){ deliveryMsg("Select at least one item, or add an asset, first.", "bad"); return; }
+    if (!selRows.length && !assetIds.length){ deliveryMsg("Nothing to request yet. Check at least one item in the table, or click Assets and pick the ones you need.", "bad"); return; }
     // Re-checked here too (not just when the modal opened) in case the
     // selection changed underneath it - e.g. another device's realtime
     // update cleared a barcode while this modal was still open.
@@ -6943,7 +6951,7 @@
     });
     var pdfBase64 = buildDeliveryPdfBase64(selRows, contact, dateIso, time);
 
-    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, assetIds: assetIds, pdfBase64: pdfBase64}).then(function(res){
+    invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, assetIds: assetIds, assetQty: buildAssetQtyMap(assetIds), pdfBase64: pdfBase64}).then(function(res){
       btn.disabled = false;
       if (res.error){
         deliveryMsg("Couldn't submit: " + res.error.message, "bad");
@@ -7486,6 +7494,7 @@
     cloudEl("editRequestDate").value = req.requested_date || "";
     cloudEl("editRequestTime").value = req.requested_time || "";
     editAssetPickedIds = new Set(req.asset_ids || []);
+    assetPickQty = Object.assign({}, req.asset_qty || {});
     updateEditAssetsCount();
     editRequestMsg("");
     editItemsState = [];
@@ -7573,7 +7582,8 @@
         requested_date: dateIso,
         requested_time: cloudEl("editRequestTime").value || "",
         items: chosenItems,
-        asset_ids: assetIds
+        asset_ids: assetIds,
+        asset_qty: buildAssetQtyMap(assetIds)
       }).eq("id", req.id).then(function(r){
         editRequestSaveBtnEl.disabled = false;
         if (r.error) throw r.error;
@@ -8137,6 +8147,32 @@
   function assetCheckoutFor(assetId){
     return assetCheckoutsCache.filter(function(c){ return c.asset_id === assetId && !c.returned_at; })[0];
   }
+
+  // ---------- consumables (counted by quantity) ----------
+  // Quantity picked per asset id. Only consumables ever differ from 1, and it's
+  // reset whenever a pick list is reset (see the three places that clear the Sets).
+  var assetPickQty = {};
+  function isConsumable(a){ return !!(a && a.consumable); }
+  function assetQtyFor(id){ return assetPickQty[id] || 1; }
+  // How many of a consumable are still on the shelf: the stock count minus
+  // whatever open checkouts are holding.
+  function consumableOnHand(a, checkouts){
+    var held = (checkouts || []).filter(function(c){ return c.asset_id === a.id && !c.returned_at; })
+      .reduce(function(sum, c){ return sum + (Number(c.quantity) || 1); }, 0);
+    return Math.max(0, (Number(a.stock_qty) || 0) - held);
+  }
+  // {asset id: qty} for the picks that are more than one unit. Anything not in
+  // the map is 1, which keeps requests and assignments without consumables
+  // exactly as they were.
+  function buildAssetQtyMap(ids){
+    var m = {};
+    ids.forEach(function(id){ var q = assetQtyFor(id); if (q !== 1) m[id] = q; });
+    return m;
+  }
+  function assetNameById(id){
+    var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+    return a ? (a.label || "Untitled asset") : "Unknown asset";
+  }
   function loadAssets(){
     var list = cloudEl("assetsList");
     list.textContent = "Loading...";
@@ -8160,30 +8196,65 @@
       list.textContent = "";
     });
   }
+  // Everything about an asset a person might search on, lowercased and joined
+  // so a search term can't accidentally match across two fields.
+  // checkout = the asset's open checkout (or null), jobName = that job's name.
+  // Shared by the asset picker and the Asset Audit page search.
+  function assetSearchText(a, checkout, jobName){
+    return [
+      a.label, a.category, a.barcode, a.manufacturer, a.model, a.description, a.notes,
+      checkout ? "checked out" : "available",
+      checkout ? (jobName || "") : "",
+      checkout ? (checkout.poc_name || "") : "",
+      checkout ? (checkout.checked_out_by || "") : ""
+    ].map(function(v){ return String(v || "").toLowerCase(); }).join(" \n ");
+  }
+  // Every word typed must appear somewhere in the text (any field, any order).
+  function assetMatchesSearch(text, typed){
+    var terms = String(typed || "").toLowerCase().split(/\s+/).filter(Boolean);
+    return terms.every(function(t){ return text.indexOf(t) !== -1; });
+  }
+  function pickerSearchText(a){
+    var checkout = assetCheckoutFor(a.id);
+    return assetSearchText(a, checkout, checkout ? assetJobNameById[checkout.job_id] : "");
+  }
   function renderAssetsList(){
     var list = cloudEl("assetsList");
     if (!assetsCache.length){ list.innerHTML = ""; assetsMsg("No assets yet."); return; }
+    // Every word typed has to match somewhere on the asset (any field), so
+    // "pelican 4" finds "Pelican case #4" and "moving blankets out" finds the
+    // blankets that are checked out.
+    var searchEl = cloudEl("assetsPickSearch");
+    var typed = searchEl ? searchEl.value.trim() : "";
+    var visible = typed ? assetsCache.filter(function(a){
+      return assetMatchesSearch(pickerSearchText(a), typed);
+    }) : assetsCache;
+    if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
-    list.innerHTML = assetsCache.map(function(a){
-      var checkout = assetCheckoutFor(a.id);
-      var out = !!checkout;
-      var pickCheckbox = (assetPickerMode && !out)
-        ? '<input type="checkbox" class="asset-pick" data-asset-pick="' + a.id + '"' + (activeAssetPickedIds().has(a.id) ? " checked" : "") + '>'
+    list.innerHTML = visible.map(function(a){
+      var consumable = isConsumable(a);
+      var checkout = consumable ? null : assetCheckoutFor(a.id);
+      var onHand = consumable ? consumableOnHand(a, assetCheckoutsCache) : 0;
+      var out = consumable ? onHand <= 0 : !!assetCheckoutFor(a.id);
+      var picked = activeAssetPickedIds().has(a.id);
+      var pickCheckbox = (assetPickerMode && (!out || picked))
+        ? '<input type="checkbox" class="asset-pick" data-asset-pick="' + a.id + '"' + (picked ? " checked" : "") + '>' +
+          (consumable && picked ? '<input type="number" class="asset-pick-qty" min="1" step="1" data-asset-qty="' + a.id + '" value="' + assetQtyFor(a.id) + '" aria-label="Quantity">' : "")
         : "";
-      var returnBtn = out
+      var returnBtn = (out && checkout)
         ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>'
         : "";
       var subBits = [a.category, [a.manufacturer, a.model].filter(Boolean).join(" "), a.barcode ? "BarCode " + a.barcode : ""].filter(function(v){ return v && String(v).trim(); });
       var subLine = subBits.join(" · ");
       var descLine = a.description ? '<div class="asset-sub">' + escHtml(a.description) + '</div>' : "";
-      var jobName = out ? (assetJobNameById[checkout.job_id] || "a job") : "";
+      var jobName = (out && checkout) ? (assetJobNameById[checkout.job_id] || "a job") : "";
       // formatWhen() is shared with the Jobs list and always prefixes
       // "Updated " (right there, that's correct) - strip it back off here,
       // since "out since Updated Oct 3..." reads wrong for a checkout time.
       // Only computed when actually checked out - checkout is undefined for
       // an available asset, and formatWhen(undefined) throws.
-      var outLine = out
-        ? '<div class="asset-sub asset-assigned">Assigned to <b>' + escHtml(jobName) + '</b> · out since ' + escHtml(formatWhen(checkout.checked_out_at).replace(/^Updated\s+/, "")) + '</div>'
+      var outLine = (out && checkout)
+        ? '<div class="asset-sub asset-assigned">Assigned to <b>' + escHtml(jobName) + '</b>' + (checkout.poc_name ? ' · received by <b>' + escHtml(checkout.poc_name) + '</b>' : '') + ' · out since ' + escHtml(formatWhen(checkout.checked_out_at).replace(/^Updated\s+/, "")) + '</div>'
         : "";
       return '<div class="asset-row" data-asset-id="' + a.id + '">' +
         pickCheckbox +
@@ -8193,7 +8264,7 @@
           descLine +
           outLine +
         '</div>' +
-        '<span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (out ? "Checked out" : "Available") + '</span>' +
+        '<span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (consumable ? onHand + " in stock" : (out ? "Checked out" : "Available")) + '</span>' +
         returnBtn +
       '</div>';
     }).join("");
@@ -8205,6 +8276,8 @@
   function openAssetsModal(target){
     assetPickerMode = true;
     assetPickerTarget = target || "assign";
+    var searchEl = cloudEl("assetsPickSearch");
+    if (searchEl) searchEl.value = "";
     cloudEl("assetsPickerActions").hidden = false;
     cloudEl("assetsBackdrop").hidden = false;
     loadAssets();
@@ -8268,7 +8341,32 @@
     if (!ev.target.classList || !ev.target.classList.contains("asset-pick")) return;
     var id = ev.target.dataset.assetPick;
     var set = activeAssetPickedIds();
-    if (ev.target.checked) set.add(id); else set.delete(id);
+    if (ev.target.checked){
+      set.add(id);
+      if (!assetPickQty[id]) assetPickQty[id] = 1;
+    } else {
+      set.delete(id);
+      delete assetPickQty[id];
+    }
+    // redraw so a checked consumable gets its quantity box straight away
+    renderAssetsList();
+  });
+  // Quantity for a consumable: whole number, at least 1, and no more than is
+  // on the shelf (checkouts already out are subtracted; picks in other forms
+  // aren't reserved until the delivery is assigned).
+  document.addEventListener("change", function(ev){
+    if (!ev.target.classList || !ev.target.classList.contains("asset-pick-qty")) return;
+    var qid = ev.target.dataset.assetQty;
+    var qa = assetsCache.filter(function(x){ return x.id === qid; })[0];
+    var max = qa ? Math.max(1, consumableOnHand(qa, assetCheckoutsCache)) : 1;
+    var n = Math.floor(Number(ev.target.value));
+    if (!(n >= 1)) n = 1;
+    if (n > max){
+      assetsMsg("Only " + max + " in stock.", "bad");
+      n = max;
+    }
+    ev.target.value = n;
+    assetPickQty[qid] = n;
   });
 
   function updateAssignAssetsCount(){
@@ -8278,7 +8376,20 @@
   function updateDeliveryAssetsCount(){
     var el = cloudEl("deliveryAssetsCount");
     if (el) el.textContent = String(deliveryAssetPickedIds.size);
+    // Names as well as the count, so it's clear what's going on the request
+    // (and that the picks made earlier are still there).
+    var list = cloudEl("deliveryAssetsList");
+    if (list){
+      var labels = Array.from(deliveryAssetPickedIds).map(function(id){
+        var q = assetQtyFor(id);
+        return assetNameById(id) + (q > 1 ? " ×" + q : "");
+      });
+      list.textContent = labels.length ? "Assets: " + labels.join(", ") : "";
+    }
   }
+  var assetsPickSearchEl = cloudEl("assetsPickSearch");
+  if (assetsPickSearchEl) assetsPickSearchEl.addEventListener("input", renderAssetsList);
+
   var assetsUseSelectedBtnEl = cloudEl("assetsUseSelectedBtn");
   if (assetsUseSelectedBtnEl) assetsUseSelectedBtnEl.addEventListener("click", function(){
     if (assetPickerTarget === "request") updateDeliveryAssetsCount();
@@ -8352,8 +8463,9 @@
     if (auditStatusFilter === "out" && !out) return false;
     if (auditCategoryFilter && (a.category || "") !== auditCategoryFilter) return false;
     if (auditSearchTerm){
-      var hay = [a.label, a.barcode, a.manufacturer, a.model, a.category, a.description].join(" ").toLowerCase();
-      if (hay.indexOf(auditSearchTerm) === -1) return false;
+      var openCheckout = auditOpenCheckoutFor(a.id);
+      var auditText = assetSearchText(a, openCheckout, openCheckout ? (auditJobNameById[openCheckout.job_id] || "") : "");
+      if (!assetMatchesSearch(auditText, auditSearchTerm)) return false;
     }
     return true;
   }
@@ -8366,7 +8478,14 @@
     body.innerHTML = visible.map(function(a){
       var checkout = auditOpenCheckoutFor(a.id);
       var out = !!checkout;
+      var consumable = isConsumable(a);
+      var onHand = consumable ? consumableOnHand(a, auditCheckoutsCache) : 0;
       var jobName = out ? (checkout.job_id ? (auditJobNameById[checkout.job_id] || "Unknown job") : "Unknown job") : "";
+      // A consumable can have several checkouts open at once (one per delivery),
+      // so list each one with its quantity rather than just the first.
+      var consumableOut = consumable ? auditCheckoutsCache.filter(function(c){ return c.asset_id === a.id && !c.returned_at; }).map(function(c){
+        return "×" + (Number(c.quantity) || 1) + " " + escHtml(c.job_id ? (auditJobNameById[c.job_id] || "Unknown job") : "Unknown job") + (c.poc_name ? " · " + escHtml(c.poc_name) : "");
+      }).join("<br>") : "";
       return '<tr data-asset-id="' + a.id + '">' +
         '<td>' + escHtml(a.label || "Untitled asset") + '</td>' +
         '<td>' + escHtml(a.category || "") + '</td>' +
@@ -8374,8 +8493,8 @@
         '<td>' + escHtml(a.manufacturer || "") + '</td>' +
         '<td>' + escHtml(a.model || "") + '</td>' +
         '<td class="asset-audit-desc">' + escHtml(a.description || "") + '</td>' +
-        '<td><span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (out ? "Checked out" : "Available") + '</span></td>' +
-        '<td>' + (out ? escHtml(jobName) : "") + '</td>' +
+        '<td><span class="asset-status-badge ' + (out ? "out" : "available") + '">' + (consumable ? onHand + " in stock" : (out ? "Checked out" : "Available")) + '</span></td>' +
+        '<td>' + (consumable ? consumableOut : (out ? escHtml(jobName) + (checkout.poc_name ? '<div class="asset-audit-poc">Received by ' + escHtml(checkout.poc_name) + '</div>' : '') : "")) + '</td>' +
         '<td class="asset-audit-actions">' +
           (out ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>' : '') +
           '<button type="button" class="asset-audit-edit" data-audit-edit="' + a.id + '">Edit</button>' +
@@ -8429,10 +8548,17 @@
     cloudEl("assetEditModel").value = asset ? (asset.model || "") : "";
     cloudEl("assetEditDescription").value = asset ? (asset.description || "") : "";
     cloudEl("assetEditNotes").value = asset ? (asset.notes || "") : "";
+    cloudEl("assetEditConsumable").checked = !!(asset && asset.consumable);
+    cloudEl("assetEditStock").value = String(asset && asset.consumable ? (asset.stock_qty || 0) : 0);
+    syncAssetEditStockField();
     assetEditMsg("");
     cloudEl("assetEditBackdrop").hidden = false;
   }
   function closeAssetEditModal(){ cloudEl("assetEditBackdrop").hidden = true; }
+  // The stock count only means something for a consumable, so only show it then.
+  function syncAssetEditStockField(){
+    cloudEl("assetEditStockLabel").hidden = !cloudEl("assetEditConsumable").checked;
+  }
   function assetEditMsg(text, kind){
     var m = cloudEl("assetEditMsg");
     m.textContent = text || "";
@@ -8446,6 +8572,9 @@
   var assetEditBackdropEl = cloudEl("assetEditBackdrop");
   if (assetEditBackdropEl) assetEditBackdropEl.addEventListener("click", function(ev){ if (ev.target === assetEditBackdropEl) closeAssetEditModal(); });
 
+  var assetEditConsumableEl = cloudEl("assetEditConsumable");
+  if (assetEditConsumableEl) assetEditConsumableEl.addEventListener("change", syncAssetEditStockField);
+
   var assetEditSaveBtnEl = cloudEl("assetEditSaveBtn");
   if (assetEditSaveBtnEl) assetEditSaveBtnEl.addEventListener("click", function(){
     var label = cloudEl("assetEditLabel").value.trim();
@@ -8458,6 +8587,8 @@
       model: cloudEl("assetEditModel").value.trim(),
       description: cloudEl("assetEditDescription").value.trim(),
       notes: cloudEl("assetEditNotes").value.trim(),
+      consumable: cloudEl("assetEditConsumable").checked,
+      stock_qty: cloudEl("assetEditConsumable").checked ? Math.max(0, Math.floor(Number(cloudEl("assetEditStock").value) || 0)) : 0,
       updated_by: cloud.clientId
     };
     assetEditSaveBtnEl.disabled = true;
@@ -8522,6 +8653,7 @@
         return '<div class="asset-history-row">' +
           '<div class="ahr-job">' + escHtml(jobName) + '</div>' +
           '<div class="ahr-line">Out ' + escHtml(outWhen) + (c.checked_out_by ? " by " + escHtml(c.checked_out_by) : "") + '</div>' +
+          (c.poc_name ? '<div class="ahr-line">Received by POC ' + escHtml(c.poc_name) + '</div>' : '') +
           '<div class="ahr-line">' + statusLine + '</div>' +
         '</div>';
       }).join("");
@@ -8580,6 +8712,10 @@
     }
     var name = "<strong>" + escHtml(asset.label || asset.barcode) + "</strong>";
     var open = auditOpenCheckoutFor(asset.id);
+    if (isConsumable(asset)){
+      showScanResult("bad", name + " is a consumable - pick it by quantity from Request or Assign, not by scan.", []);
+      return;
+    }
     if (assetScanMode === "out"){
       if (open){
         showScanResult("bad", name + " is already checked out to " + escHtml(auditJobNameById[open.job_id] || "another job") + ". Scan it in first.", []);
@@ -8787,6 +8923,7 @@
     cloudEl("assignVanSelect").value = "";
     applySlipPoc({});
     assetPickedIds = new Set();
+    assetPickQty = {};
     updateAssignAssetsCount();
     assignDriverMsg("");
   }
@@ -8831,6 +8968,15 @@
     var pocPhone = cloudEl("assignPocPhone").value.trim();
     var pocEmail = cloudEl("assignPocEmail").value.trim();
     var assetIds = Array.from(assetPickedIds);
+    // A consumable can't go out for more than is on the shelf right now.
+    var shortOnStock = assetIds.filter(function(aid){
+      var ca = assetsCache.filter(function(x){ return x.id === aid; })[0];
+      return isConsumable(ca) && assetQtyFor(aid) > consumableOnHand(ca, assetCheckoutsCache);
+    });
+    if (shortOnStock.length){
+      assignDriverMsg("Not enough in stock for " + shortOnStock.map(assetNameById).join(", ") + ". Lower the quantity, or update the stock count first.", "bad");
+      return;
+    }
     var items = selRows.map(function(r){
       return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber, notes: r.notes};
     });
@@ -8839,14 +8985,16 @@
     assignDriverBtnEl.disabled = true;
     assignDriverMsg("Assigning...");
     cloud.sb.from("eq_deliveries").insert({
-      id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds,
+      id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds, asset_qty: buildAssetQtyMap(assetIds),
       poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, van: van, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
       status: "assigned", updated_by: cloud.clientId
     }).then(function(r){
       if (r.error) throw r.error;
       if (!assetIds.length) return null;
       var checkoutRows = assetIds.map(function(aid){
-        return {id: cloudUuid(), asset_id: aid, job_id: cloud.jobId, delivery_id: deliveryId, checked_out_by: (cloud.user && cloud.user.email) || ""};
+        // poc_name: the person these assets are handed to - the POC on the
+        // assignment, not the staff member who made it (that's checked_out_by)
+        return {id: cloudUuid(), asset_id: aid, job_id: cloud.jobId, delivery_id: deliveryId, checked_out_by: (cloud.user && cloud.user.email) || "", poc_name: pocName, quantity: assetQtyFor(aid)};
       });
       return cloud.sb.from("eq_asset_checkouts").insert(checkoutRows);
     }).then(function(r){
@@ -8983,12 +9131,13 @@
     }).join("");
     return "<thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead><tbody>" + rows + "</tbody>";
   }
-  function assetItemsTableHtml(ids){
+  function assetItemsTableHtml(ids, qtyMap){
     var rows = (ids || []).map(function(id){
       var a = assetsCache.filter(function(x){ return x.id === id; })[0];
-      return "<tr><td>" + escHtml(a ? a.label : "Unknown asset") + "</td><td>" + escHtml(a ? a.category : "") + "</td></tr>";
+      var q = (qtyMap && qtyMap[id]) || 1;
+      return "<tr><td>" + escHtml(a ? a.label : "Unknown asset") + "</td><td>" + escHtml(a ? a.category : "") + "</td><td>" + escHtml(String(q)) + "</td></tr>";
     }).join("");
-    return "<thead><tr><th>Asset</th><th>Category</th></tr></thead><tbody>" + rows + "</tbody>";
+    return "<thead><tr><th>Asset</th><th>Category</th><th>Qty</th></tr></thead><tbody>" + rows + "</tbody>";
   }
   function deliverySignMsg(text, kind){
     var m = cloudEl("deliverySignMsg");
@@ -9021,10 +9170,12 @@
     cloudEl("assetSlipSection").hidden = !hasAssets;
     var assetSigned = hasAssets && !!delivery.asset_signed_at;
     if (hasAssets){
-      cloudEl("deliverySignAssetsTable").innerHTML = assetItemsTableHtml(delivery.asset_ids);
+      cloudEl("deliverySignAssetsTable").innerHTML = assetItemsTableHtml(delivery.asset_ids, delivery.asset_qty);
       cloudEl("deliverySignAssetDone").hidden = !assetSigned;
       cloudEl("deliverySignAssetFields").hidden = assetSigned;
-      cloudEl("assetSignerName").value = "";
+      // The POC is who the assets are handed to, so they're the default signer
+      // on the asset slip - the driver can still type someone else over it.
+      cloudEl("assetSignerName").value = delivery.poc_name || "";
     }
 
     deliverySignMsg("");
