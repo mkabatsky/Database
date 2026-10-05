@@ -611,6 +611,8 @@
   .find-msg.bad{color:var(--danger);font-weight:600;}
   .job-new{display:flex;gap:8px;flex-wrap:wrap;flex:none;}
   .job-new input{flex:1;min-width:150px;border:1px solid var(--border);border-radius:8px;padding:9px 12px;background:var(--bg);color:var(--ink);font:inherit;font-size:16px;}
+  .job-list-head{display:flex;justify-content:flex-end;flex:none;}
+  .job-list-head button{padding:7px 12px;font-size:13px;}
   .job-list{display:flex;flex-direction:column;flex:1 1 auto;min-height:60px;overflow:auto;}
   .job-row{display:flex;gap:10px;align-items:center;padding:10px 4px;border-bottom:1px solid var(--border);}
   .job-row .nm{flex:1;min-width:0;cursor:pointer;}
@@ -944,6 +946,7 @@
   .asset-audit-cols-menu[hidden]{display:none;}
   .asset-audit-col-option{display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap;cursor:pointer;}
   /* full screen: the window fills the screen and the table takes the rest of it */
+  #assetAuditBackdrop.asset-audit-fullscreen, #assetsBackdrop.assets-fullscreen{padding:0;align-items:stretch;}
   #assetAuditBackdrop.asset-audit-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
   #assetAuditBackdrop.asset-audit-fullscreen .asset-audit-table-wrap{max-height:calc(100vh - 230px);}
   /* the Select assets picker opens in front of whatever window opened it (e.g. Edit delivery request) */
@@ -1876,6 +1879,9 @@
     <div class="job-new">
       <input id="cloudNewName" type="text" placeholder="New job name" autocomplete="off" maxlength="120">
       <button class="primary" id="cloudNewBtn" type="button">Create job</button>
+    </div>
+    <div class="job-list-head">
+      <button id="cloudShowArchivedBtn" type="button">Show archived jobs</button>
     </div>
     <div class="job-list" id="cloudJobList"></div>
     <div class="job-msg" id="cloudJobMsg" aria-live="polite"></div>
@@ -6235,7 +6241,13 @@
     if (isNaN(d)) return "";
     return "Updated " + d.toLocaleDateString(undefined, {month: "short", day: "numeric"}) + " " + d.toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"});
   }
+  var showArchivedJobs = false; // which half of the Jobs list is showing right now
+  // "archived" comes from add-job-archived-column.sql - until that has been
+  // run there is nothing to archive with, so the buttons stay hidden
+  var jobsCanArchive = false;
   function showJobs(message){
+    showArchivedJobs = false;
+    cloudEl("cloudShowArchivedBtn").textContent = "Show archived jobs";
     cloudEl("cloudJobsBackdrop").hidden = false;
     cloudEl("cloudUploadBtn").hidden = !(cloud.localPayload && cloud.localPayload.rows && cloud.localPayload.rows.length);
     cloudEl("cloudFindInput").value = "";
@@ -6310,9 +6322,12 @@
   function renderJobList(){
     var list = cloudEl("cloudJobList");
     list.textContent = "Loading...";
-    return cloud.sb.from("eq_jobs").select("id,name,meta,updated_at").eq("deleted", false).order("updated_at", {ascending: false}).then(function(r){
+    return cloud.sb.from("eq_jobs").select("*").eq("deleted", false).order("updated_at", {ascending: false}).then(function(r){
       if (r.error) throw r.error;
-      drawJobs(r.data || []);
+      var jobs = r.data || [];
+      jobsCanArchive = !jobs.length || ("archived" in jobs[0]);
+      cloudEl("cloudShowArchivedBtn").hidden = !jobsCanArchive;
+      drawJobs(jobs.filter(function(j){ return !!j.archived === showArchivedJobs; }));
     }).catch(function(){
       // offline: show the jobs saved on this device
       var jobs = [];
@@ -6334,7 +6349,8 @@
     if (!jobs.length){
       var empty = document.createElement("div");
       empty.className = "job-msg";
-      empty.textContent = offline ? "You're offline and no jobs are saved on this device." : "No jobs yet.";
+      empty.textContent = offline ? "You're offline and no jobs are saved on this device."
+        : (showArchivedJobs ? "No archived jobs." : "No jobs yet.");
       list.appendChild(empty);
       return;
     }
@@ -6357,6 +6373,17 @@
       open.addEventListener("click", function(){ openJob(j); });
       row.appendChild(nm); row.appendChild(open);
       if (!offline){
+        if (jobsCanArchive){
+          var archiveBtn = document.createElement("button");
+          archiveBtn.type = "button"; archiveBtn.textContent = j.archived ? "Unarchive" : "Archive";
+          archiveBtn.addEventListener("click", function(){
+            cloud.sb.from("eq_jobs").update({archived: !j.archived, updated_by: cloud.clientId}).eq("id", j.id).then(function(r){
+              if (r.error){ jobMsg("Couldn't " + (j.archived ? "unarchive" : "archive") + ": " + r.error.message, true); return; }
+              renderJobList();
+            });
+          });
+          row.appendChild(archiveBtn);
+        }
         var del = document.createElement("button");
         del.type = "button"; del.textContent = "Delete";
         del.addEventListener("click", function(){
@@ -6404,6 +6431,11 @@
     newName.addEventListener("keydown", function(ev){ if (ev.key === "Enter"){ ev.preventDefault(); cloudEl("cloudNewBtn").click(); } });
     cloudEl("cloudJobsClose").addEventListener("click", function(){ cloudEl("cloudJobsBackdrop").hidden = true; });
     cloudEl("cloudJobsBtn").addEventListener("click", function(){ showJobs(""); });
+    cloudEl("cloudShowArchivedBtn").addEventListener("click", function(ev){
+      showArchivedJobs = !showArchivedJobs;
+      ev.target.textContent = showArchivedJobs ? "Show active jobs" : "Show archived jobs";
+      renderJobList();
+    });
     var findInput = cloudEl("cloudFindInput");
     cloudEl("cloudFindBtn").addEventListener("click", crossJobSearch);
     findInput.addEventListener("keydown", function(ev){ if (ev.key === "Enter"){ ev.preventDefault(); crossJobSearch(); } });
@@ -7965,7 +7997,7 @@
   // Dashboard and the read-only Dashboard-view account's full-screen copy.
   function fetchDashboardData(){
     return Promise.all([
-      cloud.sb.from("eq_jobs").select("id,name,meta").eq("deleted", false),
+      cloud.sb.from("eq_jobs").select("*").eq("deleted", false),
       cloud.sb.from("eq_rows").select("job_id,data").eq("deleted", false),
       cloud.sb.from("eq_delivery_requests").select("job_id").eq("status", "submitted"),
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("status", "assigned")
@@ -8009,7 +8041,9 @@
       return extraAssets.then(function(er){
         if (er && er.data) er.data.forEach(function(a){ assetsById[a.id] = a; });
         return {
-          jobs: jobs, rowsByJob: rowsByJob, openReqByJob: openReqByJob,
+          // archived jobs drop off the Projects cards; their deliveries and
+          // deployed assets (named from the full list above) still show
+          jobs: jobs.filter(function(j){ return !j.archived; }), rowsByJob: rowsByJob, openReqByJob: openReqByJob,
           deliveries: deliveriesRes && deliveriesRes.data || [], driverEmailById: driverEmailById,
           assetsById: assetsById, jobNameById: jobNameById, openCheckouts: openCheckouts
         };
@@ -8260,14 +8294,54 @@
   function closeJobsDashboardModal(){
     cloudEl("jobsDashboardBackdrop").hidden = true;
     stopJdLive();
+    setModalFullscreen("jobsDashboardBackdrop", "jd-fullscreen", false);
   }
+
+  // Full screen for the windows that have the button (Jobs Dashboard, Assets,
+  // Select assets): the browser's own full-screen mode, like Install
+  // Tracker's dashboard, so the window covers the whole screen and not just
+  // the browser tab. Where the browser won't allow it the window still
+  // fills the tab (class only, same look). The page itself goes full screen
+  // rather than the one window, so anything opened on top of it still shows.
+  var FULLSCREEN_MODALS = [
+    ["jobsDashboardBackdrop", "jd-fullscreen"],
+    ["assetAuditBackdrop", "asset-audit-fullscreen"],
+    ["assetsBackdrop", "assets-fullscreen"]
+  ];
+  function setModalFullscreen(backdropId, cls, on){
+    var backdrop = cloudEl(backdropId);
+    if (!backdrop) return;
+    backdrop.classList.toggle(cls, on);
+    if (on){
+      var root = document.documentElement;
+      if (!document.fullscreenElement && root.requestFullscreen) root.requestFullscreen().catch(function(){});
+      return;
+    }
+    // leave the browser's full screen once no open window still wants it
+    var stillWanted = FULLSCREEN_MODALS.some(function(m){
+      var bd = cloudEl(m[0]);
+      return bd && !bd.hidden && bd.classList.contains(m[1]);
+    });
+    if (!stillWanted && document.fullscreenElement) document.exitFullscreen().catch(function(){});
+  }
+  function toggleModalFullscreen(backdropId, cls){
+    var backdrop = cloudEl(backdropId);
+    if (backdrop) setModalFullscreen(backdropId, cls, !backdrop.classList.contains(cls));
+  }
+  // Esc left the browser's full screen: put the windows back to normal size too
+  document.addEventListener("fullscreenchange", function(){
+    if (document.fullscreenElement) return;
+    FULLSCREEN_MODALS.forEach(function(m){
+      var bd = cloudEl(m[0]);
+      if (bd) bd.classList.remove(m[1]);
+    });
+  });
 
   // Full-screen toggle (staff) - the dashboard-view account (below) always
   // renders full-screen by default, no toggle needed there.
   var jobsDashboardFullscreenBtnEl = cloudEl("jobsDashboardFullscreenBtn");
   if (jobsDashboardFullscreenBtnEl) jobsDashboardFullscreenBtnEl.addEventListener("click", function(){
-    var backdrop = cloudEl("jobsDashboardBackdrop");
-    if (backdrop) backdrop.classList.toggle("jd-fullscreen");
+    toggleModalFullscreen("jobsDashboardBackdrop", "jd-fullscreen");
   });
 
   // Sort controls - the staff dashboard and the read-only dashboard-view
@@ -8763,7 +8837,10 @@
     cloudEl("assetsBackdrop").hidden = false;
     loadAssets();
   }
-  function closeAssetsModal(){ cloudEl("assetsBackdrop").hidden = true; }
+  function closeAssetsModal(){
+    cloudEl("assetsBackdrop").hidden = true;
+    setModalFullscreen("assetsBackdrop", "assets-fullscreen", false);
+  }
 
   var assetsBtnEl = cloudEl("assetsBtn");
   if (assetsBtnEl) assetsBtnEl.addEventListener("click", openAssetAuditModal);
@@ -8774,7 +8851,7 @@
   // Full screen and sliding for the picker, same as the Assets page.
   var assetsFullscreenBtnEl = cloudEl("assetsFullscreenBtn");
   if (assetsFullscreenBtnEl) assetsFullscreenBtnEl.addEventListener("click", function(){
-    cloudEl("assetsBackdrop").classList.toggle("assets-fullscreen");
+    toggleModalFullscreen("assetsBackdrop", "assets-fullscreen");
   });
   function slideAssetsList(dir){
     var list = cloudEl("assetsList");
@@ -9034,7 +9111,10 @@
     auditCategoryFilter = "";
     loadAssetAudit();
   }
-  function closeAssetAuditModal(){ cloudEl("assetAuditBackdrop").hidden = true; }
+  function closeAssetAuditModal(){
+    cloudEl("assetAuditBackdrop").hidden = true;
+    setModalFullscreen("assetAuditBackdrop", "asset-audit-fullscreen", false);
+  }
 
   var assetAuditCloseBtnEl = cloudEl("assetAuditCloseBtn");
   if (assetAuditCloseBtnEl) assetAuditCloseBtnEl.addEventListener("click", closeAssetAuditModal);
@@ -9236,7 +9316,7 @@
   // Full screen for the Assets window (same toggle as the Jobs Dashboard).
   var assetAuditFullscreenBtnEl = cloudEl("assetAuditFullscreenBtn");
   if (assetAuditFullscreenBtnEl) assetAuditFullscreenBtnEl.addEventListener("click", function(){
-    cloudEl("assetAuditBackdrop").classList.toggle("asset-audit-fullscreen");
+    toggleModalFullscreen("assetAuditBackdrop", "asset-audit-fullscreen");
   });
   // Slide the table sideways, the way the database's own table does.
   function slideAssetAuditTable(dir){
