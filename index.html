@@ -644,6 +644,7 @@
   body.role-viewer #manageUsersBtn, body.role-tech #manageUsersBtn,
   body.role-viewer #pendingDeliveriesBtn, body.role-tech #pendingDeliveriesBtn,
   body.role-viewer #transferBtn, body.role-tech #transferBtn,
+  body.role-viewer #returnStockBtn, body.role-tech #returnStockBtn,
   body.role-viewer #scanBtn, body.role-tech #scanBtn,
   body.role-viewer #saveBtn, body.role-tech #saveBtn,
   body.role-viewer #saveAsBtn, body.role-tech #saveAsBtn,
@@ -1157,6 +1158,10 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7h11M11 3l4 4-4 4"></path><path d="M20 17H9m4 4-4-4 4-4"></path></svg>
             Transfer
           </button>
+          <button id="returnStockBtn" class="mob-hide" title="Return the checked shipped items to warehouse stock: clears Date Shipped and Qty Sent, and emails the warehouse (staff only)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+            Return to stock
+          </button>
         </div>
         <button id="copyRowsBtn" class="mob-hide" title="Copy the checked rows (everything except BarCode, Date Received and Date Shipped, so pasted copies get their own barcode and dates later)">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path></svg>
@@ -1166,6 +1171,14 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="4" width="10" height="4" rx="1"></rect><path d="M8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"></path><path d="M15 12h6m-3-3 3 3-3 3"></path></svg>
           Paste
         </button>
+        <select id="pasteCountSel" class="mob-hide" title="How many copies of each copied row to paste">
+          <option value="1">1×</option>
+          <option value="5">5×</option>
+          <option value="10">10×</option>
+          <option value="20">20×</option>
+          <option value="50">50×</option>
+          <option value="100">100×</option>
+        </select>
         <button id="columnsBtn" class="mob-hide">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
           Columns
@@ -2092,6 +2105,7 @@
     toolbarCard: document.getElementById("toolbarCard"),
     copyRowsBtn: document.getElementById("copyRowsBtn"),
     pasteRowsBtn: document.getElementById("pasteRowsBtn"),
+    pasteCountSel: document.getElementById("pasteCountSel"),
     searchFilesBtn: document.getElementById("searchFilesBtn"),
     searchFilesBackdrop: document.getElementById("searchFilesBackdrop"),
     searchFilesCloseBtn: document.getElementById("searchFilesCloseBtn"),
@@ -3983,18 +3997,21 @@
   });
   el.pasteRowsBtn.addEventListener("click", function(){
     if (!rowClipboard.length) return;
+    // the chosen count = how many copies of each copied row to paste (1 copied row x 10 = 10 new rows)
+    var copies = parseInt(el.pasteCountSel.value, 10) || 1;
     var newIds = [];
-    rowClipboard.forEach(function(copy){
-      var data = blankRowData();
-      COLS.forEach(function(c){ data[c.key] = copy[c.key]; });
-      var id = nextId();
-      rows.set(id, data);
-      order.push(id);
-      newIds.push(id);
-    });
+    for (var n = 0; n < copies; n++){
+      rowClipboard.forEach(function(copy){
+        var data = blankRowData();
+        COLS.forEach(function(c){ data[c.key] = copy[c.key]; });
+        var id = nextId();
+        rows.set(id, data);
+        order.push(id);
+        newIds.push(id);
+      });
+    }
     persist();
-    sortKey = null; updateSortIndicators();
-    searchTerm = ""; el.searchInput.value = "";
+    // the search and sort stay as they are, so pasting keeps you in the view you were filtering
     renderRows();
     showSnackbar("Pasted " + newIds.length + " row" + (newIds.length === 1 ? "" : "s") + " — add a BarCode and Date Received for each (or use Labels to generate a barcode)");
   });
@@ -8444,6 +8461,42 @@
     });
   }
 
+  // ---------- return to stock (staff only) ----------
+  // Checked shipped rows go back into warehouse stock: Date Shipped and Qty Sent
+  // are cleared (Qty Remaining = the full quantity again). The rows save like any
+  // other edit, and the warehouse gets one email listing what came back.
+  function returnRowsToStock(){
+    if (cloud.role && cloud.role !== "staff"){ showSnackbar("Only staff can return items to stock."); return; }
+    var ids = getVisibleIds().filter(function(id){ return selectedIds.has(id); });
+    if (!ids.length){ showSnackbar("Check the shipped items you want to return to stock first."); return; }
+    var shipped = ids.filter(function(id){ var r = rows.get(id); return r && String(r.dateShipped || "").trim(); });
+    if (!shipped.length){ showSnackbar("None of the checked items are shipped, so there's nothing to return to stock."); return; }
+    var n = shipped.length;
+    if (!confirm("Return " + n + " item" + (n === 1 ? "" : "s") + " to stock?\n\nTheir Date Shipped is cleared and the full quantity goes back into stock. The warehouse gets an email.")) return;
+    var emailItems = shipped.map(function(id){
+      var r = rows.get(id);
+      var prevShip = r.dateShipped;
+      r.dateShipped = "";
+      r.qtySent = 0;
+      r.qtyRemaining = rowTotal(r);
+      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, qty: rowTotal(r), serialNumber: r.serialNumber, previousShipDate: prevShip};
+    });
+    persist();
+    renderRows();
+    invokeFn("notify-return-to-stock", {jobId: cloud.jobId, items: emailItems}).then(function(res){
+      if (res.error) return res.error.message;
+      var data = res.data || {};
+      return data.error || "";
+    }).catch(function(e){
+      return e && e.message ? e.message : String(e);
+    }).then(function(emailErr){
+      if (emailErr) showSnackbar("Returned " + n + " to stock, but the email didn't send: " + emailErr);
+      else showSnackbar("Returned " + n + " item" + (n === 1 ? "" : "s") + " to stock. The warehouse has been emailed.");
+    });
+  }
+  var returnStockBtnEl = cloudEl("returnStockBtn");
+  if (returnStockBtnEl) returnStockBtnEl.addEventListener("click", returnRowsToStock);
+
   var jobsDashboardBtnEl = cloudEl("jobsDashboardBtn");
   if (jobsDashboardBtnEl) jobsDashboardBtnEl.addEventListener("click", openJobsDashboardModal);
   var jobsDashboardCloseBtnEl = cloudEl("jobsDashboardCloseBtn");
@@ -9699,6 +9752,15 @@
       // assets are already checked out, so this delivery can't be assigned
       // again from here; a new slip (Create delivery slip) starts clean.
       assignSavedDeliveryId = deliveryId;
+      // The request this slip came from is now a scheduled delivery, so it comes
+      // off Pending (the delivery itself shows under Scheduled).
+      if (activeDeliveryRequestId){
+        var assignedRequestId = activeDeliveryRequestId;
+        activeDeliveryRequestId = null;
+        cloud.sb.from("eq_delivery_requests").update({status: "fulfilled"}).eq("id", assignedRequestId).then(function(){
+          requestedBarcodesJobId = null; refreshRequestedBarcodesIfNeeded();
+        });
+      }
       loadDriversForAssign().then(function(){ cloudEl("assignDriverSelect").value = driverId; });
       var assetNames = assetIds.map(function(id){
         var q = assetQtyFor(id);
