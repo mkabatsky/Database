@@ -956,6 +956,7 @@
   #assetsBackdrop.assets-fullscreen .modal-panel{width:100%;max-width:none;height:100%;max-height:none;border-radius:0;margin:0;}
   #assetsList{overflow:auto;max-height:52vh;border:1px solid var(--border);border-radius:8px;}
   #assetsBackdrop.assets-fullscreen #assetsList{max-height:calc(100vh - 300px);}
+  .asset-more-note{text-align:center;color:var(--ink-muted);font-size:13px;padding:14px 10px !important;white-space:normal !important;}
   .assets-pick-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:13px;}
   .assets-pick-table th, .assets-pick-table td{padding:7px 9px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
   .assets-pick-table th{position:sticky;top:0;background:var(--surface-alt);z-index:1;}
@@ -8050,8 +8051,8 @@
       invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
       // no "deleted" filter here: this is only a name lookup, and an asset that
       // was deleted while still out would otherwise show up with no name
-      fetchAllRows(function(){ return cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model,description").order("id", {ascending: true}); }),
-      fetchAllRows(function(){ return cloud.sb.from("eq_asset_checkouts").select("*").order("id", {ascending: true}); })
+      Promise.resolve({data: [], error: null}),
+      fetchAllRows(function(){ return cloud.sb.from("eq_asset_checkouts").select("*").is("returned_at", null).order("id", {ascending: true}); })
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
           usersRes = results[4], assetsRes = results[5], checkoutsRes = results[6];
@@ -8833,6 +8834,12 @@
       .concat(visible.filter(function(a){ return !assetPickedAtOpen.has(a.id); }));
     if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
+    var pickTotal = visible.length, pickedNowSet = activeAssetPickedIds();
+    if (visible.length > ASSET_ROWS_SHOWN){
+      visible = visible.filter(function(a, i){ return i < ASSET_ROWS_SHOWN || pickedNowSet.has(a.id); });
+    }
+    var pickMoreNote = pickTotal > visible.length
+      ? '<tr><td colspan="10" class="asset-more-note">Showing ' + visible.length + ' of ' + pickTotal + ' assets. Type in the search box to find the one you need.</td></tr>' : "";
     // A table, like the Assets page, so the columns can slide sideways and the
     // window can go full screen with every column in view.
     var pickHeaders = ["Pick", "Label", "Category", "BarCode", "Make", "Model", "Description", "Status", "Job / received by", ""];
@@ -8872,7 +8879,7 @@
         '<td>' + jobCell + '</td>' +
         '<td>' + returnBtn + '</td>' +
       '</tr>';
-    }).join("") + '</tbody></table>';
+    }).join("") + pickMoreNote + '</tbody></table>';
     updateSortArrows(list.querySelector(".assets-pick-table"), pickSort);
   }
   // Picker-only now - the top bar's "Assets" button opens the fuller Asset
@@ -9125,12 +9132,20 @@
     var s = String(v == null ? "" : v);
     return '<span title="' + escHtml(s) + '">' + escHtml(s) + '</span>';
   }
+  var ASSET_ROWS_SHOWN = 300; // rows drawn at once on the Assets page and in the asset picker
   function renderAssetAuditTable(){
     var body = cloudEl("assetAuditBody");
     if (!auditAssetsCache.length){ body.innerHTML = ""; assetAuditMsg("No assets yet."); return; }
     var visible = sortAssetList(auditAssetsCache.filter(assetAuditMatchesFilters), auditSort, auditSortValue);
     if (!visible.length){ body.innerHTML = ""; assetAuditMsg("No assets match your search/filters."); return; }
     assetAuditMsg("");
+    // Drawing every row of a very long list is what makes the page crawl.
+    // Search / filters / sorting still work on the WHOLE list - this only
+    // limits how many rows are drawn at once.
+    var totalMatching = visible.length;
+    if (visible.length > ASSET_ROWS_SHOWN) visible = visible.slice(0, ASSET_ROWS_SHOWN);
+    var moreNote = totalMatching > visible.length
+      ? '<tr><td colspan="9" class="asset-more-note">Showing the first ' + visible.length + ' of ' + totalMatching + ' assets. Type in the search box or pick a category to narrow the list.</td></tr>' : "";
     body.innerHTML = visible.map(function(a){
       var checkout = auditOpenCheckoutFor(a.id);
       var out = !!checkout;
@@ -9158,7 +9173,7 @@
           '<button type="button" data-audit-history="' + a.id + '">History</button>' +
         '</td>' +
       '</tr>';
-    }).join("");
+    }).join("") + moreNote;
   }
   function openAssetAuditModal(){
     cloudEl("assetAuditBackdrop").hidden = false;
