@@ -9519,10 +9519,10 @@
   // ---------- download/upload spreadsheet ----------
   var ASSET_COL_LABEL_TO_KEY = {
     "label": "label", "asset": "label", "name": "label", "asset label": "label",
-    "asset name": "label", "item": "label", "item name": "label", "equipment": "label", "equipment name": "label", "asset tag": "label",
+    "asset name": "label", "item": "label", "item name": "label", "equipment": "label", "equipment name": "label",
     "category": "category",
-    "barcode": "barcode", "bar code": "barcode",
-    "make": "manufacturer", "manufacturer": "manufacturer",
+    "barcode": "barcode", "bar code": "barcode", "asset tag": "barcode", "asset tag id": "barcode", "tag": "barcode",
+    "make": "manufacturer", "manufacturer": "manufacturer", "brand": "manufacturer",
     "model": "model",
     "description": "description",
     "notes": "notes"
@@ -9704,6 +9704,8 @@
         Object.keys(colMap).forEach(function(idx){
           fields[colMap[idx]] = String(cells[idx] === undefined || cells[idx] === null ? "" : cells[idx]).trim();
         });
+        // no Label column (or a blank one): the Description is the name
+        if (!fields.label && fields.description) fields.label = fields.description;
         if (!fields.label) continue;
         var bc = (fields.barcode || "").trim().toLowerCase();
         var existing = bc ? byBarcode[bc] : null;
@@ -9729,6 +9731,16 @@
           ? "No rows had a value in the Label column. Fill in Label for each asset and try again."
           : "No Label column found. Name the column with the asset names Label (or Asset, Asset Name, Item, or Equipment). Headers read: " + headersFound + ".", "bad");
         return;
+      }
+      if (inserts.length){
+        var noCode = inserts.filter(function(f){ return !(f.barcode || "").trim(); }).length;
+        var sample = inserts.slice(0, 5).map(function(f){ return "  • " + f.label + (f.barcode ? " (" + f.barcode + ")" : ""); }).join("\n");
+        var ask = "This file will ADD " + inserts.length + " new asset" + (inserts.length === 1 ? "" : "s") + " to the " + auditAssetsCache.length + " already in the database" +
+          (updates.length ? ", and update " + updates.length : "") + (unchanged ? " (" + unchanged + " are already there and unchanged)" : "") + ".\n\nNew ones include:\n" + sample +
+          (inserts.length > 5 ? "\n  …and " + (inserts.length - 5) + " more" : "") +
+          (noCode ? "\n\n" + noCode + " of the new ones have no BarCode. Assets are matched by BarCode, so give each one a BarCode if you can." : "") +
+          "\n\nAdd them?";
+        if (!confirm(ask)){ assetAuditMsg("Nothing was imported."); return; }
       }
       assetAuditMsg("Importing " + inserts.length + " new and " + updates.length + " updated...");
       // New assets go in chunks of 200 rows, one after another, and the
