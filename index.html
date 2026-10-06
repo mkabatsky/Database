@@ -2766,7 +2766,8 @@
     el.packingSlipBtn.textContent = "";
     var psSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"></path><rect x="3" y="8" width="18" height="13" rx="2"></rect><path d="M9 12h6M9 16h6"></path></svg>';
     el.packingSlipBtn.innerHTML = psSvg + (selectedIds.size ? " Create Delivery Slip (" + selectedIds.size + ")" : " Create Delivery Slip");
-    el.packingSlipBtn.disabled = selectedIds.size === 0;
+    // with a job open the slip can also be assets only, so the button stays available
+    el.packingSlipBtn.disabled = selectedIds.size === 0 && !(typeof cloud !== "undefined" && cloud && cloud.jobId);
 
     el.copyRowsBtn.textContent = "";
     var copySvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path></svg>';
@@ -3530,7 +3531,7 @@
       return;
     }
     if (!selRows.length){
-      el.packingSlipPreview.innerHTML = '<div class="no-selection-note">Select one or more rows in the table (checkbox in the # column), then reopen Create Delivery Slip.</div>';
+      el.packingSlipPreview.innerHTML = '<div class="no-selection-note">Nothing is on this slip yet.<br><b>To send assets only:</b> click <b>Assets</b> below, tick what\'s going, then <b>Use selected</b>.<br><b>To send equipment:</b> close this, tick rows in the table (checkbox in the # column), then reopen Create Delivery Slip.</div>';
       el.packingSlipSub.textContent = "No items selected yet.";
       el.packingSlipPrintBtn.disabled = true;
       el.packingSlipSignableBtn.disabled = true;
@@ -8023,18 +8024,34 @@
   // than one query per job - keeps this to a small fixed number of
   // requests regardless of how many jobs exist. Shared by the staff Jobs
   // Dashboard and the read-only Dashboard-view account's full-screen copy.
+  // The database hands back at most 1000 rows per request. Anything that
+  // lists assets (or every job's items) has to ask page by page, or whatever
+  // is past row 1000 simply never shows up - new assets looked like they
+  // hadn't been added. build() must return a fresh query with a fixed order.
+  // Resolves like a normal query: {data: [...]} or {error: ...}.
+  function fetchAllRows(build){
+    var all = [], PAGE = 1000;
+    function next(from){
+      return build().range(from, from + PAGE - 1).then(function(r){
+        if (r.error) return {data: null, error: r.error};
+        all = all.concat(r.data || []);
+        return (r.data && r.data.length === PAGE) ? next(from + PAGE) : {data: all, error: null};
+      });
+    }
+    return next(0);
+  }
   function fetchDashboardData(){
     return Promise.all([
       cloud.sb.from("eq_jobs").select("*").eq("deleted", false),
-      cloud.sb.from("eq_rows").select("job_id,data").eq("deleted", false),
+      fetchAllRows(function(){ return cloud.sb.from("eq_rows").select("job_id,data").eq("deleted", false).order("id", {ascending: true}); }),
       cloud.sb.from("eq_delivery_requests").select("job_id").eq("status", "submitted"),
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("status", "assigned")
         .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
       invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
       // no "deleted" filter here: this is only a name lookup, and an asset that
       // was deleted while still out would otherwise show up with no name
-      cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model,description"),
-      cloud.sb.from("eq_asset_checkouts").select("*")
+      fetchAllRows(function(){ return cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model,description").order("id", {ascending: true}); }),
+      fetchAllRows(function(){ return cloud.sb.from("eq_asset_checkouts").select("*").order("id", {ascending: true}); })
     ]).then(function(results){
       var jobsRes = results[0], rowsRes = results[1], reqsRes = results[2], deliveriesRes = results[3],
           usersRes = results[4], assetsRes = results[5], checkoutsRes = results[6];
@@ -8758,8 +8775,8 @@
     var list = cloudEl("assetsList");
     list.textContent = "Loading...";
     return Promise.all([
-      cloud.sb.from("eq_assets").select("*").eq("deleted", false).order("label"),
-      cloud.sb.from("eq_asset_checkouts").select("*")
+      fetchAllRows(function(){ return cloud.sb.from("eq_assets").select("*").eq("deleted", false).order("label", {ascending: true}).order("id", {ascending: true}); }),
+      fetchAllRows(function(){ return cloud.sb.from("eq_asset_checkouts").select("*").order("id", {ascending: true}); })
     ]).then(function(results){
       var assetsRes = results[0], checkoutsRes = results[1];
       if (assetsRes.error){ assetsMsg("Couldn't load: " + assetsRes.error.message, "bad"); list.textContent = ""; return; }
@@ -9061,8 +9078,8 @@
     body.innerHTML = '<tr><td colspan="9">Loading...</td></tr>';
     assetAuditMsg("");
     return Promise.all([
-      cloud.sb.from("eq_assets").select("*").eq("deleted", false).order("label"),
-      cloud.sb.from("eq_asset_checkouts").select("*")
+      fetchAllRows(function(){ return cloud.sb.from("eq_assets").select("*").eq("deleted", false).order("label", {ascending: true}).order("id", {ascending: true}); }),
+      fetchAllRows(function(){ return cloud.sb.from("eq_asset_checkouts").select("*").order("id", {ascending: true}); })
     ]).then(function(results){
       var assetsRes = results[0], checkoutsRes = results[1];
       if (assetsRes.error){ assetAuditMsg("Couldn't load: " + assetsRes.error.message, "bad"); body.innerHTML = ""; return; }
@@ -9667,6 +9684,18 @@
         var bc = (a.barcode || "").trim().toLowerCase();
         if (bc && !byBarcode[bc]) byBarcode[bc] = a;
       });
+      // An asset with no barcode is recognised by what it is (label, category,
+      // make, model, description) - otherwise every upload of the same sheet
+      // added all the barcode-less assets again as duplicates.
+      var contentKey = function(a){
+        return ["label", "category", "manufacturer", "model", "description"].map(function(k){ return String(a[k] || "").replace(/\s+/g, " ").trim().toLowerCase(); }).join("|");
+      };
+      var byContent = {};
+      auditAssetsCache.forEach(function(a){
+        if ((a.barcode || "").trim()) return;
+        (byContent[contentKey(a)] = byContent[contentKey(a)] || []).push(a);
+      });
+      var unchanged = 0;
       var inserts = [], updates = [];
       for (var rr = headerRowIdx + 1; rr < aoa.length; rr++){
         var cells = aoa[rr] || [];
@@ -9678,8 +9707,19 @@
         if (!fields.label) continue;
         var bc = (fields.barcode || "").trim().toLowerCase();
         var existing = bc ? byBarcode[bc] : null;
-        if (existing){ updates.push(Object.assign({id: existing.id}, fields)); }
+        if (!existing && !bc){
+          var same = byContent[contentKey(fields)];
+          if (same && same.length) existing = same.shift();   // each existing one is matched once, so real duplicates in the sheet still count
+        }
+        if (existing){
+          var differs = Object.keys(fields).some(function(k){ return String(existing[k] == null ? "" : existing[k]).trim() !== fields[k]; });
+          if (differs) updates.push(Object.assign({id: existing.id}, fields)); else unchanged++;
+        }
         else { inserts.push(Object.assign({id: cloudUuid()}, fields)); }
+      }
+      if (!inserts.length && !updates.length && unchanged){
+        assetAuditMsg("Nothing to import: all " + unchanged + " asset" + (unchanged === 1 ? "" : "s") + " in the file are already in the database and unchanged.", "good");
+        return;
       }
       if (!inserts.length && !updates.length){
         // say which of the two it is, and what the file's headers were
@@ -9708,7 +9748,8 @@
         });
       }, Promise.resolve());
       var updateErrors = [];
-      var updateChain = Promise.all(updates.map(function(f){
+      // ten at a time, so a long sheet doesn't fire hundreds of requests at once
+      var updateOne = function(f){
         var id = f.id;
         var fieldsOnly = Object.assign({}, f);
         delete fieldsOnly.id;
@@ -9716,12 +9757,17 @@
         return cloud.sb.from("eq_assets").update(fieldsOnly).eq("id", id).then(function(r){
           if (r.error) updateErrors.push(r.error.message);
         });
-      }));
+      };
+      var updateChain = Promise.resolve();
+      for (var ui = 0; ui < updates.length; ui += 10){
+        (function(batch){ updateChain = updateChain.then(function(){ return Promise.all(batch.map(updateOne)); }); })(updates.slice(ui, ui + 10));
+      }
       Promise.all([insertChain, updateChain]).then(function(){
         // loadAssetAudit() clears the message when it (re)loads, so the
         // summary has to be shown AFTER that reload finishes, not before.
         return loadAssetAudit().then(function(){
           var msg = "Imported " + insertedOk + " of " + inserts.length + " new asset" + (inserts.length === 1 ? "" : "s") + ", updated " + (updates.length - updateErrors.length) + ".";
+          if (unchanged) msg += " " + unchanged + " already there and unchanged.";
           msg += " Assets in the database now: " + auditAssetsCache.length + ".";
           if (insertError) msg += " Stopped at an error: " + insertError + ".";
           if (updateErrors.length) msg += " " + updateErrors.length + " update(s) failed: " + updateErrors[0] + ".";
@@ -9794,7 +9840,10 @@
 
   var packingSlipBtnForAssignEl = cloudEl("packingSlipBtn");
   if (packingSlipBtnForAssignEl) packingSlipBtnForAssignEl.addEventListener("click", function(){
+    activeDeliveryRequestId = null; // a slip started from the toolbar isn't any request's slip
     resetAssignDriverFields();
+    renderPackingSlipPreview();     // the assets were just cleared - redraw without them
+    loadAssets();                   // names ready for when assets are picked
     loadDriversForAssign();
   });
 
@@ -9930,7 +9979,7 @@
     return Promise.all([
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("driver_id", cloud.user.id).eq("status", "assigned")
         .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
-      cloud.sb.from("eq_assets").select("id,label,category,description")
+      fetchAllRows(function(){ return cloud.sb.from("eq_assets").select("id,label,category,description").order("id", {ascending: true}); })
     ]).then(function(results){
       var delRes = results[0], assetsRes = results[1];
       if (delRes.error){ driverMsg("Couldn't load: " + delRes.error.message, "bad"); return; }
