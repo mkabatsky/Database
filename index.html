@@ -7763,6 +7763,9 @@
     });
   }
 
+  // the job the request being turned into a slip belongs to - what the
+  // delivery is saved under if, for any reason, no job is open by then
+  var activeDeliveryRequestJobId = null;
   function openPackingSlipForRequest(req){
     var barcodes = (req.items || []).map(function(it){ return it && it.barcode; }).filter(Boolean);
     var matchedIds = order.filter(function(id){
@@ -7781,6 +7784,7 @@
     renderRows();
     closePendingDeliveriesModal();
     activeDeliveryRequestId = req.id;
+    activeDeliveryRequestJobId = req.job_id || null;
     resetAssignDriverFields();
     loadDriversForAssign();
     // the assets the tech asked for come across too, so they show on the slip
@@ -9823,6 +9827,12 @@
       assignDriverMsg("No items selected - check the item(s) in the table above. (If you just printed, that sets Date Shipped and clears the selection, since those rows are no longer pending.)", "bad");
       return;
     }
+    // every delivery belongs to a job (that's where its address comes from)
+    var deliveryJobId = cloud.jobId || (activeDeliveryRequestId ? activeDeliveryRequestJobId : null);
+    if (!deliveryJobId){
+      assignDriverMsg("No job is open, so there's nothing to assign this delivery to. Close this, open the job from Jobs, then create the delivery slip again.", "bad");
+      return;
+    }
     var driverId = cloudEl("assignDriverSelect").value;
     if (!driverId){ assignDriverMsg("Pick a driver first.", "bad"); return; }
     var van = cloudEl("assignVanSelect").value || "";
@@ -9849,7 +9859,7 @@
     assignDriverBtnEl.disabled = true;
     assignDriverMsg("Assigning...");
     cloud.sb.from("eq_deliveries").insert({
-      id: deliveryId, job_id: cloud.jobId, driver_id: driverId, items: items, asset_ids: assetIds, asset_qty: buildAssetQtyMap(assetIds),
+      id: deliveryId, job_id: deliveryJobId, driver_id: driverId, items: items, asset_ids: assetIds, asset_qty: buildAssetQtyMap(assetIds),
       poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, van: van, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
       status: "assigned", updated_by: cloud.clientId
     }).then(function(r){
@@ -9858,7 +9868,7 @@
       var checkoutRows = assetIds.map(function(aid){
         // poc_name: the person these assets are handed to - the POC on the
         // assignment, not the staff member who made it (that's checked_out_by)
-        return {id: cloudUuid(), asset_id: aid, job_id: cloud.jobId, delivery_id: deliveryId, checked_out_by: (cloud.user && cloud.user.email) || "", poc_name: pocName, quantity: assetQtyFor(aid)};
+        return {id: cloudUuid(), asset_id: aid, job_id: deliveryJobId, delivery_id: deliveryId, checked_out_by: (cloud.user && cloud.user.email) || "", poc_name: pocName, quantity: assetQtyFor(aid)};
       });
       return cloud.sb.from("eq_asset_checkouts").insert(checkoutRows);
     }).then(function(r){
