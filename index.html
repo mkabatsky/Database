@@ -1495,7 +1495,7 @@
     </div>
     <div class="ds-meta" id="deliverySignMeta"></div>
 
-    <div class="ds-section">
+    <div class="ds-section" id="deliverySignEquipSection">
       <h3>Delivery Slip</h3>
       <div class="ds-table-wrap"><table class="ps-table" id="deliverySignItemsTable"></table></div>
       <div id="deliverySignEquipDone" class="ds-signed-note" hidden="">Signed - thank you.</div>
@@ -3518,6 +3518,17 @@
 
   function renderPackingSlipPreview(){
     var selRows = getSelectedRows();
+    var assetOnlyHtml = (selRows.length || !assetPickedIds) ? "" : buildAssetSlipPrintHtml();
+    if (assetOnlyHtml){
+      // a delivery of assets only: the asset slip is the whole slip
+      el.packingSlipPreview.innerHTML = assetOnlyHtml;
+      el.packingSlipSub.textContent = "Assets only — nothing from the job's table is on this delivery. Print the asset slip, or assign it to a driver below.";
+      el.packingSlipPrintBtn.disabled = false;
+      el.packingSlipSignableBtn.disabled = true;
+      el.packingSlipFixDatesBtn.hidden = true;
+      fitPackingSlipPreview();
+      return;
+    }
     if (!selRows.length){
       el.packingSlipPreview.innerHTML = '<div class="no-selection-note">Select one or more rows in the table (checkbox in the # column), then reopen Create Delivery Slip.</div>';
       el.packingSlipSub.textContent = "No items selected yet.";
@@ -4081,7 +4092,12 @@
 
   el.packingSlipPrintBtn.addEventListener("click", function(){
     var selRows = getSelectedRows();
-    if (!selRows.length) return;
+    if (!selRows.length){
+      // assets only: the asset slip prints on its own
+      var assetOnly = buildAssetSlipPrintHtml();
+      if (assetOnly) printDeliverySlipOnly(assetOnly, false);
+      return;
+    }
     if (getShipBlockedRows(selRows).length){ renderPackingSlipPreview(); return; }
     var shipDate = el.packingSlipDateShipped.value || todayLocalIso();
     var result = applyShipDateToSelection(shipDate);
@@ -6243,8 +6259,8 @@
   }
   var showArchivedJobs = false; // which half of the Jobs list is showing right now
   // "archived" comes from add-job-archived-column.sql - until that has been
-  // run there is nothing to archive with, so the buttons stay hidden
-  var jobsCanArchive = false;
+  // run the buttons are still shown, and say so when clicked
+  var jobsCanArchive = true;
   function showJobs(message){
     showArchivedJobs = false;
     cloudEl("cloudShowArchivedBtn").textContent = "Show archived jobs";
@@ -6326,7 +6342,6 @@
       if (r.error) throw r.error;
       var jobs = r.data || [];
       jobsCanArchive = !jobs.length || ("archived" in jobs[0]);
-      cloudEl("cloudShowArchivedBtn").hidden = !jobsCanArchive;
       drawJobs(jobs.filter(function(j){ return !!j.archived === showArchivedJobs; }));
     }).catch(function(){
       // offline: show the jobs saved on this device
@@ -6373,10 +6388,11 @@
       open.addEventListener("click", function(){ openJob(j); });
       row.appendChild(nm); row.appendChild(open);
       if (!offline){
-        if (jobsCanArchive){
+        {
           var archiveBtn = document.createElement("button");
           archiveBtn.type = "button"; archiveBtn.textContent = j.archived ? "Unarchive" : "Archive";
           archiveBtn.addEventListener("click", function(){
+            if (!jobsCanArchive){ jobMsg("Archive needs a one-time database update first: run add-job-archived-column.sql in Supabase.", true); return; }
             cloud.sb.from("eq_jobs").update({archived: !j.archived, updated_by: cloud.clientId}).eq("id", j.id).then(function(r){
               if (r.error){ jobMsg("Couldn't " + (j.archived ? "unarchive" : "archive") + ": " + r.error.message, true); return; }
               renderJobList();
@@ -6432,6 +6448,7 @@
     cloudEl("cloudJobsClose").addEventListener("click", function(){ cloudEl("cloudJobsBackdrop").hidden = true; });
     cloudEl("cloudJobsBtn").addEventListener("click", function(){ showJobs(""); });
     cloudEl("cloudShowArchivedBtn").addEventListener("click", function(ev){
+      if (!jobsCanArchive){ jobMsg("Archive needs a one-time database update first: run add-job-archived-column.sql in Supabase.", true); return; }
       showArchivedJobs = !showArchivedJobs;
       ev.target.textContent = showArchivedJobs ? "Show active jobs" : "Show archived jobs";
       renderJobList();
@@ -7732,7 +7749,8 @@
       openJob(jr.data);
       var tries = 0;
       (function waitForItems(){
-        if (cloud.jobId === req.job_id && rows.size){
+        // a request for assets only has nothing in the table to wait for
+        if (cloud.jobId === req.job_id && (rows.size || !(req.items || []).length)){
           openPackingSlipForRequest(req);
           return;
         }
@@ -7751,10 +7769,13 @@
       var r = rows.get(id);
       return r && r.barcode && barcodes.indexOf(r.barcode) !== -1;
     });
-    if (!matchedIds.length){
+    // a request can be for assets only - then there is nothing to match in the table
+    var hasAssets = (req.asset_ids || []).length > 0;
+    if (!matchedIds.length && !hasAssets){
       pdMsg("None of this request's items are in the table anymore - they may have been deleted.", "bad");
       return;
     }
+    if (!matchedIds.length && barcodes.length) showSnackbar("This request's items aren't in the table anymore - the slip has its assets only.");
     selectedIds.clear();
     matchedIds.forEach(function(id){ selectedIds.add(id); });
     renderRows();
@@ -7767,7 +7788,10 @@
     assetPickedIds = new Set(req.asset_ids || []);
     assetPickQty = Object.assign({}, req.asset_qty || {});
     updateAssignAssetsCount();
-    loadAssets(); // names for the asset slip
+    // names for the asset slip (the preview redraws once they're in)
+    Promise.resolve(loadAssets()).then(function(){
+      if (!cloudEl("packingSlipBackdrop").hidden) renderPackingSlipPreview();
+    });
     // The tech who submitted this already gave a name/phone/email and a
     // requested date/time - no reason to make staff retype any of it here.
     applySlipPoc({name: req.contact_name, phone: req.contact_phone, email: req.contact_email});
@@ -8118,7 +8142,7 @@
           var r = rows.get(id);
           return r && r.barcode && barcodes.indexOf(r.barcode) !== -1;
         });
-        if (!matchedIds.length){
+        if (!matchedIds.length && !(delivery.asset_ids || []).length){
           showSnackbar("None of this delivery's items are in the table anymore - they may have been deleted.");
           return;
         }
@@ -8134,7 +8158,10 @@
         assetPickQty = Object.assign({}, delivery.asset_qty || {});
         updateAssignAssetsCount();
         assignSavedDeliveryId = delivery.id;
-        loadAssets(); // names for the asset slip
+        // names for the asset slip (the preview redraws once they're in)
+        Promise.resolve(loadAssets()).then(function(){
+          if (!cloudEl("packingSlipBackdrop").hidden) renderPackingSlipPreview();
+        });
         // This delivery already has a driver, schedule and POC from when it
         // was first assigned - re-show all of it instead of making staff
         // redo it from scratch just to reprint.
@@ -8678,6 +8705,10 @@
   var assetPickerMode = false; // true when opened via "Assets" from the Create Delivery Slip flow
   var assetPickedIds = new Set(); // "assign" target (Create Delivery Slip -> Assign to a driver)
   var deliveryAssetPickedIds = new Set(); // "request" target (tech/PC Request Delivery)
+  // what was already picked when the picker opened: those rows are listed
+  // first. Fixed for as long as the picker is open - re-sorting on every tick
+  // moved the row out from under the pointer, so the next click hit another one.
+  var assetPickedAtOpen = new Set();
   var assetPickerTarget = "assign"; // which of the picker's Sets is currently being filled: "assign" | "request" | "edit"
   function activeAssetPickedIds(){
     if (assetPickerTarget === "request") return deliveryAssetPickedIds;
@@ -8777,9 +8808,8 @@
     }) : assetsCache;
     visible = sortAssetList(visible, pickSort, pickSortValue);
     // what's already on this delivery comes first; the column sort applies within each group
-    var pickedNow = activeAssetPickedIds();
-    visible = visible.filter(function(a){ return pickedNow.has(a.id); })
-      .concat(visible.filter(function(a){ return !pickedNow.has(a.id); }));
+    visible = visible.filter(function(a){ return assetPickedAtOpen.has(a.id); })
+      .concat(visible.filter(function(a){ return !assetPickedAtOpen.has(a.id); }));
     if (!visible.length){ list.innerHTML = ""; assetsMsg('No assets match "' + typed + '".'); return; }
     assetsMsg("");
     // A table, like the Assets page, so the columns can slide sideways and the
@@ -8831,6 +8861,7 @@
   function openAssetsModal(target){
     assetPickerMode = true;
     assetPickerTarget = target || "assign";
+    assetPickedAtOpen = new Set(activeAssetPickedIds());
     var searchEl = cloudEl("assetsPickSearch");
     if (searchEl) searchEl.value = "";
     cloudEl("assetsPickerActions").hidden = false;
@@ -8940,8 +8971,11 @@
       set.delete(id);
       delete assetPickQty[id];
     }
-    // redraw so a checked consumable gets its quantity box straight away
+    // redraw so a checked consumable gets its quantity box straight away -
+    // without the list jumping
+    var listEl = cloudEl("assetsList"), top = listEl.scrollTop, left = listEl.scrollLeft;
     renderAssetsList();
+    listEl.scrollTop = top; listEl.scrollLeft = left;
   });
   // Quantity for a consumable: whole number, at least 1, and no more than is
   // on the shelf (checkouts already out are subtracted; picks in other forms
@@ -8986,7 +9020,10 @@
   if (assetsUseSelectedBtnEl) assetsUseSelectedBtnEl.addEventListener("click", function(){
     if (assetPickerTarget === "request") updateDeliveryAssetsCount();
     else if (assetPickerTarget === "edit") updateEditAssetsCount();
-    else updateAssignAssetsCount();
+    else {
+      updateAssignAssetsCount();
+      if (!cloudEl("packingSlipBackdrop").hidden) renderPackingSlipPreview();
+    }
     closeAssetsModal();
   });
 
@@ -9782,7 +9819,7 @@
       return;
     }
     var selRows = getSelectedRows();
-    if (!selRows.length){
+    if (!selRows.length && !assetPickedIds.size){
       assignDriverMsg("No items selected - check the item(s) in the table above. (If you just printed, that sets Date Shipped and clears the selection, since those rows are no longer pending.)", "bad");
       return;
     }
@@ -10007,7 +10044,10 @@
       (delivery.poc_name ? "<div>POC: " + escHtml(delivery.poc_name) + (delivery.poc_phone ? " · " + escHtml(delivery.poc_phone) : "") + "</div>" : "");
 
     cloudEl("deliverySignItemsTable").innerHTML = deliveryItemsTableHtml(delivery.items);
-    var equipSigned = !!delivery.signed_at;
+    // assets only: there is no equipment slip to sign, just the asset slip
+    var hasItems = (delivery.items || []).length > 0;
+    cloudEl("deliverySignEquipSection").hidden = !hasItems;
+    var equipSigned = !!delivery.signed_at || !hasItems;
     cloudEl("deliverySignEquipDone").hidden = !equipSigned;
     cloudEl("deliverySignEquipFields").hidden = equipSigned;
     cloudEl("deliverySignerName").value = "";
@@ -10094,7 +10134,7 @@
     if (!name){ deliverySignMsg("Type the signer's name first.", "bad"); return; }
     if (!currentAssetPad || currentAssetPad.isEmpty()){ deliverySignMsg("Sign in the asset box first.", "bad"); return; }
     var patch = {asset_signed_by: name, asset_signature_data: currentAssetPad.toDataUrl(), asset_signed_at: new Date().toISOString(), updated_by: cloud.clientId};
-    if (currentDelivery.signed_at) patch.status = "delivered";
+    if (currentDelivery.signed_at || !(currentDelivery.items || []).length) patch.status = "delivered";
     assetSignSubmitBtnEl.disabled = true;
     deliverySignMsg("Submitting...");
     cloud.sb.from("eq_deliveries").update(patch).eq("id", currentDelivery.id).then(function(r){
