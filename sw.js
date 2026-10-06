@@ -1,9 +1,9 @@
 // Service worker: lets the app open offline and pick up new versions when online.
-// Bump CACHE (v1 -> v2 ...) whenever you upload a new index.html so phones refresh.
-var CACHE = "install-tracker-v10";
-var CORE = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icons/icon-192.png", "./icons/icon-512.png", "./icons/apple-touch-icon.png"];
+// Bump CACHE (v4 -> v5 ...) whenever you upload a new index.html so phones refresh.
+var CACHE = "equipment-db-v11";
+var CORE = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 // only these outside sites are ever cached; the database (supabase.co) must never be
-var CACHEABLE_HOSTS = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com", "fonts.googleapis.com", "fonts.gstatic.com"];
+var CACHEABLE_HOSTS = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com"];
 
 self.addEventListener("install", function(e){
   e.waitUntil(caches.open(CACHE).then(function(c){ return c.addAll(CORE); }).then(function(){ return self.skipWaiting(); }));
@@ -42,7 +42,7 @@ self.addEventListener("fetch", function(e){
     return;
   }
 
-  // fonts/libraries from known CDNs: cached copy first, then network and remember it
+  // libraries from known CDNs: cached copy first, then network and remember it
   if (CACHEABLE_HOSTS.indexOf(url.hostname) !== -1) {
     e.respondWith(
       caches.match(req).then(function(hit){
