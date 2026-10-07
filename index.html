@@ -8031,24 +8031,47 @@
   // hadn't been added. build() must return a fresh query with a fixed order.
   // Resolves like a normal query: {data: [...]} or {error: ...}.
   function fetchAllRows(build){
-    var all = [], PAGE = 1000;
-    function next(from){
-      return build().range(from, from + PAGE - 1).then(function(r){
-        if (r.error) return {data: null, error: r.error};
-        all = all.concat(r.data || []);
-        return (r.data && r.data.length === PAGE) ? next(from + PAGE) : {data: all, error: null};
+    // The first page goes alone (most lists fit in it). Past that, pages are
+    // asked for several at a time instead of one after another - a long list
+    // used to mean a long chain of round trips before anything showed.
+    var all = [], PAGE = 1000, WAVE = 4;
+    function next(from, count){
+      var reqs = [];
+      for (var i = 0; i < count; i++) reqs.push(build().range(from + i * PAGE, from + (i + 1) * PAGE - 1));
+      return Promise.all(reqs).then(function(results){
+        var failed = results.filter(function(r){ return r.error; })[0];
+        if (failed) return {data: null, error: failed.error};
+        var full = true;
+        results.forEach(function(r){
+          all = all.concat(r.data || []);
+          if (!r.data || r.data.length < PAGE) full = false;
+        });
+        return full ? next(from + count * PAGE, WAVE) : {data: all, error: null};
       });
     }
-    return next(0);
+    return next(0, 1);
+  }
+  // The driver list comes from a server function that can take a few seconds
+  // to wake up. It rarely changes, so it's kept for a while instead of being
+  // asked for again on every one-minute refresh.
+  var JD_USERS_TTL_MS = 10 * 60000;
+  var jdUsersCache = null, jdUsersCacheAt = 0;
+  function fetchDashboardUsers(){
+    if (jdUsersCache && Date.now() - jdUsersCacheAt < JD_USERS_TTL_MS) return Promise.resolve(jdUsersCache);
+    return invokeFn("admin-users", {action: "list"}).then(function(res){
+      if (res && res.data && res.data.users){ jdUsersCache = res; jdUsersCacheAt = Date.now(); }
+      return res;
+    }).catch(function(){ return jdUsersCache; });
   }
   function fetchDashboardData(){
     return Promise.all([
       cloud.sb.from("eq_jobs").select("*").eq("deleted", false),
-      fetchAllRows(function(){ return cloud.sb.from("eq_rows").select("job_id,data").eq("deleted", false).order("id", {ascending: true}); }),
+      // only the two dates the cards count by - not each row's whole record
+      fetchAllRows(function(){ return cloud.sb.from("eq_rows").select("job_id,dateShipped:data->>dateShipped,dateReceived:data->>dateReceived").eq("deleted", false).order("id", {ascending: true}); }),
       cloud.sb.from("eq_delivery_requests").select("job_id").eq("status", "submitted"),
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("status", "assigned")
         .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
-      invokeFn("admin-users", {action: "list"}).catch(function(){ return null; }),
+      fetchDashboardUsers(),
       // no "deleted" filter here: this is only a name lookup, and an asset that
       // was deleted while still out would otherwise show up with no name
       Promise.resolve({data: [], error: null}),
@@ -8064,7 +8087,7 @@
       var jobs = jobsRes.data || [];
       var rowsByJob = {}, openReqByJob = {};
       (rowsRes.data || []).forEach(function(r){
-        (rowsByJob[r.job_id] = rowsByJob[r.job_id] || []).push(r);
+        (rowsByJob[r.job_id] = rowsByJob[r.job_id] || []).push({job_id: r.job_id, data: {dateShipped: r.dateShipped, dateReceived: r.dateReceived}});
       });
       (reqsRes.data || []).forEach(function(r){
         openReqByJob[r.job_id] = (openReqByJob[r.job_id] || 0) + 1;
@@ -8450,6 +8473,7 @@
     m.className = "driver-msg" + (kind ? " " + kind : "");
   }
   function loadDashboardOnlyData(){
+    dashOnlyLastLoadAt = Date.now();
     return fetchDashboardData().then(function(d){
       renderJobsDashboard(d.jobs, d.rowsByJob, d.openReqByJob, {listId: "dashOnlyJdList", readOnly: true});
       renderJdDeliveries(d.deliveries, d.driverEmailById, {boxId: "dashOnlyJdDeliveries", readOnly: true});
@@ -8460,11 +8484,21 @@
     });
   }
   // Several individual row/job changes often land within the same second
-  // (e.g. a driver's whole delivery getting marked shipped) - debounced so
-  // that doesn't mean a full re-query per row.
+  // (e.g. a driver's whole delivery getting marked shipped), and while
+  // someone is editing a job they keep coming all day. Every refresh re-reads
+  // every job's rows, so a refresh per change had this screen hammering the
+  // database for as long as anyone was working. Changes now show up within
+  // DASH_ONLY_MIN_GAP_MS instead of instantly, and a change that arrives
+  // while a refresh is already on its way just rides along with it.
+  var DASH_ONLY_MIN_GAP_MS = 10000;
+  var dashOnlyLastLoadAt = 0;
   function scheduleDashOnlyRefresh(){
-    clearTimeout(dashOnlyRefreshTimer);
-    dashOnlyRefreshTimer = setTimeout(loadDashboardOnlyData, 400);
+    if (dashOnlyRefreshTimer) return;
+    var wait = Math.max(400, dashOnlyLastLoadAt + DASH_ONLY_MIN_GAP_MS - Date.now());
+    dashOnlyRefreshTimer = setTimeout(function(){
+      dashOnlyRefreshTimer = null;
+      loadDashboardOnlyData();
+    }, wait);
   }
   var dashOnlyPollTimer = null;
   function openDashboardOnlyView(){
