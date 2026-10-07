@@ -194,6 +194,8 @@
   tbody tr:nth-child(even) td:first-child{background:var(--surface-alt);}
 
   tbody tr:nth-child(even){background:var(--surface-alt);}
+  tbody tr.rows-more-row td{position:static;padding:14px 10px;text-align:center;color:var(--ink-muted);font-size:13px;border-right:none;}
+  tbody tr.rows-more-row button{margin-left:10px;padding:5px 11px;font-size:12.5px;}
   tbody td{padding:0;border-bottom:1px solid var(--border);}
   tbody tr:last-child td{border-bottom:none;}
   td input{
@@ -515,6 +517,8 @@
     tbody td::before{content:attr(data-label);display:block;font-size:11px;text-transform:uppercase;letter-spacing:.05em;font-weight:600;color:var(--ink-muted);margin-bottom:4px;}
     tbody td:first-child{grid-column:1 / -1;}
     tbody td:first-child::before{display:none;}
+    tbody tr.rows-more-row{display:block !important;}
+    tbody tr.rows-more-row td{padding:4px 0 !important;}
     tbody td[data-key="model"],tbody td[data-key="deviceType"],tbody td[data-key="notes"]{grid-column:1 / -1;}
     td input{min-width:0 !important;width:100%;min-height:44px;font-size:16px;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--bg);}
     td input[type="number"]{text-align:left;}
@@ -2298,7 +2302,22 @@
     return Math.max(MIN_COL_PX, Math.round(w + CELL_PADDING));
   }
 
-  // widen a column immediately while typing, without a full table rebuild
+  // Widening a column lays the whole table out again, so while someone is
+  // typing it waits for a short pause instead of doing that on every letter.
+  var growPending = {}, growTimer = null;
+  function growColumnSoon(c, value){
+    growPending[c.key] = {c: c, value: value};
+    clearTimeout(growTimer);
+    growTimer = setTimeout(function(){
+      var grew = false;
+      Object.keys(growPending).forEach(function(k){
+        if (growColumnToFit(growPending[k].c, growPending[k].value)) grew = true;
+      });
+      growPending = {};
+      if (grew) updateScrollNav();
+    }, 250);
+  }
+  // widen a column to fit what was typed, without a full table rebuild
   // (rebuilding would drop focus and cursor position mid-edit)
   function growColumnToFit(c, value){
     var col = colElByKey[c.key];
@@ -2308,7 +2327,10 @@
     if (needed > current){
       col.style.width = needed + "px";
       columnWidths[c.key] = needed;
+      tableFitDirty = true;
+      return true;
     }
+    return false;
   }
 
   function buildHead(){
@@ -2386,6 +2408,7 @@
           handle.removeEventListener("pointercancel", onUp);
           var finalWidth = parseInt(colEl.style.width, 10);
           if (finalWidth){ columnWidths[c.key] = finalWidth; persist(); }
+          tableFitDirty = true; updateScrollNav();
         }
         handle.addEventListener("pointermove", onMove);
         handle.addEventListener("pointerup", onUp);
@@ -2397,6 +2420,7 @@
         if (!colEl) return;
         delete columnWidths[c.key];
         colEl.style.width = contentWidthFor(c) + "px";
+        tableFitDirty = true; updateScrollNav();
         persist();
         showSnackbar(c.label + " column reset to auto-fit width.");
       });
@@ -2411,6 +2435,7 @@
     el.headRow.appendChild(thDel);
 
     updateSortIndicators();
+    tableFitDirty = true;
   }
 
   function toggleSort(key){
@@ -2492,6 +2517,16 @@
   // typed in.
   var lastShipQty = new Map();     // row -> qty that just went out on a slip (used once, by the print)
   var shipQtyOverride = new Map(); // row -> the "Qty to ship" typed in the slip preview
+  // Items this open delivery slip has already marked shipped (by Print or by
+  // Assign to driver): row id -> the qty that went out. They stay on the slip
+  // until it's closed, so it can be printed after assigning (or assigned
+  // after printing) without shipping anything twice.
+  var slipShipped = new Map();
+  function slipQtyHeld(r){
+    var held;
+    slipShipped.forEach(function(q, id){ if (rows.get(id) === r) held = q; });
+    return held;
+  }
   function rowTotal(r){ return Number(r.totalQty) || 0; }
   function rowSent(r){ return Number(r.qtySent) || 0; }
   function rowRemaining(r){ return Math.max(0, rowTotal(r) - rowSent(r)); }
@@ -2510,6 +2545,10 @@
   // what goes on the next slip for this row: the typed box value, or all that remains
   function qtyToShip(r){
     normalizeSentQty(r);
+    if (slipShipped.size){
+      var held = slipQtyHeld(r);
+      if (held !== undefined) return held;
+    }
     var typed = shipQtyOverride.get(r);
     var q = typed !== undefined ? Math.min(typed, rowRemaining(r)) : rowRemaining(r);
     return Math.max(0, q);
@@ -2576,13 +2615,29 @@
     }
   }
 
+  // Drawing every row of a big job (12 boxes each) takes seconds, and the
+  // table is redrawn whenever anything changes. Find, the filters, sorting,
+  // select-all, the totals and the exports still work on the WHOLE list -
+  // this only limits how many rows are drawn at once.
+  var ROWS_SHOWN = 300;
+  var rowsLimit = ROWS_SHOWN;
+  var freshRowIds = new Set(); // rows just added or pasted: always drawn, wherever they fall
+  var lastRenderWasEmpty = null;
   function renderRows(){
     captureFocus();
-    var ids = getVisibleIds();
+    var allIds = getVisibleIds();
+    var ids = allIds, numById = null;
+    if (allIds.length > rowsLimit){
+      numById = new Map();
+      allIds.forEach(function(id, i){ numById.set(id, i); });
+      ids = allIds.filter(function(id, i){ return i < rowsLimit || freshRowIds.has(id); });
+    }
     el.tbody.innerHTML = "";
-    el.emptyState.hidden = ids.length > 0;
+    el.emptyState.hidden = allIds.length > 0;
+    if (lastRenderWasEmpty !== !allIds.length){ lastRenderWasEmpty = !allIds.length; tableFitDirty = true; }
 
     ids.forEach(function(id, idx){
+      if (numById) idx = numById.get(id);
       var r = rows.get(id);
       var tr = document.createElement("tr");
 
@@ -2699,8 +2754,7 @@
           }
           persist();
           updateFooter();
-          growColumnToFit(c, v);
-          updateScrollNav();
+          growColumnSoon(c, v);
         });
         input.addEventListener("keydown", function(ev){
           if (ev.key === "Enter") input.blur();
@@ -2714,6 +2768,19 @@
 
       el.tbody.appendChild(tr);
     });
+
+    if (ids.length < allIds.length){
+      var moreTr = document.createElement("tr");
+      moreTr.className = "rows-more-row";
+      var moreTd = document.createElement("td");
+      moreTd.colSpan = getShownCols().length + 2;
+      moreTd.innerHTML = '<span>Showing ' + ids.length + ' of ' + allIds.length + ' items. Use Find or the filters above to narrow the list.</span>' +
+        '<button type="button" data-rows-more="more">Show ' + ROWS_SHOWN + ' more</button>' +
+        '<button type="button" data-rows-more="all">Show all ' + allIds.length + '</button>';
+      moreTr.appendChild(moreTd);
+      el.tbody.appendChild(moreTr);
+    }
+    ids = allIds;
 
     el.rowCount.textContent = ids.length + (ids.length === order.length ? " item" + (ids.length===1?"":"s") : " of " + order.length + " items");
     updateFooter();
@@ -2737,6 +2804,13 @@
     });
     el.footRow.appendChild(document.createElement("td"));
   }
+
+  el.tbody.addEventListener("click", function(ev){
+    var moreBtn = ev.target.closest && ev.target.closest("[data-rows-more]");
+    if (!moreBtn) return;
+    rowsLimit = moreBtn.dataset.rowsMore === "all" ? Infinity : rowsLimit + ROWS_SHOWN;
+    renderRows();
+  });
 
   // ---------- row selection (for label generation) ----------
   function isRowShippable(id){
@@ -2790,6 +2864,7 @@
     var id = nextId();
     rows.set(id, data);
     order.push(id);
+    freshRowIds.add(id);
     persist();
     sortKey = null; updateSortIndicators();
     searchTerm = ""; el.searchInput.value = "";
@@ -2834,6 +2909,7 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(function(){
       searchTerm = el.searchInput.value;
+      rowsLimit = ROWS_SHOWN;
       renderRows();
     }, 120);
   });
@@ -2845,6 +2921,7 @@
     var btn = ev.target.closest("button[data-status]");
     if (!btn || btn.classList.contains("active")) return;
     statusFilter = btn.dataset.status;
+    rowsLimit = ROWS_SHOWN;
     Array.prototype.forEach.call(el.statusFilter.querySelectorAll("button[data-status]"), function(b){
       b.classList.toggle("active", b === btn);
     });
@@ -2994,17 +3071,30 @@
   // on screen without that scrollbar, at the cost of a smaller table when
   // a lot of columns are shown at once. Never shrinks below 70% - past
   // that it's more useful to scroll than to squint.
+  // Measuring the table's full width means un-shrinking it and laying the
+  // whole thing out again - seconds on a big job. That used to happen on every
+  // keystroke and every sideways scroll. The width only changes when the
+  // columns do, so it's measured then (tableFitDirty) and remembered.
+  var tableNaturalW = 0, tableFitDirty = true;
   function fitTableWidth(){
     var sc = el.tableScroll;
-    sc.style.zoom = "1";
-    var natural = sc.scrollWidth;
+    if (tableFitDirty || !tableNaturalW){
+      if (sc.style.zoom !== "1") sc.style.zoom = "1";
+      tableNaturalW = sc.scrollWidth;
+      tableFitDirty = false;
+    }
+    var natural = tableNaturalW;
     var available = document.documentElement.clientWidth - 32; // body's 16px padding-inline each side
-    sc.style.zoom = (natural > 0 && available > 0 && natural > available)
+    var z = (natural > 0 && available > 0 && natural > available)
       ? String(Math.max(0.7, (available - 6) / natural))
       : "1";
+    if (sc.style.zoom !== z) sc.style.zoom = z;
   }
   function updateScrollNav(){
     fitTableWidth();
+    updateScrollButtons();
+  }
+  function updateScrollButtons(){
     var sc = el.tableScroll;
     var atStart = sc.scrollLeft <= 2;
     var atEnd = sc.scrollLeft >= sc.scrollWidth - sc.clientWidth - 2;
@@ -3017,8 +3107,12 @@
   el.scrollRightBtn.addEventListener("click", function(){
     el.tableScroll.scrollBy({left: Math.round(el.tableScroll.clientWidth * 0.8), behavior: "smooth"});
   });
-  el.tableScroll.addEventListener("scroll", updateScrollNav);
-  window.addEventListener("resize", updateScrollNav);
+  el.tableScroll.addEventListener("scroll", updateScrollButtons);
+  var tableResizeTimer = null;
+  window.addEventListener("resize", function(){
+    clearTimeout(tableResizeTimer);
+    tableResizeTimer = setTimeout(function(){ tableFitDirty = true; updateScrollNav(); }, 150);
+  });
 
   // ---------- manufacturer/model autocomplete ----------
   function datalistId(key){ return "dl-" + key; }
@@ -3614,7 +3708,20 @@
     el.packingSlipBackdrop.hidden = false;
     fitPackingSlipPreview();
   }
-  function closePackingSlipModal(){ el.packingSlipBackdrop.hidden = true; }
+  function closePackingSlipModal(){
+    el.packingSlipBackdrop.hidden = true;
+    // what this slip shipped comes off the selection now (a partly shipped
+    // item stays ticked, so the rest can go on a later slip)
+    if (slipShipped.size){
+      slipShipped.forEach(function(q, id){
+        var r = rows.get(id);
+        if (!r || rowRemaining(r) === 0) selectedIds.delete(id);
+      });
+      slipShipped = new Map();
+      renderRows();
+    }
+    el.packingSlipDateShipped.value = ""; // the next slip starts on today's date
+  }
   el.packingSlipBtn.addEventListener("click", openPackingSlipModal);
   el.packingSlipCloseBtn.addEventListener("click", closePackingSlipModal);
   el.packingSlipBackdrop.addEventListener("click", function(ev){ if (ev.target === el.packingSlipBackdrop) closePackingSlipModal(); });
@@ -4027,6 +4134,7 @@
         rows.set(id, data);
         order.push(id);
         newIds.push(id);
+        freshRowIds.add(id);
       });
     }
     persist();
@@ -4040,7 +4148,7 @@
   // own date inputs already enforce), so creating a packing slip is also how
   // the table keeps track of what's actually been shipped and when
   function applyShipDateToSelection(shipDate){
-    var applied = 0, skipped = 0;
+    var applied = 0, skipped = 0, shippedRows = [];
     lastShipQty = new Map();
     // snapshot first — this loop mutates selectedIds, which order.filter()
     // inside getSelectedRows() would otherwise be iterating live
@@ -4048,6 +4156,8 @@
     ids.forEach(function(id){
       var r = rows.get(id);
       if (!r) return;
+      // already marked shipped by this same slip: nothing more to do
+      if (slipShipped.has(id)){ lastShipQty.set(r, slipShipped.get(id)); return; }
       if (shipBlockReason(r) || shipDate < r.dateReceived){ skipped++; return; }
       var q = qtyToShip(r);
       if (q <= 0){ skipped++; return; }
@@ -4056,13 +4166,13 @@
       r.dateShipped = shipDate;
       lastShipQty.set(r, q);
       shipQtyOverride.delete(r);
-      // fully shipped leaves the selection; a partly shipped item stays selected
-      // so the rest can go on a later slip
-      if (rowRemaining(r) === 0) selectedIds.delete(id);
+      // it stays on this slip until the slip is closed (see closePackingSlipModal)
+      slipShipped.set(id, q);
+      shippedRows.push(r);
       applied++;
     });
     if (applied){ persist(); renderRows(); }
-    return {applied: applied, skipped: skipped};
+    return {applied: applied, skipped: skipped, rows: shippedRows};
   }
 
   // one line per item means the slip can be wider than a portrait page:
@@ -4103,7 +4213,7 @@
     if (getShipBlockedRows(selRows).length){ renderPackingSlipPreview(); return; }
     var shipDate = el.packingSlipDateShipped.value || todayLocalIso();
     var result = applyShipDateToSelection(shipDate);
-    notifyItemsShipped(selRows, shipDate);
+    if (result.rows.length) notifyItemsShipped(result.rows, shipDate);
     el.packingSlipPrintDoc.innerHTML = makePackingSlipHTML(selRows, shipDate);
     var fit = fitPackingSlipForPrint();
     printPackingSlipFrame(el.packingSlipPrintDoc.innerHTML, fit.landscape);
@@ -4111,6 +4221,7 @@
     // every print - with the in-app Drivers page now handling signing,
     // that file is no longer needed by default. "Export signable slip" is
     // still right there as an explicit button for whoever still wants it.
+    if (!result.applied && !result.skipped) return; // everything on it was already marked shipped (e.g. when it was assigned)
     showSnackbar(
       "Date Shipped set to " + formatDateForMsg(shipDate) + " for " + result.applied + " item" + (result.applied === 1 ? "" : "s") +
       (result.skipped ? " (" + result.skipped + " skipped — missing BarCode/Date Received, or ship date before Date Received)" : "") + "."
@@ -5371,6 +5482,7 @@
   var tableViewBtnEl = document.getElementById("tableViewBtn");
   function applyTableViewPref(on){
     document.body.classList.toggle("force-table-view", !!on);
+    tableFitDirty = true;
     if (tableViewBtnEl) tableViewBtnEl.textContent = on ? "Card view" : "Table view";
   }
   function setTableViewPref(on){
@@ -5907,7 +6019,9 @@
       merged[k] = JSON.stringify(local[k]) !== JSON.stringify(baseObj[k]) ? local[k] : rnorm[k];   // keep my unsent edits
     });
     var changed = JSON.stringify(merged) !== JSON.stringify(local);
-    rows.set(id, merged);
+    // Only swap the row when something really changed: the boxes on screen are
+    // tied to the row they were drawn from, and an unchanged row isn't redrawn.
+    if (changed) rows.set(id, merged);
     cloud.synced.set(id, {json: rjson, pos: rpos, ts: rts});
     return changed;
   }
@@ -5945,8 +6059,12 @@
     updateSubhead();
   }
 
-  function applyRemoteChanges(){
+  function applyRemoteChanges(changed){
+    var orderBefore = changed === false ? order.join("|") : null;
     rebuildOrder();
+    // nothing on screen changed (the usual result of a routine re-sync):
+    // leave the table alone instead of rebuilding it
+    if (changed === false && orderBefore === order.join("|")) return;
     clearTimeout(cloud.applyTimer);
     cloud.applyTimer = setTimeout(function(){
       renderRows();
@@ -5956,9 +6074,10 @@
 
   function reconcile(remoteRows){
     var remoteIds = new Set();
+    var anyChange = false;
     remoteRows.forEach(function(r){
       remoteIds.add(r.id);
-      mergeRemoteRow(r.id, r.data, r.pos, r.updated_at);
+      if (mergeRemoteRow(r.id, r.data, r.pos, r.updated_at)) anyChange = true;
     });
     // A pull that comes back with zero rows, despite this device having
     // previously synced a nonzero number of rows for this job, is treated
@@ -5981,9 +6100,10 @@
         cloud.synced.set(id, {json: "", pos: base.pos, ts: base.ts});   // edited here after it was removed elsewhere: send it back
       } else {
         removeRowLocally(id);
+        anyChange = true;
       }
     });
-    applyRemoteChanges();
+    applyRemoteChanges(anyChange);
   }
 
   // ----- talking to the database -----
@@ -6100,6 +6220,7 @@
     return chain.then(function(){
       if (jobId !== cloud.jobId) return;
       sent.forEach(function(v, id){ if (rows.has(id)) cloud.synced.set(id, v); });
+      if (sent.size || deletes.length) jobCountsChanged();   // the dashboard's item counts are out of date now
       deletes.forEach(function(id){ if (!rows.has(id)) cloud.synced.delete(id); });
       writeCache();
       isDirty = false;
@@ -6140,7 +6261,7 @@
     } else {
       changed = mergeRemoteRow(rec.id, rec.data, rec.pos, rec.updated_at) || changed;
     }
-    applyRemoteChanges();
+    applyRemoteChanges(changed);
     if (changed) schedulePush();                                         // only if a local edit needs re-sending
   }
   function onJobEvent(p){
@@ -6208,6 +6329,7 @@
     lsSet(CK.lastJob, job.id);
     rows.clear(); order = []; selectedIds.clear(); meta = {};
     cloud.synced = new Map(); cloud.metaBase = {}; cloud.maxPos = 0;
+    rowsLimit = ROWS_SHOWN; freshRowIds = new Set();
     var cached = loadCache(job.id);
     if (!cached && job.meta){
       Object.keys(job.meta).forEach(function(k){ meta[k] = normalizeMetaValue(job.meta[k]); });
@@ -7801,7 +7923,10 @@
     // The tech who submitted this already gave a name/phone/email and a
     // requested date/time - no reason to make staff retype any of it here.
     applySlipPoc({name: req.contact_name, phone: req.contact_phone, email: req.contact_email});
-    if (req.requested_date) cloudEl("assignDeliveryDate").value = req.requested_date;
+    if (req.requested_date){
+      cloudEl("assignDeliveryDate").value = req.requested_date;
+      el.packingSlipDateShipped.value = req.requested_date;
+    }
     if (req.requested_time) cloudEl("assignDeliveryTime").value = req.requested_time;
     openPackingSlipModal();
   }
@@ -8005,6 +8130,11 @@
   // arrived but not yet shipped, so the numbers mean the same thing they
   // do inside a job, not a second, different definition of "received."
   function jdStatusCounts(rows){
+    if (rows && !Array.isArray(rows)){
+      // already counted (by the database, or by fetchJobCounts)
+      var t = Number(rows.total) || 0, sh = Number(rows.shipped) || 0;
+      return {total: t, received: Number(rows.received) || 0, shipped: sh, remaining: t - sh};
+    }
     var total = 0, received = 0, shipped = 0;
     rows.forEach(function(r){
       total++;
@@ -8056,18 +8186,94 @@
   // asked for again on every one-minute refresh.
   var JD_USERS_TTL_MS = 10 * 60000;
   var jdUsersCache = null, jdUsersCacheAt = 0;
+  // The dashboard never waits for this: it shows straight away with whatever
+  // names are already known, and redraws once when the names first arrive.
+  var jdUsersLoading = false;
   function fetchDashboardUsers(){
-    if (jdUsersCache && Date.now() - jdUsersCacheAt < JD_USERS_TTL_MS) return Promise.resolve(jdUsersCache);
-    return invokeFn("admin-users", {action: "list"}).then(function(res){
-      if (res && res.data && res.data.users){ jdUsersCache = res; jdUsersCacheAt = Date.now(); }
-      return res;
-    }).catch(function(){ return jdUsersCache; });
+    if (!jdUsersLoading && Date.now() - jdUsersCacheAt > JD_USERS_TTL_MS){
+      jdUsersLoading = true;
+      jdUsersCacheAt = Date.now();
+      var hadNames = !!jdUsersCache;
+      invokeFn("admin-users", {action: "list"}).then(function(res){
+        if (res && res.data && res.data.users){
+          jdUsersCache = res;
+          if (!hadNames) refreshOpenDashboards();
+        } else {
+          jdUsersCacheAt = Date.now() - JD_USERS_TTL_MS + 60000; // didn't work - try again in a minute
+        }
+      }).catch(function(){
+        jdUsersCacheAt = Date.now() - JD_USERS_TTL_MS + 60000;
+      }).then(function(){ jdUsersLoading = false; });
+    }
+    return jdUsersCache;
   }
-  function fetchDashboardData(){
+  function refreshOpenDashboards(){
+    if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+    if (!cloudEl("dashboardOnlyView").hidden) loadDashboardOnlyData();
+    if (!cloudEl("pendingDeliveriesBackdrop").hidden && pdStatus === "scheduled") loadPendingDeliveries();
+  }
+  // Item counts per job for the dashboard cards. The database adds them up
+  // itself (eq_job_counts, from add-job-counts-function.sql) and sends back
+  // one short line per job. Until that file has been run, this falls back to
+  // downloading every job's items and counting here - the slow way - so that
+  // result is kept for a few minutes instead of being re-downloaded by every
+  // screen every minute.
+  var jdCountsMode = null; // "rpc" once the database function has answered, "rows" if it isn't there
+  var jdCountsCache = null, jdCountsCacheAt = 0;
+  function fetchJobCounts(fresh){
+    var maxAge = jdCountsMode === "rows" ? (fresh ? 60000 : 180000) : (fresh ? 3000 : 20000);
+    if (jdCountsCache && Date.now() - jdCountsCacheAt < maxAge) return Promise.resolve({data: jdCountsCache, error: null});
+    // two parts of the screen asking at once share the one answer
+    if (jdCountsInflight) return jdCountsInflight;
+    var startedAt = Date.now();
+    jdCountsInflight = loadJobCounts(function(counts){
+      jdCountsCache = counts;
+      // a save that landed while this was on its way means it may already be out of date
+      jdCountsCacheAt = jdCountsDirtyAt > startedAt ? 0 : Date.now();
+      return {data: counts, error: null};
+    });
+    function done(r){ jdCountsInflight = null; return r; }
+    return jdCountsInflight.then(done, function(e){ jdCountsInflight = null; throw e; });
+  }
+  var jdCountsInflight = null, jdCountsDirtyAt = 0;
+  function jobCountsChanged(){ jdCountsCacheAt = 0; jdCountsDirtyAt = Date.now(); }
+  function loadJobCounts(keep){
+    function viaRows(){
+      return fetchAllRows(function(){ return cloud.sb.from("eq_rows").select("job_id,dateShipped:data->>dateShipped,dateReceived:data->>dateReceived").eq("deleted", false).order("id", {ascending: true}); }).then(function(r){
+        if (r.error) return r;
+        var counts = {};
+        (r.data || []).forEach(function(row){
+          var c = counts[row.job_id] || (counts[row.job_id] = {total: 0, received: 0, shipped: 0});
+          c.total++;
+          if (isIsoDateString(row.dateShipped)) c.shipped++;
+          else if (isIsoDateString(row.dateReceived)) c.received++;
+        });
+        return keep(counts);
+      });
+    }
+    if (jdCountsMode === "rows") return viaRows();
+    return Promise.resolve().then(function(){ return cloud.sb.rpc("eq_job_counts"); }).then(function(r){
+      if (r.error){
+        if (isNetworkProblem(r.error)) return r;
+        jdCountsMode = "rows";
+        return viaRows();
+      }
+      jdCountsMode = "rpc";
+      var counts = {};
+      (r.data || []).forEach(function(row){
+        counts[row.job_id] = {total: Number(row.total) || 0, received: Number(row.received) || 0, shipped: Number(row.shipped) || 0};
+      });
+      return keep(counts);
+    }, function(e){
+      if (isNetworkProblem(e)) return {data: null, error: e};
+      jdCountsMode = "rows";
+      return viaRows();
+    });
+  }
+  function fetchDashboardData(fresh){
     return Promise.all([
       cloud.sb.from("eq_jobs").select("*").eq("deleted", false),
-      // only the two dates the cards count by - not each row's whole record
-      fetchAllRows(function(){ return cloud.sb.from("eq_rows").select("job_id,dateShipped:data->>dateShipped,dateReceived:data->>dateReceived").eq("deleted", false).order("id", {ascending: true}); }),
+      fetchJobCounts(fresh),
       cloud.sb.from("eq_delivery_requests").select("job_id").eq("status", "submitted"),
       cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("status", "assigned")
         .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
@@ -8085,10 +8291,7 @@
       var failed = [jobsRes, rowsRes, reqsRes, deliveriesRes, assetsRes, checkoutsRes].filter(function(r){ return r && r.error; })[0];
       if (failed) throw failed.error;
       var jobs = jobsRes.data || [];
-      var rowsByJob = {}, openReqByJob = {};
-      (rowsRes.data || []).forEach(function(r){
-        (rowsByJob[r.job_id] = rowsByJob[r.job_id] || []).push({job_id: r.job_id, data: {dateShipped: r.dateShipped, dateReceived: r.dateReceived}});
-      });
+      var rowsByJob = rowsRes.data || {}, openReqByJob = {};   // job id -> {total, received, shipped}
       (reqsRes.data || []).forEach(function(r){
         openReqByJob[r.job_id] = (openReqByJob[r.job_id] || 0) + 1;
       });
@@ -8124,7 +8327,7 @@
     var list = cloudEl("jdList");
     if (!quiet) list.textContent = "Loading...";
     jdMsg("");
-    return fetchDashboardData().then(function(d){
+    return fetchDashboardData(!quiet).then(function(d){
       renderJdDeliveries(d.deliveries, d.driverEmailById);
       renderJdAssetsDeployed(d.openCheckouts, d.assetsById, d.jobNameById);
       renderJobsDashboard(d.jobs, d.rowsByJob, d.openReqByJob);
@@ -8211,7 +8414,17 @@
         // was first assigned - re-show all of it instead of making staff
         // redo it from scratch just to reprint.
         applySlipPoc({name: delivery.poc_name, phone: delivery.poc_phone, email: delivery.poc_email});
-        if (delivery.scheduled_date) cloudEl("assignDeliveryDate").value = delivery.scheduled_date;
+        if (delivery.scheduled_date){
+          cloudEl("assignDeliveryDate").value = delivery.scheduled_date;
+          el.packingSlipDateShipped.value = delivery.scheduled_date;
+        }
+        // items this delivery already marked shipped print with the qty that went out on it
+        matchedIds.forEach(function(id){
+          var mr = rows.get(id);
+          if (!mr || !isIsoDateString(mr.dateShipped)) return;
+          var it = (delivery.items || []).filter(function(x){ return x && x.barcode === mr.barcode; })[0];
+          slipShipped.set(id, Number(it && it.totalQty) || rowTotal(mr));
+        });
         if (delivery.scheduled_time) cloudEl("assignDeliveryTime").value = delivery.scheduled_time;
         cloudEl("assignVanSelect").value = delivery.van || "";
         loadDriversForAssign().then(function(){
@@ -8565,7 +8778,7 @@
     var barcodes = {};
     ((d && d.items) || []).forEach(function(it){
       var b = String(it.barcode || "").trim();
-      if (b) barcodes[b] = true;
+      if (b) barcodes[b] = it;
     });
     if (!d || !Object.keys(barcodes).length) return Promise.resolve();
     return cloud.sb.from("eq_rows").select("id,data").eq("job_id", d.job_id).eq("deleted", false).then(function(r){
@@ -8575,11 +8788,21 @@
         return barcodes[String(data.barcode || "").trim()] && String(data.dateShipped || "").trim();
       });
       return Promise.all(shipped.map(function(row){
-        var data = Object.assign({}, row.data, {dateShipped: ""});
+        var data = Object.assign({}, row.data);
+        var total = Number(data.totalQty) || 0;
+        var sent = (data.qtySent === "" || data.qtySent === null || data.qtySent === undefined) ? total : (Number(data.qtySent) || 0);
+        var back = Number(barcodes[String(data.barcode || "").trim()].totalQty) || sent;
+        sent = Math.max(0, sent - back);
+        data.qtySent = sent;
+        data.qtyRemaining = Math.max(0, total - sent);
+        if (sent === 0) data.dateShipped = "";   // an earlier partial shipment keeps its date
         return cloud.sb.from("eq_rows").update({data: data, updated_by: cloud.clientId}).eq("id", row.id).then(function(u){
           if (u.error) throw u.error;
         });
-      }));
+      })).then(function(){
+        jobCountsChanged();
+        if (d.job_id === cloud.jobId) pullAll();   // show it in the job that's open right now
+      });
     });
   }
 
@@ -9923,6 +10146,14 @@
     });
   });
 
+  // picking the delivery date also sets the slip's Date Shipped
+  var assignDeliveryDateEl = cloudEl("assignDeliveryDate");
+  if (assignDeliveryDateEl) assignDeliveryDateEl.addEventListener("change", function(){
+    if (!assignDeliveryDateEl.value) return;
+    el.packingSlipDateShipped.value = assignDeliveryDateEl.value;
+    if (!cloudEl("packingSlipBackdrop").hidden) renderPackingSlipPreview();
+  });
+
   var assignAssetsBtnEl = cloudEl("assignAssetsBtn");
   if (assignAssetsBtnEl) assignAssetsBtnEl.addEventListener("click", function(){ openAssetsModal("assign"); });
 
@@ -9934,7 +10165,7 @@
     }
     var selRows = getSelectedRows();
     if (!selRows.length && !assetPickedIds.size){
-      assignDriverMsg("No items selected - check the item(s) in the table above. (If you just printed, that sets Date Shipped and clears the selection, since those rows are no longer pending.)", "bad");
+      assignDriverMsg("Nothing is on this slip - close it, tick the item(s) in the table, then click Create Delivery Slip again (or click Assets to send assets only). Items that already have a Date Shipped can't be ticked; clear that date first if they still need to go out.", "bad");
       return;
     }
     // every delivery belongs to a job (that's where its address comes from)
@@ -9962,18 +10193,42 @@
       return;
     }
     var items = selRows.map(function(r){
-      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: r.totalQty, serialNumber: r.serialNumber, notes: r.notes};
+      // the qty going out on THIS delivery (all that's left, or the partial amount typed above)
+      var goingOut = qtyToShip(r);
+      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: goingOut > 0 ? goingOut : r.totalQty, serialNumber: r.serialNumber, notes: r.notes};
     });
+    var shipDate = el.packingSlipDateShipped.value || scheduledDate || todayLocalIso();
+    var shipResult = {applied: 0, skipped: 0, rows: []};
     var deliveryId = cloudUuid();
     var driver = driversCache.filter(function(d){ return d.id === driverId; })[0];
     assignDriverBtnEl.disabled = true;
     assignDriverMsg("Assigning...");
-    cloud.sb.from("eq_deliveries").insert({
+    // one driver can't be in two places: no second delivery at the same date and time
+    var slotCheck = (scheduledDate && scheduledTime)
+      ? cloud.sb.from("eq_deliveries").select("id,scheduled_time,eq_jobs(id,name,meta)").eq("driver_id", driverId).eq("scheduled_date", scheduledDate).eq("status", "assigned")
+      : Promise.resolve({data: []});
+    Promise.resolve(slotCheck).then(function(sr){
+      if (sr.error) throw sr.error;
+      var clash = (sr.data || []).filter(function(x){ return String(x.scheduled_time || "").slice(0, 5) === scheduledTime.slice(0, 5); })[0];
+      if (clash){
+        var cj = clash.eq_jobs || {};
+        var clashErr = new Error((driver ? driver.email : "That driver") + " already has a delivery on " + formatDeliveryDate(scheduledDate) + " at " + formatDeliveryTime(scheduledTime) +
+          " (" + ((cj.meta && cj.meta.project) || cj.name || "another job") + "). Pick a different time or a different driver.");
+        clashErr.slotTaken = true;
+        throw clashErr;
+      }
+      return cloud.sb.from("eq_deliveries").insert({
       id: deliveryId, job_id: deliveryJobId, driver_id: driverId, items: items, asset_ids: assetIds, asset_qty: buildAssetQtyMap(assetIds),
       poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, van: van, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
       status: "assigned", updated_by: cloud.clientId
+      });
     }).then(function(r){
       if (r.error) throw r.error;
+      // the delivery is saved: its items are now shipped (same as printing the slip)
+      if (deliveryJobId === cloud.jobId){
+        shipResult = applyShipDateToSelection(shipDate);
+        if (shipResult.rows.length) notifyItemsShipped(shipResult.rows, shipDate);
+      }
       if (!assetIds.length) return null;
       var checkoutRows = assetIds.map(function(aid){
         // poc_name: the person these assets are handed to - the POC on the
@@ -10004,10 +10259,14 @@
         return assetNameById(id) + (q > 1 ? " ×" + q : "");
       });
       assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + (van ? " in " + van : "") +
-        (assetNames.length ? " with " + assetNames.join(", ") : "") + ". Saved.", "good");
+        (assetNames.length ? " with " + assetNames.join(", ") : "") + ". Saved." +
+        (shipResult.applied ? " Date Shipped set to " + formatDateForMsg(shipDate) + " for " + shipResult.applied + " item" + (shipResult.applied === 1 ? "" : "s") + "." : "") +
+        (shipResult.skipped ? " " + shipResult.skipped + " item" + (shipResult.skipped === 1 ? "" : "s") + " not marked shipped (missing BarCode/Date Received, or received after the ship date)." : ""),
+        shipResult.skipped ? "bad" : "good");
+      if (!cloudEl("packingSlipBackdrop").hidden) renderPackingSlipPreview();
     }).catch(function(e){
       assignDriverBtnEl.disabled = false;
-      assignDriverMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't assign: " + (e && e.message ? e.message : e), "bad");
+      assignDriverMsg(e && e.slotTaken ? e.message : isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't assign: " + (e && e.message ? e.message : e), "bad");
     });
   });
 
