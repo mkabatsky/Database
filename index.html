@@ -283,6 +283,7 @@
   .col-item .move-btn:disabled{opacity:.25;cursor:not-allowed;}
   .col-item .move-btn:disabled:hover{background:transparent;color:var(--ink-muted);}
   .modal-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .slip-folder-current{font-size:13.5px;font-weight:600;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt);overflow-wrap:anywhere;}
   .modal-footer .hint{font-size:12px;color:var(--ink-muted);}
 
   #labelsPrintRoot{display:none;}
@@ -643,6 +644,10 @@
      or fail. */
   #roleBanner{display:none;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;padding:6px 12px;border-radius:8px;margin:0 0 8px;}
   body.role-viewer #roleBanner, body.role-tech #roleBanner{display:inline-flex;}
+  /* Admin / Warehouse: full-access staff, with the account type shown. Only an
+     Admin gets Manage users (the server checks that too). */
+  body.kind-admin #roleBanner, body.kind-warehouse #roleBanner{display:inline-flex;background:#e8eef7;color:#1a3a6b;}
+  body.no-user-admin #manageUsersBtn{display:none !important;}
   body.role-viewer #roleBanner{background:#eef2f7;color:#3a5170;}
   body.role-tech #roleBanner{background:#fff4e0;color:#8a5a00;}
 
@@ -746,7 +751,9 @@
 
   /* =================== manage users modal =================== */
   .modal-backdrop#manageUsersBackdrop[hidden]{display:none;}
-  .mu-list{max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
+  #manageUsersBackdrop .modal-panel{width:800px;overflow:auto;}
+  .mu-list{max-height:400px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;flex:none;}
+  .mu-new{flex:none;}
   /* Fixed column tracks (not content-sized) so every row's role/job/action
      columns land in the same place regardless of email length or whether
      that row even has a job select - the previous flex-wrap layout let a
@@ -767,6 +774,13 @@
      visibility, not display:none - that's what keeps the Save/Delete
      buttons lined up with every other row's instead of sliding left */
   .mu-job-hidden{visibility:hidden;pointer-events:none;}
+  /* each user's second line: mobile number under the email, password under the rest */
+  .mu-phone{grid-column:1 / 2;min-width:0;width:100%;font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
+  .mu-pw{grid-column:2 / -1;display:flex;align-items:center;gap:8px;min-width:0;}
+  .mu-pw-form{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;}
+  .mu-pw-form[hidden], .mu-pw-open[hidden]{display:none;}
+  .mu-pw-input{flex:1 1 140px;min-width:0;font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
+  .mu-note{font-size:13px;color:var(--ink-muted);padding:12px 10px;}
   .mu-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-bottom:6px;}
   .mu-msg.bad{color:var(--danger);font-weight:600;}
   .mu-msg.good{color:var(--success);font-weight:600;}
@@ -845,7 +859,41 @@
   .jd-deliveries-title{margin:0 0 8px;font-size:13.5px;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-muted);}
   .jd-deliveries-list{display:flex;flex-direction:column;gap:6px;}
   .jd-delivery-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-size:13px;background:var(--surface-alt);}
-  .jd-delivery-job{font-weight:700;flex:1 1 auto;min-width:120px;}
+  .jd-delivery-job{font-weight:700;flex:1 1 220px;min-width:0;overflow-wrap:anywhere;}
+  /* where the delivery is going, under the job's name */
+  .jd-delivery-address{display:block;font-weight:400;font-size:12.5px;color:var(--ink-muted);margin-top:2px;overflow-wrap:anywhere;}
+  .jd-deliveries-head{display:flex;align-items:center;justify-content:space-between;gap:8px 10px;flex-wrap:wrap;margin-bottom:8px;}
+  .jd-deliveries-head .jd-deliveries-title{margin:0;}
+  .jd-text-drivers-btn{padding:6px 11px;font-size:12.5px;}
+  /* Deployed assets: the name on one line, its description under it, and long
+     text wraps instead of running the row off the side. The job and "out
+     since" sit together on the right. */
+  .jd-asset-row{align-items:flex-start;flex-wrap:nowrap;}
+  .jd-asset-row .jd-delivery-job{flex:1 1 0;}
+  .jd-asset-name{display:block;overflow-wrap:anywhere;}
+  .jd-asset-desc{display:block;font-weight:400;font-size:12.5px;color:var(--ink-muted);margin-top:2px;white-space:normal;overflow-wrap:anywhere;}
+  .jd-asset-where{flex:0 1 38%;min-width:0;display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right;}
+  .jd-asset-where .jd-delivery-driver{overflow-wrap:anywhere;}
+  .jd-asset-where .jd-delivery-when{font-weight:400;color:var(--ink-muted);white-space:normal;}
+  @media (max-width:640px){
+    .jd-asset-row{flex-wrap:wrap;}
+    .jd-asset-where{flex:1 1 100%;align-items:flex-start;text-align:left;}
+  }
+  /* "Text drivers their schedule" */
+  .modal-backdrop#driverTextsBackdrop[hidden]{display:none;}
+  #driverTextsBackdrop .modal-panel{overflow:auto;}
+  .dt-day{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--ink-muted);}
+  .dt-day select{font:inherit;font-size:14px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
+  .dt-list{display:flex;flex-direction:column;gap:10px;}
+  .dt-card{border:1px solid var(--border);border-radius:10px;padding:10px 12px;flex:none;}
+  .dt-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin-bottom:6px;}
+  .dt-driver{font-weight:700;overflow-wrap:anywhere;}
+  .dt-phone{font-size:13px;font-weight:600;}
+  .dt-phone.dt-missing{color:var(--danger);}
+  .dt-text{margin:0 0 8px;padding:10px 12px;border-radius:8px;background:var(--surface-alt);font:inherit;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;}
+  .dt-actions{display:flex;gap:8px;flex-wrap:wrap;}
+  .dt-actions button, .dt-actions a{padding:8px 14px;font-size:13px;}
+  .dt-send{display:inline-flex;align-items:center;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:600;text-decoration:none;}
   .jd-delivery-driver{color:var(--ink);}
   .jd-delivery-when{color:var(--ink);font-weight:600;white-space:nowrap;}
   .jd-delivery-slip-btn{padding:6px 11px;font-size:12.5px;flex:none;}
@@ -1016,8 +1064,8 @@
   body.role-driver .snackbar{display:none !important;}
   #driverDashboard[hidden]{display:none;}
   #driverDashboard{
-    position:fixed;inset:0;z-index:50;overflow:auto;background:var(--bg);
-    padding:16px 16px calc(16px + env(safe-area-inset-bottom));
+    position:fixed;inset:0;z-index:50;overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--bg);
+    padding:20px 24px calc(28px + env(safe-area-inset-bottom));
   }
 
   /* =================== dashboard-view role: same full-screen takeover
@@ -1036,48 +1084,113 @@
      just without the hover/cursor affordance of the staff dashboard's. */
   .dash-only-body .jd-card{cursor:default;}
   .dash-only-body .jd-card:hover{border-color:var(--border);box-shadow:none;}
-  .driver-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
-  .driver-brand{display:flex;align-items:center;gap:12px;}
-  .driver-badge{width:40px;height:40px;border-radius:10px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;flex:none;}
-  .driver-brand h1{margin:0;font-size:19px;font-family:"Barlow Semi Condensed",sans-serif;}
-  .driver-sub{margin:1px 0 0;font-size:12.5px;color:var(--ink-muted);}
-  .driver-list{display:flex;flex-direction:column;gap:12px;max-width:640px;margin:0 auto;}
-  .driver-msg{text-align:center;font-size:13.5px;color:var(--ink-muted);margin-top:20px;}
-  .driver-card{border:1px solid var(--border);border-radius:14px;padding:14px 16px;background:var(--surface);box-shadow:var(--shadow);}
-  .driver-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap;}
-  .driver-job{font-weight:800;font-size:16px;}
-  .driver-when{font-size:13px;font-weight:700;color:var(--accent);white-space:nowrap;}
-  .driver-address{font-size:13.5px;color:var(--ink-muted);margin:4px 0;}
-  .driver-address a{color:var(--accent);font-weight:600;text-decoration:none;}
-  .driver-address a:hover{text-decoration:underline;}
-  .driver-card-stats{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-muted);margin:8px 0 12px;}
+  /* Drivers page - laid out for a 10.1" tablet held upright (about 800 x 1280
+     on screen): big enough to read at arm's length and to press with a thumb.
+     Turned sideways the cards go two across; on a phone the same page is just
+     a little smaller. */
+  .driver-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;max-width:1200px;margin:0 auto 20px;}
+  .driver-brand{display:flex;align-items:center;gap:14px;min-width:0;}
+  .driver-badge{width:56px;height:56px;border-radius:14px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;flex:none;}
+  .driver-brand h1{margin:0;font-size:28px;line-height:1.1;font-family:"Barlow Semi Condensed",sans-serif;}
+  .driver-sub{margin:3px 0 0;font-size:15px;color:var(--ink-muted);overflow-wrap:anywhere;}
+  .driver-top-actions{display:flex;gap:10px;flex:none;}
+  .driver-top-btn{min-height:56px;padding:0 20px;font-size:17px;font-weight:700;border-radius:12px;}
+  .driver-list{display:grid;grid-template-columns:1fr;gap:16px;max-width:1200px;margin:0 auto;}
+  @media (min-width:1000px){ .driver-list{grid-template-columns:1fr 1fr;} }
+  .driver-msg{text-align:center;font-size:18px;color:var(--ink-muted);margin-top:28px;}
+  .driver-msg.bad{color:var(--danger);font-weight:600;}
+  .driver-card{border:1px solid var(--border);border-radius:18px;padding:20px 22px;background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;}
+  .driver-card-head{display:flex;justify-content:space-between;align-items:baseline;gap:6px 14px;flex-wrap:wrap;}
+  .driver-job{font-weight:800;font-size:22px;line-height:1.25;overflow-wrap:anywhere;}
+  .driver-when{font-size:19px;font-weight:800;color:var(--accent);}
+  .driver-address{font-size:18px;line-height:1.4;color:var(--ink);overflow-wrap:anywhere;}
+  .driver-card-stats{display:flex;gap:6px 22px;flex-wrap:wrap;font-size:16.5px;color:var(--ink-muted);}
   .driver-card-stats b{color:var(--ink);}
-  .driver-open-btn{width:100%;min-height:46px;font-size:15px;font-weight:700;}
-  .driver-status-badge{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:2px 8px;border-radius:99px;background:#e6f3e8;color:#1f6b40;}
+  .driver-card-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:4px;}
+  .driver-link-btn{display:flex;align-items:center;justify-content:center;min-height:60px;padding:8px 14px;border:2px solid var(--border);border-radius:12px;background:var(--surface);color:var(--ink);font-size:17px;font-weight:700;text-decoration:none;text-align:center;overflow-wrap:anywhere;}
+  .driver-link-btn:active{background:var(--surface-alt);}
+  .driver-open-btn{width:100%;min-height:68px;margin-top:4px;font-size:20px;font-weight:800;border-radius:12px;background:var(--accent);color:var(--accent-ink);border-color:var(--accent);}
+  .driver-open-btn:hover{background:var(--accent);filter:brightness(1.06);}
+  .driver-status-badge{align-self:flex-start;font-size:14px;font-weight:700;padding:5px 12px;border-radius:99px;background:#e6f3e8;color:#1f6b40;}
 
-  /* =================== delivery sign modal (driver) =================== */
+  /* =================== delivery sign screen (driver) ===================
+     A full page, whichever way the tablet is held. The page itself scrolls
+     (it used to be a fixed-height window, with nothing to scroll once the
+     tablet was turned sideways), the heading stays put, and the name box, the
+     signature box and the buttons are sized for fingers. */
   .modal-backdrop#deliverySignBackdrop[hidden]{display:none;}
-  .ds-meta{font-size:13px;color:var(--ink-muted);margin-bottom:12px;line-height:1.5;}
-  .ds-meta b{color:var(--ink);}
-  .ds-section{border-top:1px solid var(--border);padding-top:14px;margin-top:14px;}
-  .ds-section:first-of-type{border-top:none;padding-top:0;margin-top:0;}
-  .ds-section h3{margin:0 0 8px;font-size:15px;color:var(--accent-ink,inherit);}
-  .ds-table-wrap{overflow-x:auto;margin-bottom:12px;}
-  .ds-table-wrap .ps-table{font-size:12px;}
-  .ds-signed-note{font-size:13.5px;font-weight:700;color:var(--success);padding:10px;border-radius:8px;background:#e6f3e8;margin-bottom:10px;}
-  .ds-field{margin-bottom:14px;}
-  .ds-field label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-muted);margin-bottom:6px;}
-  .ds-field input[type=text]{width:100%;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:16px;font:inherit;background:var(--surface);color:var(--ink);}
-  .ds-sign-actions{display:flex;justify-content:flex-end;margin-top:8px;}
-  .ds-field > button.primary{width:100%;margin-top:8px;}
-  #deliverySignCanvas, #assetSignCanvas{width:100%;height:160px;border:2px dashed var(--border);border-radius:8px;touch-action:none;background:#fff;display:block;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
-  .delivery-sign-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-top:10px;}
-  .delivery-sign-msg.bad{color:var(--danger);font-weight:600;}
-  .delivery-sign-msg.good{color:var(--success);font-weight:600;}
+  #deliverySignBackdrop{padding:0;align-items:stretch;}
+  #deliverySignBackdrop .ds-panel{
+    display:block;width:100% !important;max-width:none !important;height:100%;max-height:none !important;
+    border:none;border-radius:0;padding:0 !important;
+    overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;
+  }
+  .ds-head{position:sticky;top:0;z-index:3;background:var(--surface);border-bottom:1px solid var(--border);padding:calc(12px + env(safe-area-inset-top)) 24px 12px;}
+  .ds-head h2{font-size:22px;font-weight:800;}
+  .ds-close-btn{min-height:56px;padding:0 20px;font-size:17px;font-weight:700;border-radius:12px;flex:none;}
+  .ds-body{max-width:1000px;margin:0 auto;padding:20px 24px 32px;}
+  .ds-meta{color:var(--ink);line-height:1.4;}
+  .ds-meta-job{font-size:24px;font-weight:800;line-height:1.25;margin-bottom:12px;overflow-wrap:anywhere;}
+  .ds-meta-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 24px;}
+  .ds-meta-grid .ds-wide{grid-column:1 / -1;}
+  .ds-k{display:block;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);}
+  .ds-v{display:block;font-size:19px;font-weight:600;overflow-wrap:anywhere;}
+  .ds-meta-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:16px;}
+  .ds-section{border-top:2px solid var(--border);padding-top:22px;margin-top:24px;}
+  .ds-section h3{margin:0 0 12px;font-size:22px;font-weight:800;}
+  .ds-section .modal-sub{font-size:16px;margin:0 0 12px;}
+  .ds-table-wrap{overflow-x:auto;margin-bottom:18px;border:1px solid var(--border);border-radius:12px;}
+  /* On a screen 820px wide or less (a 10.1" tablet held upright is 800) the
+     app turns every table into a stack of cards with no headings - right for
+     the job's item table, but it made the slip here unreadable. These rules
+     keep the slip a real table, with its headings, at every size. */
+  #deliverySignPanel table.ds-items-table{display:table;width:100%;border-collapse:collapse;font-size:17px;}
+  #deliverySignPanel .ds-items-table thead{display:table-header-group;}
+  #deliverySignPanel .ds-items-table th{background:#1a3a6b;color:#fff;text-align:left;padding:10px 12px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;}
+  #deliverySignPanel .ds-items-table tbody{display:table-row-group;gap:0;}
+  #deliverySignPanel .ds-items-table tbody tr{display:table-row !important;padding:0;background:transparent !important;border:none;border-radius:0;box-shadow:none;}
+  #deliverySignPanel .ds-items-table tbody td{display:table-cell !important;padding:12px !important;border:none !important;border-top:1px solid var(--border) !important;background:transparent !important;vertical-align:top;overflow-wrap:anywhere;}
+  #deliverySignPanel .ds-items-table tbody tr:nth-child(even) td{background:var(--surface-alt) !important;}
+  #deliverySignPanel .ds-items-table tbody td::before{display:none;}
+  #deliverySignPanel .ds-items-table th.ds-qty, #deliverySignPanel .ds-items-table td.ds-qty{text-align:center;white-space:nowrap;width:1%;}
+  #deliverySignPanel .ds-items-table tbody td.ds-qty{font-weight:800;font-size:20px;}
+  .ds-item-name{font-weight:700;}
+  .ds-item-sub{display:block;font-size:15px;color:var(--ink-muted);}
+  #deliverySignPanel .ds-items-table tfoot{display:table-footer-group;margin:0;}
+  #deliverySignPanel .ds-items-table tfoot tr{display:table-row;background:transparent;border:none;border-radius:0;padding:0;}
+  #deliverySignPanel .ds-items-table tfoot td{display:table-cell;padding:12px !important;border:none !important;border-top:2px solid #1a3a6b !important;font-weight:800;font-size:18px;color:var(--ink);}
+  .ds-signed-note{font-size:19px;font-weight:700;color:#1f6b40;padding:16px;border-radius:12px;background:#e6f3e8;margin-bottom:10px;}
+  .ds-label{display:block;font-size:17px;font-weight:700;color:var(--ink);margin:18px 0 8px;}
+  .ds-field input[type=text]{display:block;width:100%;min-height:66px;padding:12px 16px;border:2px solid var(--border);border-radius:12px;font:inherit;font-size:24px;font-weight:600;background:var(--surface);color:var(--ink);}
+  .ds-field input[type=text]:focus{outline:none;border-color:var(--accent);}
+  .ds-sign-box{position:relative;max-width:900px;}
+  /* 3 wide to 1 tall at every size, so turning the tablet never stretches a signature */
+  #deliverySignCanvas, #assetSignCanvas{display:block;width:100%;height:auto;aspect-ratio:3 / 1;border:3px dashed var(--border);border-radius:12px;touch-action:none;background:#fff;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}
+  .ds-sign-hint{position:absolute;left:18px;right:18px;bottom:16%;border-bottom:2px solid #c9ced6;color:#9aa3ad;font-size:15px;font-weight:700;padding-bottom:4px;pointer-events:none;}
+  .ds-sign-buttons{display:grid;grid-template-columns:minmax(160px,1fr) 2fr;gap:12px;margin-top:16px;max-width:900px;}
+  .ds-sign-buttons button{min-height:68px;font-size:19px;font-weight:800;border-radius:12px;padding:8px 16px;}
+  /* stays in view at the bottom of the screen, so a message is never off the page */
+  .delivery-sign-msg{position:sticky;bottom:0;z-index:3;font-size:18px;font-weight:600;color:var(--ink);background:var(--surface);border-top:1px solid var(--border);padding:14px 24px calc(14px + env(safe-area-inset-bottom));text-align:center;}
+  .delivery-sign-msg:empty{display:none;}
+  .delivery-sign-msg.bad{color:#fff;background:var(--danger);}
+  .delivery-sign-msg.good{color:#fff;background:var(--success);}
 
   @media (max-width:640px){
     .driver-topbar{align-items:flex-start;}
     .assign-driver-fields{grid-template-columns:1fr;}
+    #driverDashboard{padding:14px 14px calc(20px + env(safe-area-inset-bottom));}
+    .driver-brand h1{font-size:23px;}
+    .driver-top-btn{min-height:48px;padding:0 14px;font-size:15px;}
+    .driver-job{font-size:19px;}
+    .driver-when{font-size:17px;}
+    .driver-address{font-size:16px;}
+    .ds-head{padding-left:14px;padding-right:14px;}
+    .ds-body{padding-left:14px;padding-right:14px;}
+    .ds-meta-grid{grid-template-columns:1fr;}
+    #deliverySignPanel table.ds-items-table{font-size:15px;}
+    #deliverySignPanel .ds-items-table th, #deliverySignPanel .ds-items-table tbody td, #deliverySignPanel .ds-items-table tfoot td{padding:9px 8px !important;}
+    .ds-sign-buttons{grid-template-columns:1fr;}
+    #deliverySignCanvas, #assetSignCanvas{aspect-ratio:2 / 1;}
   }
 </style>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -1097,7 +1210,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 21 - October 8, 2026">Build 21</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 22 - October 8, 2026">Build 22</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
@@ -1302,10 +1415,8 @@
       </label>
       <button id="packingSlipFixDatesBtn" type="button" hidden="" title="These items have a Date Received later than the Date Shipped above (for example from an item labelled late in the evening under the old date handling)."></button>
       <button class="primary" id="packingSlipPrintBtn" type="button">Print delivery slip</button>
-      <button id="packingSlipSignableBtn" type="button" title="Download a standalone page someone can open on their phone, sign, and submit — it emails the signed slip automatically">Export signable slip (mobile)</button>
-      <button class="icon-btn" id="emailSettingsBtn" type="button" title="Email settings for the signable slip">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-      </button>
+      <button id="packingSlipSignableBtn" type="button" title="Saves this slip as a PDF with a place to print a name, sign and date. It goes into your slip folder when one is chosen, otherwise into Downloads.">Export signable slip (PDF)</button>
+      <button id="slipFolderBtn" type="button" title="Choose the folder exported slips are saved into - for example a folder in your OneDrive">Slip folder</button>
     </div>
     <p class="modal-sub" id="packingSlipShipNote">Printing will set this as the Date Shipped for the selected row(s) in the table.</p>
     <div class="assign-driver-section" id="assignDriverSection">
@@ -1372,20 +1483,23 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Full-access staff only. A new login can sign in right away with the password you set below.</p>
+    <p class="modal-sub">Admins only. A new login can sign in right away with the password you set below. To give someone a new password, press <b>Change password</b> on their line.</p>
 
     <div class="mu-list" id="muList"></div>
     <div class="mu-msg" id="muMsg" aria-live="polite"></div>
 
-    <div class="mu-new">
+    <div class="mu-new" id="muNewBox">
       <h3>Add a user</h3>
       <div class="mu-new-fields">
         <label>Email<input type="email" id="muNewEmail" autocomplete="off"></label>
         <label>Password<input type="text" id="muNewPassword" autocomplete="off" placeholder="at least 6 characters"></label>
         <label>Name (optional)<input type="text" id="muNewName" autocomplete="off"></label>
+        <label>Mobile # (optional)<input type="tel" id="muNewPhone" autocomplete="off" placeholder="for texting a driver their schedule"></label>
         <label>Role
           <select id="muNewRole">
-            <option value="staff">Staff (full access)</option>
+            <option value="admin">Admin (full access + manage users)</option>
+            <option value="staff" selected="">Staff (full access)</option>
+            <option value="warehouse">Warehouse (full access)</option>
             <option value="viewer-locked">Viewer - one job</option>
             <option value="viewer-any">Viewer - all jobs</option>
             <option value="tech-locked">PC - one job (delivery requests)</option>
@@ -1478,6 +1592,21 @@
   </div>
 </div>
 
+<div class="modal-backdrop" id="driverTextsBackdrop" hidden="">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="driverTextsTitle">
+    <div class="modal-head">
+      <h2 id="driverTextsTitle">Text drivers their schedule</h2>
+      <button class="icon-btn" id="driverTextsCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub">One message per driver, with that driver's deliveries for the day in order. <b>Text</b> opens the messaging app on this phone or computer with the driver's number and the message already filled in - you press send. <b>Copy</b> puts the message on the clipboard to paste anywhere. Each driver's mobile number is set in Manage users.</p>
+    <label class="dt-day">Day <select id="driverTextsDay"></select></label>
+    <div class="dt-list" id="driverTextsList"></div>
+    <div class="pd-msg" id="driverTextsMsg" aria-live="polite"></div>
+  </div>
+</div>
+
 <!-- ================= drivers: full-screen dashboard (replaces the whole app for this role - see body.role-driver in roles.css) ================= -->
 <div id="driverDashboard" hidden="">
   <header class="driver-topbar">
@@ -1488,48 +1617,55 @@
         <p class="driver-sub" id="driverUserEmail"></p>
       </div>
     </div>
-    <button class="icon-btn" id="driverSignOutBtn" type="button" title="Sign out">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg>
-    </button>
+    <div class="driver-top-actions">
+      <button class="driver-top-btn" id="driverRefreshBtn" type="button">Refresh</button>
+      <button class="driver-top-btn" id="driverSignOutBtn" type="button">Sign out</button>
+    </div>
   </header>
   <div class="driver-list" id="driverList"></div>
   <div class="driver-msg" id="driverMsg" aria-live="polite"></div>
 </div>
 
 <div class="modal-backdrop" id="deliverySignBackdrop" hidden="">
-  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="deliverySignTitle">
-    <div class="modal-head">
+  <div class="modal-panel packing-slip-modal-panel ds-panel" id="deliverySignPanel" role="dialog" aria-modal="true" aria-labelledby="deliverySignTitle">
+    <div class="modal-head ds-head">
       <h2 id="deliverySignTitle">Delivery</h2>
-      <button class="icon-btn" id="deliverySignCloseBtn" title="Close" aria-label="Close" type="button">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
-      </button>
+      <button class="ds-close-btn" id="deliverySignCloseBtn" type="button">Back to my deliveries</button>
     </div>
-    <div class="ds-meta" id="deliverySignMeta"></div>
+    <div class="ds-body">
+      <div class="ds-meta" id="deliverySignMeta"></div>
 
-    <div class="ds-section" id="deliverySignEquipSection">
-      <h3>Delivery Slip</h3>
-      <div class="ds-table-wrap"><table class="ps-table" id="deliverySignItemsTable"></table></div>
-      <div id="deliverySignEquipDone" class="ds-signed-note" hidden="">Signed - thank you.</div>
-      <div class="ds-field" id="deliverySignEquipFields">
-        <label>Signed by (name)<input type="text" id="deliverySignerName" placeholder="Full name"></label>
-        <label>Signature<canvas id="deliverySignCanvas" width="600" height="160"></canvas>
-          <div class="ds-sign-actions"><button type="button" id="deliverySignClearBtn">Clear</button></div>
-        </label>
-        <button type="button" class="primary" id="deliverySignSubmitBtn">Submit signed delivery slip</button>
+      <div class="ds-section" id="deliverySignEquipSection">
+        <h3>Delivery Slip</h3>
+        <div class="ds-table-wrap"><table class="ds-items-table" id="deliverySignItemsTable"></table></div>
+        <div id="deliverySignEquipDone" class="ds-signed-note" hidden="">Signed - thank you.</div>
+        <div class="ds-field" id="deliverySignEquipFields">
+          <label class="ds-label" for="deliverySignerName">Received by - print name</label>
+          <input type="text" id="deliverySignerName" placeholder="Full name" autocomplete="off" autocapitalize="words" enterkeyhint="done">
+          <div class="ds-label">Signature - sign in the box</div>
+          <div class="ds-sign-box"><canvas id="deliverySignCanvas" width="900" height="300"></canvas><span class="ds-sign-hint">Sign here</span></div>
+          <div class="ds-sign-buttons">
+            <button type="button" id="deliverySignClearBtn">Clear signature</button>
+            <button type="button" class="primary" id="deliverySignSubmitBtn">Submit signed delivery slip</button>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div class="ds-section" id="assetSlipSection" hidden="">
-      <h3>Asset Slip</h3>
-      <p class="modal-sub">These are on loan - they'll be checked back into the house pool when returned.</p>
-      <div class="ds-table-wrap"><table class="ps-table" id="deliverySignAssetsTable"></table></div>
-      <div id="deliverySignAssetDone" class="ds-signed-note" hidden="">Signed - thank you.</div>
-      <div class="ds-field" id="deliverySignAssetFields">
-        <label>Signed by (name)<input type="text" id="assetSignerName" placeholder="Full name"></label>
-        <label>Signature<canvas id="assetSignCanvas" width="600" height="160"></canvas>
-          <div class="ds-sign-actions"><button type="button" id="assetSignClearBtn">Clear</button></div>
-        </label>
-        <button type="button" class="primary" id="assetSignSubmitBtn">Submit signed asset slip</button>
+      <div class="ds-section" id="assetSlipSection" hidden="">
+        <h3>Asset Slip</h3>
+        <p class="modal-sub">These are on loan - they'll be checked back into the house pool when returned.</p>
+        <div class="ds-table-wrap"><table class="ds-items-table" id="deliverySignAssetsTable"></table></div>
+        <div id="deliverySignAssetDone" class="ds-signed-note" hidden="">Signed - thank you.</div>
+        <div class="ds-field" id="deliverySignAssetFields">
+          <label class="ds-label" for="assetSignerName">Received by - print name</label>
+          <input type="text" id="assetSignerName" placeholder="Full name" autocomplete="off" autocapitalize="words" enterkeyhint="done">
+          <div class="ds-label">Signature - sign in the box</div>
+          <div class="ds-sign-box"><canvas id="assetSignCanvas" width="900" height="300"></canvas><span class="ds-sign-hint">Sign here</span></div>
+          <div class="ds-sign-buttons">
+            <button type="button" id="assetSignClearBtn">Clear signature</button>
+            <button type="button" class="primary" id="assetSignSubmitBtn">Submit signed asset slip</button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1739,37 +1875,21 @@
 </div>
 <div id="packingSlipPrintRoot"><div id="packingSlipPrintDoc"></div></div>
 
-<div class="modal-backdrop" id="emailSettingsBackdrop" hidden="">
-  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="emailSettingsTitle">
+<div class="modal-backdrop" id="slipFolderBackdrop" hidden="">
+  <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="slipFolderTitle">
     <div class="modal-head">
-      <h2 id="emailSettingsTitle">Signed slip email settings</h2>
-      <button class="icon-btn" id="emailSettingsCloseBtn" title="Close" aria-label="Close" type="button">
+      <h2 id="slipFolderTitle">Where exported slips are saved</h2>
+      <button class="icon-btn" id="slipFolderCloseBtn" title="Close" aria-label="Close" type="button">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">The "Export signable slip" page emails itself to one fixed address the moment it's signed, using a free <a href="https://www.emailjs.com/" target="_blank" rel="noopener">EmailJS</a> account (no server needed). Create an account there, connect your email, add a template with a single <code>email_body</code> field, then paste its 3 keys below.</p>
-    <div class="settings-form">
-      <div class="field">
-        <label for="emailCfgRecipient">Recipient email (where signed slips get sent)</label>
-        <input type="email" id="emailCfgRecipient" placeholder="warehouse@yourcompany.com">
-      </div>
-      <div class="field">
-        <label for="emailCfgServiceId">EmailJS Service ID</label>
-        <input type="text" id="emailCfgServiceId" placeholder="service_xxxxxxx">
-      </div>
-      <div class="field">
-        <label for="emailCfgTemplateId">EmailJS Template ID</label>
-        <input type="text" id="emailCfgTemplateId" placeholder="template_xxxxxxx">
-      </div>
-      <div class="field">
-        <label for="emailCfgPublicKey">EmailJS Public Key</label>
-        <input type="text" id="emailCfgPublicKey" placeholder="xxxxxxxxxxxxxxxx">
-      </div>
+    <p class="modal-sub">"Export signable slip (PDF)" can save straight into a folder on this computer. Choose a folder inside your OneDrive and every exported slip is in OneDrive as soon as OneDrive syncs it. The choice is remembered on this computer, in this browser.</p>
+    <div class="slip-folder-current" id="slipFolderCurrent"></div>
+    <div class="modal-actions">
+      <button class="primary" id="slipFolderChooseBtn" type="button">Choose folder...</button>
+      <button id="slipFolderClearBtn" type="button">Stop using a folder</button>
     </div>
-    <div class="modal-footer">
-      <span class="hint" id="emailCfgHint"></span>
-      <button class="primary" id="emailSettingsSaveBtn" type="button">Save</button>
-    </div>
+    <p class="modal-sub" id="slipFolderHint"></p>
   </div>
 </div>
 
@@ -1923,33 +2043,6 @@
   var PAGE_SOURCE = "<!DOCTYPE html>\n" + document.documentElement.outerHTML;
 
   var STORAGE_KEY = "equipmentDatabase.v1";
-  var EMAIL_SETTINGS_KEY = "equipmentDatabase.emailSettings.v1"; // kept separate from STORAGE_KEY so New database/Import never wipes it
-
-  // ---------- signed packing slip email settings (EmailJS) ----------
-  // Hardcoded so a new user/browser/machine works out of the box without
-  // anyone having to open Email Settings and type these in - the Email
-  // Settings modal is still there as an override (e.g. a different
-  // recipient for a one-off), and whatever's saved in localStorage still
-  // wins over these defaults if someone has already customized it.
-  var emailSettings = {
-    serviceId: "service_aqzr1go",
-    templateId: "service_aqzr1go",
-    publicKey: "_m3R4_pp3xYfKt_lE",
-    recipientEmail: "warehouse@atlantisugs.com"
-  };
-  (function loadEmailSettings(){
-    try{
-      var raw = window.localStorage.getItem(EMAIL_SETTINGS_KEY);
-      if (!raw) return;
-      var parsed = JSON.parse(raw);
-      ["serviceId", "templateId", "publicKey", "recipientEmail"].forEach(function(k){
-        if (typeof parsed[k] === "string") emailSettings[k] = parsed[k];
-      });
-    } catch(e){ /* ignore corrupt/blocked storage — settings just start blank */ }
-  })();
-  function saveEmailSettings(){
-    try{ window.localStorage.setItem(EMAIL_SETTINGS_KEY, JSON.stringify(emailSettings)); } catch(e){ /* storage blocked — settings just won't persist */ }
-  }
 
   // ---------- column + field config ----------
   var COLS = [
@@ -2083,15 +2176,13 @@
     packingSlipPrintBtn: document.getElementById("packingSlipPrintBtn"),
     packingSlipSignableBtn: document.getElementById("packingSlipSignableBtn"),
     packingSlipFixDatesBtn: document.getElementById("packingSlipFixDatesBtn"),
-    emailSettingsBtn: document.getElementById("emailSettingsBtn"),
-    emailSettingsBackdrop: document.getElementById("emailSettingsBackdrop"),
-    emailSettingsCloseBtn: document.getElementById("emailSettingsCloseBtn"),
-    emailSettingsSaveBtn: document.getElementById("emailSettingsSaveBtn"),
-    emailCfgRecipient: document.getElementById("emailCfgRecipient"),
-    emailCfgServiceId: document.getElementById("emailCfgServiceId"),
-    emailCfgTemplateId: document.getElementById("emailCfgTemplateId"),
-    emailCfgPublicKey: document.getElementById("emailCfgPublicKey"),
-    emailCfgHint: document.getElementById("emailCfgHint"),
+    slipFolderBtn: document.getElementById("slipFolderBtn"),
+    slipFolderBackdrop: document.getElementById("slipFolderBackdrop"),
+    slipFolderCloseBtn: document.getElementById("slipFolderCloseBtn"),
+    slipFolderChooseBtn: document.getElementById("slipFolderChooseBtn"),
+    slipFolderClearBtn: document.getElementById("slipFolderClearBtn"),
+    slipFolderCurrent: document.getElementById("slipFolderCurrent"),
+    slipFolderHint: document.getElementById("slipFolderHint"),
     packingSlipSub: document.getElementById("packingSlipSub"),
     packingSlipDateShipped: document.getElementById("packingSlipDateShipped"),
     packingSlipPreview: document.getElementById("packingSlipPreview"),
@@ -3759,7 +3850,7 @@
       el.packingSlipPreview.innerHTML = assetOnlyHtml;
       el.packingSlipSub.textContent = "Assets only — nothing from the job's table is on this delivery. Print the asset slip, or assign it to a driver below.";
       el.packingSlipPrintBtn.disabled = false;
-      el.packingSlipSignableBtn.disabled = true;
+      el.packingSlipSignableBtn.disabled = false;
       el.packingSlipFixDatesBtn.hidden = true;
       fitPackingSlipPreview();
       return;
@@ -3877,369 +3968,266 @@
   });
   window.addEventListener("resize", function(){ if (!el.packingSlipBackdrop.hidden) fitPackingSlipPreview(); });
 
-  // ---------- signed slip email settings (EmailJS) ----------
-  function openEmailSettingsModal(){
-    el.emailCfgRecipient.value = emailSettings.recipientEmail;
-    el.emailCfgServiceId.value = emailSettings.serviceId;
-    el.emailCfgTemplateId.value = emailSettings.templateId;
-    el.emailCfgPublicKey.value = emailSettings.publicKey;
-    el.emailCfgHint.textContent = "";
-    el.emailSettingsBackdrop.hidden = false;
-  }
-  function closeEmailSettingsModal(){ el.emailSettingsBackdrop.hidden = true; }
-  el.emailSettingsBtn.addEventListener("click", openEmailSettingsModal);
-  el.emailSettingsCloseBtn.addEventListener("click", closeEmailSettingsModal);
-  el.emailSettingsBackdrop.addEventListener("click", function(ev){ if (ev.target === el.emailSettingsBackdrop) closeEmailSettingsModal(); });
-  el.emailSettingsSaveBtn.addEventListener("click", function(){
-    emailSettings.recipientEmail = el.emailCfgRecipient.value.trim();
-    emailSettings.serviceId = el.emailCfgServiceId.value.trim();
-    emailSettings.templateId = el.emailCfgTemplateId.value.trim();
-    emailSettings.publicKey = el.emailCfgPublicKey.value.trim();
-    saveEmailSettings();
-    el.emailCfgHint.textContent = "Saved.";
-  });
-
-  function emailSettingsComplete(){
-    return !!(emailSettings.recipientEmail && emailSettings.serviceId && emailSettings.templateId && emailSettings.publicKey);
-  }
-
-  // builds a standalone, self-contained HTML page (no dependency on this app
-  // once downloaded) with a canvas signature pad; on submit it emails the
-  // packing slip + signature straight to the address set in Email Settings
-  // via EmailJS, since a static file has no server of its own to send from
-  function buildSignablePackingSlipHTML(selRows, shipDateIso){
-    var slipHtml = makePackingSlipHTML(selRows, shipDateIso, {skipSignFooter: true});
-    var todayIso = todayLocalIso();
-    var cfg = {
-      serviceId: emailSettings.serviceId,
-      templateId: emailSettings.templateId,
-      publicKey: emailSettings.publicKey,
-      recipientEmail: emailSettings.recipientEmail
-    };
-    // EmailJS caps total template variable size at 50KB — the on-page
-    // packing slip markup (styled, class-heavy, one row per selected item)
-    // can blow past that on its own for a larger shipment, so the emailed
-    // copy is built separately from lean row data instead of that markup
-    var totalQty = 0;
-    var leanRows = selRows.map(function(r){
-      var qty = qtyShownOnSlip(r);   // the same number the slip itself shows
-      totalQty += qty;
-      var qtyText = qty > 0 ? String(qty) : (rowReceived(r) === 0 ? "" : String(qty));
-      return [r.barcode || "", r.manufacturer || "", r.model || "", truncateText(r.deviceType, 50) || "", qtyText, r.serialNumber || ""];
+  // ---------- where "Export signable slip (PDF)" saves ----------
+  // A web page can't put a file into OneDrive by itself. What it can do
+  // (Chrome and Edge on a computer) is save into a folder the user picked
+  // once - and when that folder is inside the computer's OneDrive, OneDrive
+  // uploads it. The picked folder is remembered in this browser (IndexedDB is
+  // the only place a folder can be kept). Where that isn't possible, or before
+  // a folder is picked, the slip downloads the normal way.
+  var SLIP_FOLDER_DB = "equipmentDatabase.slipFolder", SLIP_FOLDER_KEY = "folder";
+  var slipFolderHandle = null;
+  function slipFolderSupported(){ return typeof window.showDirectoryPicker === "function" && !!window.indexedDB; }
+  function slipFolderStore(mode, fn){
+    return new Promise(function(resolve, reject){
+      var open = window.indexedDB.open(SLIP_FOLDER_DB, 1);
+      open.onupgradeneeded = function(){ open.result.createObjectStore("kv"); };
+      open.onerror = function(){ reject(open.error); };
+      open.onsuccess = function(){
+        var db = open.result, req;
+        try{
+          var tx = db.transaction("kv", mode);
+          req = fn(tx.objectStore("kv"));
+          tx.oncomplete = function(){ db.close(); resolve(req && req.result); };
+          tx.onerror = tx.onabort = function(){ db.close(); reject(tx.error); };
+        }catch(e){ db.close(); reject(e); }
+      };
     });
-    var slipMeta = {
-      jobName: meta.project || "",
-      jobNumber: meta.projectNumber || "",
-      vendor: meta.vendor || "",
-      vendorProjNum: meta.vendorProjNum || "",
-      address: meta.address || "",
-      dateShipped: formatDateShort(shipDateIso || todayIso),
-      totalQty: totalQty
-    };
-    return "" +
-'<!DOCTYPE html>\n' +
-'<html lang="en">\n' +
-'<head>\n' +
-'<meta charset="UTF-8">\n' +
-'<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">\n' +
-'<title>Delivery Slip — Sign &amp; Submit</title>\n' +
-'<style>\n' +
-'*{box-sizing:border-box;}\n' +
-'body{margin:0;padding:16px;font-family:Arial,"Helvetica Neue",sans-serif;background:#eef1f5;color:#1a1a18;}\n' +
-'.ps-table-wrap{overflow-x:auto;}\n' +
-'.packing-slip-doc{background:#fff;color:#1a1a18;width:max-content;min-width:min(100%,760px);max-width:none;margin:0 auto;padding:20px;border-radius:8px;box-shadow:0 1px 4px rgba(0,0,0,.15);}\n' +
-'.ps-header{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:3px solid #1a3a6b;padding-bottom:12px;margin-bottom:16px;}\n' +
-'.ps-title{font-size:21px;font-weight:800;color:#1a3a6b;letter-spacing:.02em;}\n' +
-'.ps-date{color:#666;font-size:12px;margin-top:2px;}\n' +
-'.ps-badge{width:34px;height:34px;border-radius:8px;background:#1a3a6b;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex:none;}\n' +
-'.ps-meta-grid{display:grid;grid-template-columns:1.2fr 1.6fr 1fr;gap:5px 20px;margin-bottom:18px;font-size:13px;}\n' +
-'.ps-meta-grid .ps-meta-job{grid-column:1;grid-row:1;font-size:calc(13px + 2pt);}\n' +
-'.ps-meta-grid .ps-meta-jobnum{grid-column:1;grid-row:2;}\n' +
-'.ps-meta-grid .ps-meta-poc{grid-column:1;grid-row:3;}\n' +
-'.ps-meta-grid .ps-meta-vendor{grid-column:3;grid-row:1;}\n' +
-'.ps-meta-grid .ps-meta-vendorproj{grid-column:3;grid-row:2;}\n' +
-'.ps-meta-grid .ps-meta-pocphone{grid-column:3;grid-row:3;}\n' +
-'.ps-meta-grid .ps-meta-label{color:#666;display:inline-block;min-width:84px;}\n' +
-'.ps-meta-grid .ps-meta-address{grid-column:2;grid-row:1 / span 2;display:flex;gap:8px;align-items:flex-start;}\n' +
-'.ps-meta-grid .ps-meta-pocemail{grid-column:2;grid-row:3;display:flex;gap:8px;align-items:flex-start;}\n' +
-'.ps-meta-grid .ps-meta-address .ps-meta-label,.ps-meta-grid .ps-meta-pocemail .ps-meta-label{min-width:0;flex:none;}\n' +
-'.ps-meta-grid .ps-meta-val{min-width:0;line-height:1.35;}\n' +
-'.ps-table{width:100%;border-collapse:collapse;font-size:11px;}\n' +
-'.ps-table th{background:#1a3a6b;color:#fff;text-align:left;padding:5px 6px;font-size:9.5px;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}\n' +
-'.ps-checkbox{display:inline-block;width:14px;height:14px;border:1.5px solid #1a1a18;border-radius:2px;vertical-align:middle;}\n' +
-'.ps-table td{padding:5px 6px;border-bottom:1px solid #ccc;white-space:nowrap;}\n' +
-'.ps-table tbody tr:nth-child(even) td{background:#f3f5f8;}\n' +
-'.ps-table tfoot td{padding:8px;font-weight:700;border-top:2px solid #1a3a6b;border-bottom:none;}\n' +
-'.sign-card{background:#fff;border-radius:8px;padding:18px;margin:16px auto 0;max-width:760px;box-shadow:0 1px 4px rgba(0,0,0,.15);}\n' +
-'.sign-card h2{margin:0 0 14px;font-size:16px;color:#1a3a6b;}\n' +
-'.field{margin-bottom:14px;}\n' +
-'.field label{display:block;font-size:12.5px;color:#555;margin-bottom:5px;}\n' +
-'.field input[type=text],.field input[type=date]{width:100%;padding:10px;border:1px solid #ccc;border-radius:6px;font-size:16px;font:inherit;-webkit-user-select:text;user-select:text;}\n' +
-'#signedDate:disabled{opacity:1;-webkit-text-fill-color:#1a1a18;color:#1a1a18;background:#eef0f3;}\n' +
-'#sigCanvas.sig-highlight{border-color:#b8720f;border-style:solid;box-shadow:0 0 0 3px rgba(184,114,15,.25);}\n' +
-'#sigCanvas{width:100%;height:180px;border:2px dashed #99a3b0;border-radius:8px;touch-action:none;background:#fff;display:block;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;}\n' +
-'.sign-actions{display:flex;justify-content:flex-end;margin-top:8px;}\n' +
-'button{font:inherit;font-size:15px;padding:10px 16px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;touch-action:manipulation;min-height:44px;}\n' +
-'button.primary{width:100%;margin-top:8px;background:#b8720f;color:#fff;border-color:#b8720f;font-weight:700;font-size:16px;padding:13px 16px;}\n' +
-'button:disabled{opacity:.5;cursor:not-allowed;}\n' +
-'#statusMsg{margin-top:14px;font-size:14px;padding:10px 12px;border-radius:6px;display:none;}\n' +
-'#statusMsg.ok{background:#e6f4ea;color:#1e7a34;display:block;}\n' +
-'#statusMsg.err{background:#fdecea;color:#b3261e;display:block;}\n' +
-// Sized around an 8" rugged delivery tablet (e.g. Samsung Galaxy Tab
-// Active5), used one-handed in portrait, often outdoors/gloved: bigger
-// tap targets and a taller, easier-to-fill signature pad than the plain
-// desktop-preview sizing above, without needing a phone-sized layout.
-'@media (min-width:500px) and (max-width:900px){\n' +
-'  body{padding:14px;}\n' +
-'  .packing-slip-doc{padding:16px;}\n' +
-'  .ps-table{font-size:12.5px;}\n' +
-'  .ps-table th{font-size:10.5px;padding:7px 8px;}\n' +
-'  .ps-table td{padding:7px 8px;}\n' +
-'  .sign-card{padding:16px;}\n' +
-'  .field input[type=text],.field input[type=date]{padding:13px;font-size:16px;}\n' +
-'  #sigCanvas{height:240px;}\n' +
-'  button{min-height:48px;font-size:16px;}\n' +
-'  button.primary{min-height:54px;font-size:17px;}\n' +
-'}\n' +
-'</style>\n' +
-'</head>\n' +
-'<body>\n' +
-'<div class="ps-table-wrap"><div id="packingSlipContent">' + slipHtml + '</div></div>\n' +
-'<div class="sign-card">\n' +
-'  <h2>Sign to confirm receipt</h2>\n' +
-'  <div class="field"><label for="signerName">Signed by (name)</label><input type="text" id="signerName" placeholder="Full name" autocomplete="name" enterkeyhint="done"></div>\n' +
-'  <div class="field"><label for="signedDate">Date</label><input type="date" id="signedDate" value="' + todayIso + '" disabled></div>\n' +
-'  <div class="field"><label>Signature</label><canvas id="sigCanvas"></canvas><div class="sign-actions"><button type="button" id="clearBtn">Clear</button></div></div>\n' +
-'  <button type="button" id="submitBtn" class="primary">Submit signed slip</button>\n' +
-'  <div id="statusMsg"></div>\n' +
-'</div>\n' +
-'<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"><\/script>\n' +
-'<script>\n' +
-'(function(){\n' +
-'  var CFG = ' + JSON.stringify(cfg) + ';\n' +
-'  var SLIP_ROWS = ' + JSON.stringify(leanRows) + ';\n' +
-'  var SLIP_META = ' + JSON.stringify(slipMeta) + ';\n' +
-'  var canvas = document.getElementById("sigCanvas");\n' +
-'  var ctx = canvas.getContext("2d");\n' +
-'  canvas.setAttribute("tabindex", "0");\n' +
-'  var signerNameInput = document.getElementById("signerName");\n' +
-'  signerNameInput.addEventListener("keydown", function(e){\n' +
-'    if (e.key !== "Enter") return;\n' +
-'    setTimeout(function(){\n' +
-'      signerNameInput.blur();\n' +
-'      setTimeout(function(){\n' +
-'        canvas.scrollIntoView({behavior: "smooth", block: "center"});\n' +
-'        canvas.focus({preventScroll: true});\n' +
-'        canvas.classList.add("sig-highlight");\n' +
-'        setTimeout(function(){ canvas.classList.remove("sig-highlight"); }, 1600);\n' +
-'      }, 250);\n' +
-'    }, 0);\n' +
-'  });\n' +
-'  var hasSignature = false, drawing = false;\n' +
-'  function sigDebug(){}\n' + // pointer-tracking overlay removed from this signer-facing page - was a dev diagnostic, not meant to stay visible
+  }
+  function loadSlipFolder(){
+    if (!slipFolderSupported()) return Promise.resolve(null);
+    return slipFolderStore("readonly", function(st){ return st.get(SLIP_FOLDER_KEY); }).then(function(h){
+      slipFolderHandle = h || null;
+      return slipFolderHandle;
+    }, function(){ return null; });
+  }
+  // Resolves with the folder's name once the file is written there, or with
+  // null when it couldn't be (no folder chosen, the browser wasn't allowed, the
+  // folder has gone) - the caller then downloads it instead.
+  function saveBlobToSlipFolder(blob, filename){
+    var h = slipFolderHandle;
+    if (!h) return Promise.resolve(null);
+    var access = {mode: "readwrite"};
+    return Promise.resolve().then(function(){
+      return h.queryPermission ? h.queryPermission(access) : "granted";
+    }).then(function(state){
+      // The browser asks again after it has been restarted. That question can
+      // only be put from a click, which is where this runs from.
+      return state === "granted" || !h.requestPermission ? state : h.requestPermission(access);
+    }).then(function(state){
+      if (state !== "granted") return null;
+      return freeNameInFolder(h, filename, 1).then(function(name){
+        return h.getFileHandle(name, {create: true});
+      }).then(function(fh){ return fh.createWritable(); }).then(function(w){
+        return Promise.resolve(w.write(blob)).then(function(){ return w.close(); });
+      }).then(function(){ return h.name || "the chosen folder"; });
+    }).catch(function(){ return null; });
+  }
+  // A name nothing in the folder has yet, so an earlier slip is never written
+  // over: "name.pdf", then "name (2).pdf", "name (3).pdf"...
+  function freeNameInFolder(h, filename, n){
+    var dot = filename.lastIndexOf(".");
+    var name = n === 1 ? filename : filename.slice(0, dot) + " (" + n + ")" + filename.slice(dot);
+    return h.getFileHandle(name).then(function(){
+      return n >= 50 ? name : freeNameInFolder(h, filename, n + 1);
+    }, function(){ return name; });   // not found: the name is free
+  }
+  function renderSlipFolderSettings(note){
+    var supported = slipFolderSupported();
+    el.slipFolderCurrent.textContent = !supported ? "This browser can't save into a folder by itself, so exported slips go to Downloads here."
+      : slipFolderHandle ? 'Exported slips are saved in the folder "' + (slipFolderHandle.name || "") + '".'
+      : "No folder chosen yet - exported slips go to Downloads.";
+    el.slipFolderChooseBtn.disabled = !supported;
+    el.slipFolderChooseBtn.textContent = slipFolderHandle ? "Choose a different folder..." : "Choose folder...";
+    el.slipFolderClearBtn.hidden = !slipFolderHandle;
+    el.slipFolderHint.textContent = note || (supported
+      ? "For OneDrive: in the window that opens, pick OneDrive in the list on the left, then the folder for slips (or make a new one). After the browser has been restarted it asks once whether it may save there - choose Allow."
+      : "Saving straight into a folder works in Chrome or Edge on a Windows or Mac computer.");
+  }
+  el.slipFolderBtn.addEventListener("click", function(){
+    renderSlipFolderSettings();
+    el.slipFolderBackdrop.hidden = false;
+  });
+  el.slipFolderCloseBtn.addEventListener("click", function(){ el.slipFolderBackdrop.hidden = true; });
+  el.slipFolderBackdrop.addEventListener("click", function(ev){ if (ev.target === el.slipFolderBackdrop) el.slipFolderBackdrop.hidden = true; });
+  el.slipFolderChooseBtn.addEventListener("click", function(){
+    if (!slipFolderSupported()) return;
+    var pickerOpts = {id: "eq-slips", mode: "readwrite", startIn: slipFolderHandle || "documents"};
+    window.showDirectoryPicker(pickerOpts).then(function(handle){
+      slipFolderHandle = handle;
+      return slipFolderStore("readwrite", function(st){ return st.put(handle, SLIP_FOLDER_KEY); }).then(function(){
+        renderSlipFolderSettings('Saved. "Export signable slip (PDF)" now saves into this folder.');
+      }, function(){
+        renderSlipFolderSettings("This folder is used until this page is closed - the browser wouldn't remember it for next time.");
+      });
+    }, function(e){
+      if (e && e.name === "AbortError") return;   // the folder window was closed without choosing
+      renderSlipFolderSettings("Couldn't use that folder: " + (e && e.message ? e.message : e) + " If the browser refuses a folder, make a folder for slips inside it and choose that one.");
+    });
+  });
+  el.slipFolderClearBtn.addEventListener("click", function(){
+    slipFolderHandle = null;
+    slipFolderStore("readwrite", function(st){ return st.delete(SLIP_FOLDER_KEY); }).then(function(){}, function(){});
+    renderSlipFolderSettings("Exported slips go to Downloads again.");
+  });
+  loadSlipFolder();
 
-'  function fitCanvas(preserve){\n' +
-'    var rect = canvas.getBoundingClientRect();\n' +
-'    if (rect.width < 10 || rect.height < 10){\n' +
-'      requestAnimationFrame(function(){ fitCanvas(preserve); });\n' +
-'      return;\n' +
-'    }\n' +
-'    var prevDataUrl = (preserve && hasSignature) ? canvas.toDataURL() : null;\n' +
-'    var ratio = window.devicePixelRatio || 1;\n' +
-'    canvas.width = rect.width * ratio;\n' +
-'    canvas.height = rect.height * ratio;\n' +
-'    ctx.scale(ratio, ratio);\n' +
-'    ctx.lineWidth = 2.2;\n' +
-'    ctx.lineCap = "round";\n' +
-'    ctx.lineJoin = "round";\n' +
-'    ctx.strokeStyle = "#1a1a18";\n' +
-'    if (prevDataUrl){\n' +
-'      var img = new Image();\n' +
-'      img.onload = function(){ ctx.drawImage(img, 0, 0, rect.width, rect.height); };\n' +
-'      img.src = prevDataUrl;\n' +
-'    }\n' +
-'  }\n' +
-'  fitCanvas(false);\n' +
-'  window.addEventListener("resize", function(){ fitCanvas(true); });\n' +
-'  if (document.readyState !== "complete"){\n' +
-'    window.addEventListener("load", function(){ fitCanvas(true); });\n' +
-'  }\n' +
-'  function compactSignatureDataUrl(){\n' +
-'    var rect = canvas.getBoundingClientRect();\n' +
-'    var maxW = 360;\n' +
-'    var scale = Math.min(1, maxW / rect.width);\n' +
-'    var outW = Math.max(1, Math.round(rect.width * scale));\n' +
-'    var outH = Math.max(1, Math.round(rect.height * scale));\n' +
-'    var off = document.createElement("canvas");\n' +
-'    off.width = outW; off.height = outH;\n' +
-'    var octx = off.getContext("2d");\n' +
-'    octx.fillStyle = "#ffffff";\n' +
-'    octx.fillRect(0, 0, outW, outH);\n' +
-'    octx.drawImage(canvas, 0, 0, outW, outH);\n' +
-'    return off.toDataURL("image/png");\n' +
-'  }\n' +
-'  function pos(clientX, clientY){\n' +
-'    var rect = canvas.getBoundingClientRect();\n' +
-'    return {x: clientX - rect.left, y: clientY - rect.top};\n' +
-'  }\n' +
-'  function beginStroke(x, y){\n' +
-'    drawing = true; hasSignature = true;\n' +
-'    ctx.beginPath();\n' +
-'    ctx.moveTo(x, y);\n' +
-'    ctx.lineTo(x + 0.1, y);\n' +
-'    ctx.stroke();\n' +
-'  }\n' +
-'  function continueStroke(x, y){\n' +
-'    if (!drawing) return;\n' +
-'    ctx.lineTo(x, y);\n' +
-'    ctx.stroke();\n' +
-'  }\n' +
-'  function endStroke(){ drawing = false; }\n' +
-'  // Pointer Events cover mouse, touch and pen in one model and are fully\n' +
-'  // supported on every iPad/iPhone in real use (iOS 13+) and every current\n' +
-'  // desktop browser, so they are used alone whenever available. Registering\n' +
-'  // Touch Events on top of them is what breaks drawing on iOS Safari: WebKit\n' +
-'  // can cancel the pointer stroke the instant it starts (a pointercancel right\n' +
-'  // after pointerdown) when both event models are listening on the same canvas.\n' +
-'  if (window.PointerEvent){\n' +
-'    var sigMoveCount = 0;\n' +
-'    canvas.addEventListener("pointerdown", function(e){\n' +
-'      var rect = canvas.getBoundingClientRect();\n' +
-'      sigMoveCount = 0;\n' +
-'      sigDebug("down type=" + e.pointerType + " canvasBox=" + Math.round(rect.width) + "x" + Math.round(rect.height) + " bufferPx=" + canvas.width + "x" + canvas.height);\n' +
-'      var p = pos(e.clientX, e.clientY);\n' +
-'      beginStroke(p.x, p.y);\n' +
-'      if (canvas.setPointerCapture){ try { canvas.setPointerCapture(e.pointerId); } catch(err){} }\n' +
-'      e.preventDefault();\n' +
-'    });\n' +
-'    canvas.addEventListener("pointermove", function(e){\n' +
-'      sigMoveCount++;\n' +
-'      if (sigMoveCount === 1 || sigMoveCount % 10 === 0) sigDebug("move #" + sigMoveCount + " drawing=" + drawing);\n' +
-'      var p = pos(e.clientX, e.clientY);\n' +
-'      continueStroke(p.x, p.y);\n' +
-'      e.preventDefault();\n' +
-'    });\n' +
-'    ["pointerup","pointercancel"].forEach(function(ev){\n' +
-'      canvas.addEventListener(ev, function(e){ sigDebug(ev + " after " + sigMoveCount + " moves"); endStroke(); });\n' +
-'    });\n' +
-'  } else {\n' +
-'    // only reached on a browser with no Pointer Event support at all\n' +
-'    canvas.addEventListener("touchstart", function(e){\n' +
-'      var t = e.touches[0];\n' +
-'      var p = pos(t.clientX, t.clientY);\n' +
-'      beginStroke(p.x, p.y);\n' +
-'      e.preventDefault();\n' +
-'    }, {passive: false});\n' +
-'    canvas.addEventListener("touchmove", function(e){\n' +
-'      var t = e.touches[0];\n' +
-'      var p = pos(t.clientX, t.clientY);\n' +
-'      continueStroke(p.x, p.y);\n' +
-'      e.preventDefault();\n' +
-'    }, {passive: false});\n' +
-'    ["touchend","touchcancel"].forEach(function(ev){\n' +
-'      canvas.addEventListener(ev, function(e){ endStroke(); e.preventDefault(); }, {passive: false});\n' +
-'    });\n' +
-'    canvas.addEventListener("mousedown", function(e){ var p = pos(e.clientX, e.clientY); beginStroke(p.x, p.y); });\n' +
-'    canvas.addEventListener("mousemove", function(e){ var p = pos(e.clientX, e.clientY); continueStroke(p.x, p.y); });\n' +
-'    ["mouseup","mouseleave"].forEach(function(ev){ canvas.addEventListener(ev, endStroke); });\n' +
-'  }\n' +
-'  document.getElementById("clearBtn").addEventListener("click", function(){\n' +
-'    ctx.clearRect(0, 0, canvas.width, canvas.height);\n' +
-'    hasSignature = false;\n' +
-'  });\n' +
-'  var statusEl = document.getElementById("statusMsg");\n' +
-'  function showStatus(msg, ok){\n' +
-'    statusEl.textContent = msg;\n' +
-'    statusEl.className = ok ? "ok" : "err";\n' +
-'  }\n' +
-'  function escapeHtml(s){\n' +
-'    return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");\n' +
-'  }\n' +
-'  var HEADERS = ["BarCode","Manufacturer","Model","Device Type","Qty","Serial Number"];\n' +
-'  function buildEmailTable(){\n' +
-'    var head = "<tr bgcolor=\\"#1a3a6b\\">" + HEADERS.map(function(h, i){\n' +
-'      return "<th align=\\"" + (i === 4 ? "center" : "left") + "\\">" + escapeHtml(h) + "</th>";\n' +
-'    }).join("") + "</tr>";\n' +
-'    var body = SLIP_ROWS.map(function(r){\n' +
-'      return "<tr>" + r.map(function(v, i){\n' +
-'        return "<td" + (i === 4 ? " align=\\"center\\"" : "") + ">" + escapeHtml(v) + "</td>";\n' +
-'      }).join("") + "</tr>";\n' +
-'    }).join("");\n' +
-'    return "<table border=\\"1\\" cellpadding=\\"4\\" cellspacing=\\"0\\" style=\\"font-family:Arial,sans-serif;font-size:12px;border-collapse:collapse;color:#222;\\">" + head + body +\n' +
-'      "<tr><td colspan=\\"4\\" align=\\"right\\"><b>Total Items:</b></td><td align=\\"center\\"><b>" + SLIP_META.totalQty + "</b></td><td></td></tr></table>";\n' +
-'  }\n' +
-'  function buildEmailHeader(){\n' +
-'    var f = "font-family:Arial,sans-serif;";\n' +
-'    return "<div style=\\"" + f + "\\">" +\n' +
-'      "<h2 style=\\"margin:0 0 4px;color:#1a3a6b;\\">Delivery Slip</h2>" +\n' +
-'      "<div style=\\"color:#666;font-size:12px;margin-bottom:10px;\\">Date Shipped: " + escapeHtml(SLIP_META.dateShipped) + "</div>" +\n' +
-'      "<div style=\\"font-size:12px;margin-bottom:10px;\\">Job Name: " + escapeHtml(SLIP_META.jobName || "\\u2014") + " &nbsp; | &nbsp; Vendor: " + escapeHtml(SLIP_META.vendor || "\\u2014") + "<br>" +\n' +
-'      "Job Number: " + escapeHtml(SLIP_META.jobNumber || "\\u2014") + " &nbsp; | &nbsp; Vendor Proj #: " + escapeHtml(SLIP_META.vendorProjNum || "\\u2014") + "<br>" +\n' +
-'      "Address: " + escapeHtml(SLIP_META.address || "\\u2014") + "</div>" +\n' +
-'    "</div>";\n' +
-'  }\n' +
-'  document.getElementById("submitBtn").addEventListener("click", function(){\n' +
-'    var btn = this;\n' +
-'    var name = document.getElementById("signerName").value.trim();\n' +
-'    var signedDate = document.getElementById("signedDate").value;\n' +
-'    if (!name){ showStatus("Please enter your name.", false); return; }\n' +
-'    if (!signedDate){ showStatus("Please enter the date.", false); return; }\n' +
-'    if (!hasSignature){ showStatus("Please sign above before submitting.", false); return; }\n' +
-'    if (typeof emailjs === "undefined"){ showStatus("Could not reach the email service — check your internet connection and try again.", false); return; }\n' +
-'    btn.disabled = true; btn.textContent = "Sending…";\n' +
-'    var sigDataUrl = compactSignatureDataUrl();\n' +
-'    var emailBody = "" +\n' +
-'      buildEmailHeader() + buildEmailTable() +\n' +
-'      "<div style=\\"margin-top:20px;font-family:Arial,sans-serif;font-size:13px;\\"><strong>Signed by:</strong> " + escapeHtml(name) + "<br><strong>Date:</strong> " + escapeHtml(signedDate) + "</div>" +\n' +
-'      "<div style=\\"margin-top:10px;\\"><img src=\\"" + sigDataUrl + "\\" style=\\"max-width:320px;border:1px solid #ccc;\\"></div>";\n' +
-'    if (emailBody.length > 48000){\n' +
-'      btn.disabled = false; btn.textContent = "Submit signed slip";\n' +
-'      showStatus("This delivery slip has too many items to email in one message (" + SLIP_ROWS.length + " items). Split it into smaller shipments and try again.", false);\n' +
-'      return;\n' +
-'    }\n' +
-'    emailjs.init(CFG.publicKey);\n' +
-'    emailjs.send(CFG.serviceId, CFG.templateId, {to_email: CFG.recipientEmail, email_body: emailBody}).then(function(){\n' +
-'      showStatus("Signed slip sent. Thank you!", true);\n' +
-'      document.getElementById("signerName").disabled = true;\n' +
-'      document.getElementById("signedDate").disabled = true;\n' +
-'      document.getElementById("clearBtn").disabled = true;\n' +
-'      btn.textContent = "Sent";\n' +
-'    }, function(err){\n' +
-'      btn.disabled = false; btn.textContent = "Submit signed slip";\n' +
-'      showStatus("Could not send: " + (err && err.text ? err.text : "unknown error") + ". Check your connection and try again.", false);\n' +
-'    });\n' +
-'  });\n' +
-'})();\n' +
-'<\/script>\n' +
-'</body>\n' +
-'</html>';
+  // ---------- "Export signable slip (PDF)" ----------
+  // The delivery slip as a PDF with boxes to print a name, sign and date: to
+  // print and sign on paper, or to sign on a tablet or phone with any PDF app.
+  // Drawn with jsPDF to match the printed slip. When assets are on the
+  // delivery, the asset slip follows on its own page with its own signature
+  // boxes; a delivery of assets only is just that page.
+  function buildSignableSlipPdf(selRows, shipDateIso){
+    if (typeof window.jspdf === "undefined") return null;
+    var assetIds = assetPickedIds ? Array.from(assetPickedIds) : [];
+    if (!selRows.length && !assetIds.length) return null;
+    var doc = new window.jspdf.jsPDF({unit: "pt", format: "letter", orientation: "landscape", compress: true});
+    var pageW = doc.internal.pageSize.getWidth(), pageH = doc.internal.pageSize.getHeight();
+    var NAVY = [26, 58, 107], GRID = [90, 98, 107], margin = 40;
+    var dateStr = formatDateShort(shipDateIso || todayLocalIso());
+    var cellText = function(v){ return v === undefined || v === null ? "" : String(v); };
+
+    function pageHeader(title){
+      doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(19);
+      doc.text(title, margin, 34);
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text("Date Shipped: " + dateStr, margin, 50);
+      var badgeSize = 30, badgeX = pageW - margin - badgeSize, badgeY = 14;
+      doc.setFillColor(NAVY[0], NAVY[1], NAVY[2]);
+      doc.roundedRect(badgeX, badgeY, badgeSize, badgeSize, 4, 4, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(12);
+      doc.text("AU", badgeX + badgeSize / 2, badgeY + badgeSize / 2 + 4, {align: "center"});
+      doc.setDrawColor(NAVY[0], NAVY[1], NAVY[2]);
+      doc.setLineWidth(1.5);
+      doc.line(margin, 64, pageW - margin, 64);
+    }
+    // a label over its value; a long value wraps. Returns how many lines the value took.
+    function field(x, y, label, value, width){
+      doc.setFont(undefined, "bold");
+      doc.setFontSize(8.5);
+      doc.setTextColor(102, 102, 102);
+      doc.text(label.toUpperCase(), x, y);
+      doc.setFont(undefined, "normal");
+      doc.setFontSize(11);
+      doc.setTextColor(26, 26, 24);
+      var lines = doc.splitTextToSize(cellText(value).trim() || "—", width);
+      doc.text(lines, x, y + 14);
+      return lines.length;
+    }
+    // the job's details, in the same order as the printed slip. Returns where the table starts.
+    function jobBlock(){
+      var colW = (pageW - margin * 2) / 3, pad = 16;
+      var x1 = margin, x2 = margin + colW, x3 = margin + colW * 2, y = 86;
+      var n = Math.max(field(x1, y, "Job Name", meta.project, colW - pad), field(x2, y, "Job Number", meta.projectNumber, colW - pad), field(x3, y, "Vendor", meta.vendor, colW - pad));
+      y += 22 + n * 13;
+      n = Math.max(field(x1, y, "Address", meta.address, colW * 2 - pad), field(x3, y, "Vendor Proj #", meta.vendorProjNum, colW - pad));
+      y += 22 + n * 13;
+      n = Math.max(field(x1, y, "POC Name", packingSlipPocInfo.name, colW - pad), field(x2, y, "Phone #", packingSlipPocInfo.phone, colW - pad), field(x3, y, "Email", packingSlipPocInfo.email, colW - pad));
+      return y + 16 + n * 13;
+    }
+    // Received by / Signature / Date, each a box with room to write. Goes on
+    // a new page when there isn't room left under the table.
+    function signBlock(y){
+      var boxH = 60, gap = 20;
+      if (y + 14 + boxH > pageH - 28){ doc.addPage(); y = 56; }
+      var usable = pageW - margin * 2 - gap * 2, x = margin;
+      [["Received by (print name)", 0.36], ["Signature", 0.42], ["Date", 0.22]].forEach(function(f){
+        doc.setFont(undefined, "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(102, 102, 102);
+        doc.text(f[0].toUpperCase(), x, y + 6);
+        doc.setDrawColor(GRID[0], GRID[1], GRID[2]);
+        doc.setLineWidth(0.8);
+        doc.roundedRect(x, y + 14, usable * f[1], boxH, 3, 3, "S");
+        x += usable * f[1] + gap;
+      });
+    }
+    // the same table look as the other slips, with an empty tick box in front of every line
+    function slipTable(startY, head, body, foot, columnStyles){
+      doc.autoTable({
+        head: [head], body: body, foot: [foot],
+        startY: startY,
+        margin: {left: margin, right: margin, bottom: 36},
+        styles: {fontSize: 9, cellPadding: 4, lineWidth: 0.5, lineColor: GRID, overflow: "linebreak"},
+        columnStyles: columnStyles,
+        headStyles: {fillColor: NAVY, textColor: 255, fontStyle: "bold"},
+        footStyles: {fillColor: [255, 255, 255], textColor: [26, 26, 24], fontStyle: "bold", lineWidth: 0.5, lineColor: GRID},
+        alternateRowStyles: {fillColor: [242, 244, 247]},
+        showFoot: "lastPage",
+        theme: "grid",
+        didDrawCell: function(data){
+          if (data.section !== "body" || data.column.index !== 0) return;
+          var size = 9;
+          doc.setDrawColor(60, 60, 60);
+          doc.setLineWidth(0.8);
+          doc.rect(data.cell.x + (data.cell.width - size) / 2, data.cell.y + (data.cell.height - size) / 2, size, size, "S");
+        }
+      });
+      return doc.lastAutoTable.finalY;
+    }
+
+    if (selRows.length){
+      pageHeader("Delivery Slip");
+      var totalQty = 0;
+      var body = selRows.map(function(r){
+        var qty = qtyShownOnSlip(r);   // the same number the slip itself shows
+        totalQty += qty;
+        return ["", cellText(r.barcode), cellText(r.manufacturer), cellText(r.model), truncateText(r.deviceType, 50),
+          qty > 0 ? String(qty) : (rowReceived(r) === 0 ? "" : String(qty)), cellText(r.serialNumber)];
+      });
+      var endY = slipTable(jobBlock(),
+        ["", "BarCode", "Manufacturer", "Model", "Device Type", {content: "Qty", styles: {halign: "center"}}, "Serial Number"], body,
+        [{content: "Total Items:", colSpan: 5, styles: {halign: "right"}}, {content: String(totalQty), styles: {halign: "center"}}, ""],
+        {0: {cellWidth: 22}, 5: {cellWidth: 36, halign: "center"}});
+      signBlock(endY + 22);
+    }
+    if (assetIds.length){
+      if (selRows.length) doc.addPage();
+      pageHeader("Asset Delivery Slip");
+      var assetTotal = 0;
+      var assetBody = assetIds.map(function(id){
+        var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+        var q = assetQtyFor(id);
+        assetTotal += q;
+        return ["", a ? (a.label || "Untitled asset") + (a.description ? "\n" + a.description : "") : "Asset not found", a ? cellText(a.category) : "", String(q)];
+      });
+      var assetEndY = slipTable(jobBlock(),
+        ["", "Asset", "Category", {content: "Qty", styles: {halign: "center"}}], assetBody,
+        [{content: "Total Items:", colSpan: 3, styles: {halign: "right"}}, {content: String(assetTotal), styles: {halign: "center"}}],
+        {0: {cellWidth: 22}, 2: {cellWidth: 150}, 3: {cellWidth: 36, halign: "center"}});
+      signBlock(assetEndY + 22);
+    }
+    return doc;
   }
 
-  // shared by the dedicated "Export signable slip" button and the automatic
-  // export that also fires on Print — opts.silent suppresses the "set up
-  // email settings" nudge so an automatic export never interrupts a plain print
-  function exportSignableSlip(selRows, shipDate, opts){
-    opts = opts || {};
-    if (!emailSettingsComplete()){
-      if (!opts.silent){
-        showSnackbar("Set up the recipient email and EmailJS keys first (gear icon next to Print).");
-        openEmailSettingsModal();
-      }
-      return false;
-    }
-    var html = buildSignablePackingSlipHTML(selRows, shipDate);
-    var blob = new Blob([html], {type: "text/html"});
-    downloadBlob(blob, "Delivery Slip - " + buildTimestampedFilename("html"));
-    return true;
+  // Into the slip folder when one is chosen and the browser allows it,
+  // otherwise a normal download - either way the slip is never lost.
+  function exportSignableSlip(selRows, shipDate){
+    var doc = buildSignableSlipPdf(selRows, shipDate);
+    if (!doc){ showSnackbar("PDF export library failed to load — check your connection."); return; }
+    var blob = doc.output("blob");
+    var filename = "Delivery Slip - " + buildTimestampedFilename("pdf");
+    saveBlobToSlipFolder(blob, filename).then(function(folderName){
+      if (folderName){ showSnackbar('Saved in your slip folder "' + folderName + '": ' + filename); return; }
+      downloadBlob(blob, filename);
+      showSnackbar(slipFolderHandle
+        ? "Couldn't save into the slip folder (the browser wasn't allowed to, or the folder has moved), so the PDF was downloaded instead."
+        : "Downloaded the PDF" + (slipFolderSupported() ? " - click Slip folder to save them straight into a OneDrive folder instead." : "."));
+    });
   }
 
   el.packingSlipSignableBtn.addEventListener("click", function(){
     var selRows = getSelectedRows();
-    if (!selRows.length) return;
+    if (!selRows.length && !(assetPickedIds && assetPickedIds.size)) return;
     if (getShipBlockedRows(selRows).length){ renderPackingSlipPreview(); return; }
-    if (exportSignableSlip(selRows, el.packingSlipDateShipped.value)){
-      showSnackbar("Downloaded — send that file to whoever needs to sign, open it on their phone, and they can sign and submit right from there.");
-    }
+    exportSignableSlip(selRows, el.packingSlipDateShipped.value);
   });
 
   // ---------- copy / paste rows (reuses the same checkboxes as Labels/Packing Slip) ----------
@@ -6880,7 +6868,8 @@
   // switch to). A viewer with no job assigned is NOT locked - they behave
   // like staff for navigation (pick any job) but read-only once inside one.
   function applyRoleUi(role, locked){
-    document.body.classList.remove("role-viewer", "role-tech", "role-driver", "role-dashboard", "locked-job");
+    document.body.classList.remove("role-viewer", "role-tech", "role-driver", "role-dashboard", "locked-job", "kind-admin", "kind-warehouse", "no-user-admin");
+    cloud.staffKind = ""; cloud.isAdmin = false;
     if (role === "viewer" || role === "tech"){
       document.body.classList.add("role-" + role);
       if (locked) document.body.classList.add("locked-job");
@@ -6900,6 +6889,32 @@
         : role === "tech" ? (locked ? "PC — request deliveries only" : "PC — request deliveries only (all jobs)")
         : "";
     }
+  }
+
+  // Admin / Warehouse. Both are full-access staff as far as the database is
+  // concerned (role "staff"); eq_profiles.staff_kind says which one it is.
+  // Only an Admin gets Manage users - the admin-users function checks that
+  // too, this just keeps the button off everyone else's screen. On a database
+  // where add-account-types.sql hasn't been run there is no such thing as an
+  // Admin yet, and Manage users stays with every staff account, as before.
+  function applyStaffKind(profile){
+    var known = !!profile && Object.prototype.hasOwnProperty.call(profile, "staff_kind");
+    cloud.staffKind = known && profile.role === "staff" ? (profile.staff_kind || "") : "";
+    function show(isAdmin){
+      cloud.isAdmin = isAdmin;
+      document.body.classList.toggle("no-user-admin", !isAdmin);
+      document.body.classList.toggle("kind-admin", cloud.staffKind === "admin");
+      document.body.classList.toggle("kind-warehouse", cloud.staffKind === "warehouse");
+      var banner = cloudEl("roleBanner");
+      if (banner) banner.textContent = cloud.staffKind === "admin" ? "Admin" : cloud.staffKind === "warehouse" ? "Warehouse" : "";
+    }
+    if (known){ show(cloud.staffKind === "admin"); return; }
+    // No profile row, or an older database: as before for now, then ask
+    // whether account types exist. If they do, this account isn't an Admin.
+    show(true);
+    Promise.resolve().then(function(){ return cloud.sb.from("eq_profiles").select("staff_kind").limit(1); }).then(function(r){
+      if (r && !r.error && cloud.role === "staff") show(false);
+    }, function(){});
   }
 
   // A notification email links straight to its job (?job=<uuid>) instead of
@@ -6928,7 +6943,8 @@
   }
 
   function rolesResume(){
-    return cloud.sb.from("eq_profiles").select("role,job_id").eq("id", cloud.user.id).maybeSingle().then(function(pr){
+    // "*": the account-type column may not be in the database yet (add-account-types.sql)
+    return cloud.sb.from("eq_profiles").select("*").eq("id", cloud.user.id).maybeSingle().then(function(pr){
       var role = (pr.data && pr.data.role) || "staff";
       var jobId = pr.data && pr.data.job_id;
       cloud.role = role;
@@ -6966,6 +6982,7 @@
         });
       }
       applyRoleUi("staff");
+      applyStaffKind(pr.data);
       // Staff's cover page is the fleet Dashboard (every job's status at a
       // glance), not the plain Jobs list - same reasoning as the Dashboard
       // button itself: this is a staff-only view, so only the staff branch
@@ -7376,7 +7393,8 @@
   function buildSignedSlipPdfBase64(delivery, kind, signedBy, signedAtIso, signatureDataUrl){
     if (typeof window.jspdf === "undefined") return "";
     var jsPDFCtor = window.jspdf.jsPDF;
-    var doc = new jsPDFCtor({unit: "pt", format: "letter", orientation: "landscape"});
+    // compressed: the signature picture alone used to make this about 1 MB
+    var doc = new jsPDFCtor({unit: "pt", format: "letter", orientation: "landscape", compress: true});
     var pageW = doc.internal.pageSize.getWidth();
     var NAVY = [26, 58, 107];
     var margin = 40;
@@ -7483,7 +7501,14 @@
     doc.setFontSize(11);
     doc.setTextColor(26, 26, 24);
     doc.text(String(signedBy || ""), margin, sigY + 14);
-    if (signatureDataUrl) doc.addImage(signatureDataUrl, "PNG", col2X, sigY + 4, 200, 60);
+    if (signatureDataUrl){
+      var sigW = 200, sigH = 60;
+      try{
+        var sigProps = doc.getImageProperties(signatureDataUrl);
+        if (sigProps && sigProps.width && sigProps.height) sigH = Math.min(100, sigW * sigProps.height / sigProps.width);
+      }catch(e){}
+      doc.addImage(signatureDataUrl, "PNG", col2X, sigY + 4, sigW, sigH);
+    }
     return doc.output("datauristring").split(",")[1];
   }
 
@@ -7648,13 +7673,23 @@
   if (deliveryAssetsBtnEl) deliveryAssetsBtnEl.addEventListener("click", function(){ openAssetsModal("request"); });
 
   // ---------- manage users (staff only) ----------
-  // "Role" in the UI is one of 4 kinds; the database only knows role +
-  // job_id, so viewer-locked/viewer-any are both stored as role="viewer",
-  // told apart by whether job_id is set.
+  // "Role" in the UI is one of these kinds; the database only knows role +
+  // job_id (+ staff_kind), so viewer-locked/viewer-any are both stored as
+  // role="viewer", told apart by whether job_id is set, and Admin / Warehouse
+  // are both role="staff", told apart by staff_kind.
   var muJobs = []; // [{id, name}], refreshed each time the list loads
   var muUsers = [];
+  // false once the list shows the admin-users function is still the old one
+  // (it doesn't know account types, mobile numbers or passwords yet)
+  var muFnCurrent = true;
+  // false when the function is current but add-account-types.sql hasn't been run
+  var muTypesReady = true;
+  var MU_UPDATE_FN = "The admin-users function needs to be updated first - step 3 in this build's read-me.";
+  var MU_RUN_SQL = "Run add-account-types.sql in the Supabase SQL editor first - step 2 in this build's read-me.";
 
   function muKind(u){
+    if (u.isMaster || (u.role === "staff" && u.staffKind === "admin")) return "admin";
+    if (u.role === "staff" && u.staffKind === "warehouse") return "warehouse";
     if (u.role === "viewer") return u.jobId ? "viewer-locked" : "viewer-any";
     if (u.role === "tech") return u.jobId ? "tech-locked" : "tech-any";
     if (u.role === "driver") return "driver";
@@ -7663,13 +7698,22 @@
   }
   function muKindNeedsJob(kind){ return kind === "viewer-locked" || kind === "tech-locked"; }
   function muRoleAndJob(kind, jobId){
-    if (kind === "viewer-locked") return {role: "viewer", jobId: jobId || null};
-    if (kind === "viewer-any") return {role: "viewer", jobId: null};
-    if (kind === "tech-locked") return {role: "tech", jobId: jobId || null};
-    if (kind === "tech-any") return {role: "tech", jobId: null};
-    if (kind === "driver") return {role: "driver", jobId: null};
-    if (kind === "dashboard") return {role: "dashboard", jobId: null};
-    return {role: "staff", jobId: null};
+    if (kind === "viewer-locked") return {role: "viewer", jobId: jobId || null, staffKind: ""};
+    if (kind === "viewer-any") return {role: "viewer", jobId: null, staffKind: ""};
+    if (kind === "tech-locked") return {role: "tech", jobId: jobId || null, staffKind: ""};
+    if (kind === "tech-any") return {role: "tech", jobId: null, staffKind: ""};
+    if (kind === "driver") return {role: "driver", jobId: null, staffKind: ""};
+    if (kind === "dashboard") return {role: "dashboard", jobId: null, staffKind: ""};
+    if (kind === "admin") return {role: "staff", jobId: null, staffKind: "admin"};
+    if (kind === "warehouse") return {role: "staff", jobId: null, staffKind: "warehouse"};
+    return {role: "staff", jobId: null, staffKind: ""};
+  }
+  // why this save can't go through yet, or "" when it can
+  function muNotReadyReason(rj, phone){
+    if (!rj.staffKind && !phone) return "";
+    if (!muFnCurrent) return MU_UPDATE_FN;
+    if (!muTypesReady) return MU_RUN_SQL;
+    return "";
   }
   function muJobOptionsHtml(selectedId){
     return '<option value="">Pick a job...</option>' + muJobs.map(function(j){
@@ -7686,28 +7730,46 @@
   function renderMuList(){
     var list = cloudEl("muList");
     list.innerHTML = muUsers.map(function(u){
-      // the master account: no role select, no job select, no Save/Delete -
-      // there's nothing here that can actually be changed, so there's
-      // nothing to offer (the real enforcement is server-side in
-      // admin-users either way, this just keeps the screen from offering
-      // controls that would only fail).
+      var kind = muKind(u);
+      var jobShown = muKindNeedsJob(kind);
+      var isSelf = !!(cloud.user && u.id === cloud.user.id);
+      // Second line of every user: their mobile number, and a way to give them
+      // a new password. The master account's password is only its own to change.
+      var secondLine =
+        '<input type="tel" class="mu-phone" value="' + escHtml(u.phone || "") + '" placeholder="Mobile #" autocomplete="off" title="Mobile number - used to text a driver their schedule">' +
+        '<div class="mu-pw">' + (u.isMaster && !isSelf ? '' :
+          '<button type="button" class="mu-pw-open">Change password</button>' +
+          '<span class="mu-pw-form" hidden>' +
+            '<input type="text" class="mu-pw-input" placeholder="New password (at least 6 characters)" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+            '<button type="button" class="mu-pw-save primary">Set password</button>' +
+            '<button type="button" class="mu-pw-cancel">Cancel</button>' +
+          '</span>') +
+        '</div>';
+      // The master account is always an Admin: nothing about what it can do can
+      // be changed, by anyone, so its type is shown but not offered (the real
+      // enforcement is server-side in admin-users either way). There's no
+      // Delete for it either.
       if (u.isMaster){
         return (
           '<div class="mu-row" data-id="' + u.id + '">' +
             '<span class="mu-email">' + escHtml(u.email) +
-              ' <span class="mu-master-badge" title="The master account - can\'t be deleted or have its role changed, by anyone.">Master</span>' +
+              ' <span class="mu-master-badge" title="The master account - can\'t be deleted or have its account type changed, by anyone.">Master</span>' +
             '</span>' +
-            '<select class="mu-role" disabled><option selected>Staff (full access)</option></select>' +
+            '<select class="mu-role" disabled><option value="admin" selected>Admin</option></select>' +
+            '<select class="mu-job mu-job-hidden"></select>' +
+            '<button type="button" class="mu-save primary">Save</button>' +
+            '<span></span>' +
+            secondLine +
           '</div>'
         );
       }
-      var kind = muKind(u);
-      var jobShown = muKindNeedsJob(kind);
       return (
         '<div class="mu-row" data-id="' + u.id + '">' +
           '<span class="mu-email">' + escHtml(u.email) + '</span>' +
           '<select class="mu-role">' +
+            '<option value="admin"' + (kind === "admin" ? " selected" : "") + '>Admin</option>' +
             '<option value="staff"' + (kind === "staff" ? " selected" : "") + '>Staff (full access)</option>' +
+            '<option value="warehouse"' + (kind === "warehouse" ? " selected" : "") + '>Warehouse</option>' +
             '<option value="viewer-locked"' + (kind === "viewer-locked" ? " selected" : "") + '>Viewer - one job</option>' +
             '<option value="viewer-any"' + (kind === "viewer-any" ? " selected" : "") + '>Viewer - all jobs</option>' +
             '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>PC - one job</option>' +
@@ -7718,9 +7780,10 @@
           '<select class="mu-job' + (jobShown ? "" : " mu-job-hidden") + '">' + muJobOptionsHtml(u.jobId) + '</select>' +
           '<button type="button" class="mu-save primary">Save</button>' +
           '<button type="button" class="mu-delete">Delete login</button>' +
+          secondLine +
         '</div>'
       );
-    }).join("") || '<div class="mu-row">No users yet.</div>';
+    }).join("") || '<div class="mu-note">No users yet.</div>';
   }
 
   function muFindRowEls(rowEl){
@@ -7728,21 +7791,36 @@
       id: rowEl.getAttribute("data-id"),
       roleSel: rowEl.querySelector(".mu-role"),
       jobSel: rowEl.querySelector(".mu-job"),
+      phoneEl: rowEl.querySelector(".mu-phone"),
       saveBtn: rowEl.querySelector(".mu-save"),
     };
   }
 
-  function loadMuList(){
-    muMsg("Loading...");
+  // keepMsg: the list is being reloaded after a change, so the message about
+  // that change ("Saved.") stays instead of being replaced
+  function loadMuList(keepMsg){
+    if (!keepMsg) muMsg("Loading...");
     return invokeFn("admin-users", {action: "list"}).then(function(res){
       if (res.error){ muMsg("Couldn't load: " + res.error.message, "bad"); return; }
       var data = res.data || {};
       if (data.error){ muMsg("Couldn't load: " + data.error, "bad"); return; }
       muUsers = data.users || [];
       muJobs = data.jobs || [];
+      // an admin-users function from before this build doesn't say either of these
+      muFnCurrent = typeof data.accountTypesReady === "boolean";
+      muTypesReady = data.accountTypesReady !== false;
+      cloudEl("muNewBox").hidden = data.callerIsAdmin === false;
+      if (data.callerIsAdmin === false){
+        cloudEl("muList").innerHTML = '<div class="mu-note">Only an Admin can manage users. Ask an Admin to make a change, or to make this account an Admin.</div>';
+        document.body.classList.add("no-user-admin");
+        muMsg("");
+        return;
+      }
       renderMuList();
       cloudEl("muNewJob").innerHTML = muJobOptionsHtml("");
-      muMsg("");
+      var setupNote = !muFnCurrent ? "Admin and Warehouse accounts, mobile numbers and passwords need the updated admin-users function - step 3 in this build's read-me."
+        : !muTypesReady ? "Admin and Warehouse accounts and mobile numbers need add-account-types.sql to be run - step 2 in this build's read-me." : "";
+      if (!keepMsg) muMsg(setupNote);
     }).catch(function(e){
       muMsg("Couldn't load: " + (e && e.message ? e.message : e), "bad");
     });
@@ -7753,6 +7831,7 @@
     cloudEl("muNewEmail").value = "";
     cloudEl("muNewPassword").value = "";
     cloudEl("muNewName").value = "";
+    cloudEl("muNewPhone").value = "";
     cloudEl("muNewRole").value = "staff";
     cloudEl("muNewJobWrap").classList.remove("show");
     loadMuList();
@@ -7773,6 +7852,11 @@
       rowEl.classList.add("mu-dirty");
     }
   });
+  document.addEventListener("input", function(ev){
+    if (!ev.target.classList || !ev.target.classList.contains("mu-phone")) return;
+    var rowEl = ev.target.closest(".mu-row[data-id]");
+    if (rowEl) rowEl.classList.add("mu-dirty");
+  });
 
   document.addEventListener("click", function(ev){
     var saveBtn = ev.target.closest && ev.target.closest(".mu-row .mu-save");
@@ -7782,19 +7866,51 @@
       var kind = f.roleSel.value;
       var rj = muRoleAndJob(kind, f.jobSel.value);
       if (muKindNeedsJob(kind) && !rj.jobId){ muMsg("Pick a job for that role first.", "bad"); return; }
+      var phone = f.phoneEl ? f.phoneEl.value.trim() : "";
+      var notReady = muNotReadyReason(rj, phone);
+      if (notReady){ muMsg(notReady, "bad"); return; }
       saveBtn.disabled = true;
       muMsg("Saving...");
-      invokeFn("admin-users", {action: "setRole", userId: f.id, role: rj.role, jobId: rj.jobId}).then(function(res){
+      invokeFn("admin-users", {action: "setRole", userId: f.id, role: rj.role, jobId: rj.jobId, staffKind: rj.staffKind, phone: phone}).then(function(res){
         saveBtn.disabled = false;
         if (res.error){ muMsg("Couldn't save: " + res.error.message, "bad"); return; }
         var data = res.data || {};
         if (data.error){ muMsg("Couldn't save: " + data.error, "bad"); return; }
         muMsg("Saved.", "good");
         rowEl.classList.remove("mu-dirty");
-        loadMuList();
+        loadMuList(true);
       }).catch(function(e){
         saveBtn.disabled = false;
         muMsg("Couldn't save: " + (e && e.message ? e.message : e), "bad");
+      });
+      return;
+    }
+    // Change password: opens a box on that user's line; Set password saves it.
+    var pwBtn = ev.target.closest && ev.target.closest(".mu-row .mu-pw-open, .mu-row .mu-pw-cancel, .mu-row .mu-pw-save");
+    if (pwBtn){
+      var pwRow = pwBtn.closest(".mu-row");
+      var pwForm = pwRow.querySelector(".mu-pw-form"), pwOpen = pwRow.querySelector(".mu-pw-open"), pwInput = pwRow.querySelector(".mu-pw-input");
+      var pwUser = muUsers.filter(function(u){ return u.id === pwRow.getAttribute("data-id"); })[0];
+      var showPwForm = function(on){ pwForm.hidden = !on; pwOpen.hidden = on; pwInput.value = ""; };
+      if (pwBtn.classList.contains("mu-pw-open")){
+        if (!muFnCurrent){ muMsg(MU_UPDATE_FN, "bad"); return; }
+        showPwForm(true); pwInput.focus(); muMsg("");
+        return;
+      }
+      if (pwBtn.classList.contains("mu-pw-cancel")){ showPwForm(false); muMsg(""); return; }
+      var newPassword = pwInput.value;
+      if (!newPassword || newPassword.length < 6){ muMsg("Password needs to be at least 6 characters.", "bad"); return; }
+      pwBtn.disabled = true;
+      muMsg("Changing the password...");
+      invokeFn("admin-users", {action: "setPassword", userId: pwRow.getAttribute("data-id"), password: newPassword}).then(function(res){
+        pwBtn.disabled = false;
+        var err = (res.error && res.error.message) || (res.data && res.data.error) || "";
+        if (err){ muMsg(/unknown action/i.test(err) ? MU_UPDATE_FN : "Couldn't change the password: " + err, "bad"); return; }
+        showPwForm(false);
+        muMsg("Password changed for " + (pwUser ? pwUser.email : "that user") + ". They sign in with the new one from now on.", "good");
+      }).catch(function(e){
+        pwBtn.disabled = false;
+        muMsg("Couldn't change the password: " + (e && e.message ? e.message : e), "bad");
       });
       return;
     }
@@ -7812,7 +7928,7 @@
         var data = res.data || {};
         if (data.error){ muMsg("Couldn't delete: " + data.error, "bad"); return; }
         muMsg("Deleted.", "good");
-        loadMuList();
+        loadMuList(true);
       }).catch(function(e){
         delBtn.disabled = false;
         muMsg("Couldn't delete: " + (e && e.message ? e.message : e), "bad");
@@ -7835,10 +7951,13 @@
     if (!email){ muMsg("Enter an email address.", "bad"); return; }
     if (!password || password.length < 6){ muMsg("Password needs to be at least 6 characters.", "bad"); return; }
     if (muKindNeedsJob(kind) && !rj.jobId){ muMsg("Pick a job for that role first.", "bad"); return; }
+    var newPhone = cloudEl("muNewPhone").value.trim();
+    var notReady = muNotReadyReason(rj, newPhone);
+    if (notReady){ muMsg(notReady, "bad"); return; }
 
     muCreateBtnEl.disabled = true;
     muMsg("Creating...");
-    invokeFn("admin-users", {action: "createUser", email: email, password: password, displayName: displayName, role: rj.role, jobId: rj.jobId}).then(function(res){
+    invokeFn("admin-users", {action: "createUser", email: email, password: password, displayName: displayName, role: rj.role, jobId: rj.jobId, staffKind: rj.staffKind, phone: newPhone}).then(function(res){
       muCreateBtnEl.disabled = false;
       if (res.error){ muMsg("Couldn't create: " + res.error.message, "bad"); return; }
       var data = res.data || {};
@@ -7847,7 +7966,8 @@
       cloudEl("muNewEmail").value = "";
       cloudEl("muNewPassword").value = "";
       cloudEl("muNewName").value = "";
-      loadMuList();
+      cloudEl("muNewPhone").value = "";
+      loadMuList(true);
     }).catch(function(e){
       muCreateBtnEl.disabled = false;
       muMsg("Couldn't create: " + (e && e.message ? e.message : e), "bad");
@@ -7939,72 +8059,14 @@
     decorateRequestedRows();
   };
 
-  // ---------- signable slip: map link + auto-fulfill on signing ----------
+  // ---------- which delivery request the open slip belongs to ----------
   // Set right before opening the packing-slip modal from a specific
   // delivery request (openPackingSlipForRequest below), and cleared the
-  // instant the plain "Create Packing Slip" toolbar button is used instead
-  // - so a signable slip exported from an unrelated, manually-selected
-  // packing slip never carries a stale request id into its "mark fulfilled"
-  // callback.
+  // instant the plain "Create Packing Slip" toolbar button is used instead,
+  // so a slip started by hand is never tied to an earlier request.
   var activeDeliveryRequestId = null;
   var packingSlipBtnEl = cloudEl("packingSlipBtn");
   if (packingSlipBtnEl) packingSlipBtnEl.addEventListener("click", function(){ activeDeliveryRequestId = null; });
-
-  var realBuildSignablePackingSlipHTML = buildSignablePackingSlipHTML;
-  buildSignablePackingSlipHTML = function(selRows, shipDateIso){
-    var html = realBuildSignablePackingSlipHTML(selRows, shipDateIso);
-    var address = String(meta.address || "").trim();
-    if (address){
-      // Inline right next to the address value itself (inside the same
-      // ps-meta-address block makePackingSlipHTML already renders), not a
-      // separate paragraph elsewhere on the page - and hidden on an actual
-      // paper printout (@media print), since a tap target is useless there
-      // and would otherwise show up as stray underlined text on the slip a
-      // driver keeps.
-      var mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(address);
-      var mapsLink = ' <a class="maps-link" href="' + escHtml(mapsUrl) + '" target="_blank" rel="noopener">(Open in Google Maps)</a>';
-      html = html.replace(
-        '</span></div></div><table class="ps-table">',
-        '</span>' + mapsLink + '</div></div><table class="ps-table">'
-      );
-      html = html.replace(
-        "</head>",
-        '<style>.maps-link{font-size:11px;font-weight:400;}@media print{.maps-link{display:none;}}</style></head>'
-      );
-    }
-    if (activeDeliveryRequestId && CLOUD){
-      var fulfillUrl = CLOUD.url.replace(/\/+$/, "") + "/functions/v1/mark-delivery-fulfilled";
-      // Fires right after the "Signed slip sent" status is shown - i.e. only
-      // once EmailJS has confirmed the signed slip actually went out, never
-      // just from opening or signing the page. Best-effort: if this call
-      // fails (offline driver, function not yet deployed), the email itself
-      // already went through - staff just mark it fulfilled by hand like
-      // before, nothing is lost.
-      var fulfillJs =
-        '<script>\n' +
-        'var FULFILL_REQUEST_ID = ' + JSON.stringify(activeDeliveryRequestId) + ';\n' +
-        'var FULFILL_URL = ' + JSON.stringify(fulfillUrl) + ';\n' +
-        'function markDeliveryFulfilled(){\n' +
-        '  try{\n' +
-        // fetch() only rejects on a network failure - a 404 (function not
-        // deployed) or 401 ("Verify JWT with legacy secret" left on, which
-        // rejects this one outright since it has no Authorization header at
-        // all) resolves just fine and silently does nothing unless the
-        // status is checked here.
-        '    fetch(FULFILL_URL, {method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({requestId: FULFILL_REQUEST_ID})})\n' +
-        '      .then(function(r){ if (!r.ok) r.text().then(function(t){ console.error("mark-delivery-fulfilled " + r.status + ":", t); }); })\n' +
-        '      .catch(function(e){ console.error("mark-delivery-fulfilled failed:", e); });\n' +
-        '  }catch(e){ console.error("mark-delivery-fulfilled failed:", e); }\n' +
-        '}\n' +
-        '<\/script>\n';
-      html = html.replace("</head>", fulfillJs + "</head>");
-      html = html.replace(
-        'showStatus("Signed slip sent. Thank you!", true);',
-        'showStatus("Signed slip sent. Thank you!", true); markDeliveryFulfilled();'
-      );
-    }
-    return html;
-  };
 
   // ---------- partial shipments: "Qty to ship" for each item on the slip ----------
   // Above the slip preview, one box per selected item: the amount that goes on
@@ -8623,7 +8685,7 @@
       var missingIds = Array.from(new Set(openCheckouts.map(function(c){ return c.asset_id; })
         .filter(function(id){ return id && !assetsById[id]; })));
       var extraAssets = missingIds.length
-        ? cloud.sb.from("eq_assets").select("id,label,barcode,category,manufacturer,model,description").in("id", missingIds)
+        ? cloud.sb.from("eq_assets").select("*").in("id", missingIds)
         : Promise.resolve(null);
       return extraAssets.then(function(er){
         if (er && er.data) er.data.forEach(function(a){ assetsById[a.id] = a; });
@@ -8662,17 +8724,22 @@
     var box = cloudEl(opts.boxId || "jdDeliveries");
     if (!box) return;
     if (!deliveries.length){ box.innerHTML = ""; return; }
-    box.innerHTML = '<h3 class="jd-deliveries-title">Scheduled deliveries</h3>' +
+    box.innerHTML = '<div class="jd-deliveries-head"><h3 class="jd-deliveries-title">Scheduled deliveries</h3>' +
+      // staff only: the dashboard-view screen is read-only
+      (opts.readOnly ? '' : '<button type="button" class="jd-text-drivers-btn" data-jd-text-drivers="1">Text drivers their schedule</button>') +
+      '</div>' +
       '<div class="jd-deliveries-list">' +
       deliveries.map(function(d){
         var job = d.eq_jobs || {};
         var jobMeta = job.meta || {};
         var jobName = jobMeta.project || job.name || "Untitled job";
+        var address = String(jobMeta.address || "").trim();
         var when = [driverFormatDate(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" ");
         var driverEmail = driverEmailById[d.driver_id] || "Unassigned";
         if (d.van) driverEmail += " · " + d.van;
         return '<div class="jd-delivery-row">' +
-          '<span class="jd-delivery-job">' + escHtml(jobName) + '</span>' +
+          '<span class="jd-delivery-job">' + escHtml(jobName) +
+            '<span class="jd-delivery-address">' + (address ? escHtml(address) : "No address on this job") + '</span></span>' +
           '<span class="jd-delivery-driver">' + escHtml(driverEmail) + '</span>' +
           (when ? '<span class="jd-delivery-when">' + escHtml(when) + '</span>' : '<span class="jd-delivery-when">No time set</span>') +
           (opts.readOnly ? '' : '<button type="button" class="jd-delivery-slip-btn" data-jd-delivery-slip="' + d.id + '">Create delivery slip</button>') +
@@ -8682,6 +8749,131 @@
       }).join("") +
       '</div>';
   }
+
+  // ---------- text drivers their schedule ----------
+  // One message per driver for one day, built from the scheduled deliveries
+  // already on screen. Nothing is sent from here by itself: "Text" hands the
+  // message and the driver's number to the device's own messaging app.
+  var driverTextsUsers = [];   // from admin-users: who the drivers are and their mobile numbers
+  function driverTextsMsg(text, kind){
+    var m = cloudEl("driverTextsMsg");
+    m.textContent = text || "";
+    m.className = "pd-msg" + (kind ? " " + kind : "");
+  }
+  // "Thu 10/09/26"
+  function driverTextsDayLabel(iso){
+    var d = new Date(iso + "T00:00:00");
+    var weekday = isNaN(d) ? "" : d.toLocaleDateString(undefined, {weekday: "short"});
+    return (weekday ? weekday + " " : "") + formatDeliveryDate(iso);
+  }
+  function driverScheduleText(dateIso, list){
+    var lines = ["Your deliveries for " + driverTextsDayLabel(dateIso) + " (" + list.length + " stop" + (list.length === 1 ? "" : "s") + "):"];
+    list.forEach(function(d, i){
+      var job = d.eq_jobs || {}, jm = job.meta || {};
+      var num = jm.projectNumber ? String(jm.projectNumber).trim() : "";
+      var address = String(jm.address || "").trim();
+      var itemCount = (d.items || []).length, assetCount = (d.asset_ids || []).length;
+      var load = [d.van,
+        itemCount ? itemCount + " item" + (itemCount === 1 ? "" : "s") : "",
+        assetCount ? assetCount + " asset" + (assetCount === 1 ? "" : "s") : ""].filter(Boolean).join(", ");
+      var contact = [d.poc_name, d.poc_phone].filter(Boolean).join(" ");
+      lines.push("");
+      lines.push((i + 1) + ") " + (deliveryTimeRange(d) || "No time set") + " - " + (jm.project || job.name || "Untitled job") + (num ? " (" + num + ")" : ""));
+      if (address) lines.push(address);
+      if (load) lines.push(load);
+      if (contact) lines.push("Contact: " + contact);
+    });
+    return lines.join("\n");
+  }
+  // iPhone and iPad want "&body=", everything else "?body="
+  function smsHref(phone, body){
+    var apple = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    return "sms:" + String(phone || "").replace(/[^\d+]/g, "") + (apple ? "&" : "?") + "body=" + encodeURIComponent(body);
+  }
+  function renderDriverTexts(){
+    var daySel = cloudEl("driverTextsDay"), list = cloudEl("driverTextsList");
+    var today = todayLocalIso();
+    var dated = jdDeliveriesCache.filter(function(d){ return d.scheduled_date && d.scheduled_date >= today && d.driver_id; });
+    var days = Array.from(new Set(dated.map(function(d){ return d.scheduled_date; }))).sort();
+    if (!days.length){
+      daySel.innerHTML = '<option value="">No upcoming deliveries</option>';
+      list.innerHTML = "";
+      driverTextsMsg("Nothing is scheduled with a driver from today on.");
+      return;
+    }
+    var day = days.indexOf(daySel.value) !== -1 ? daySel.value : days[0];
+    daySel.innerHTML = days.map(function(iso){
+      return '<option value="' + iso + '"' + (iso === day ? " selected" : "") + '>' + escHtml((iso === today ? "Today - " : "") + driverTextsDayLabel(iso)) + '</option>';
+    }).join("");
+    var byDriver = {}, driverOrder = [];
+    dated.filter(function(d){ return d.scheduled_date === day; }).forEach(function(d){
+      if (!byDriver[d.driver_id]){ byDriver[d.driver_id] = []; driverOrder.push(d.driver_id); }
+      byDriver[d.driver_id].push(d);
+    });
+    list.innerHTML = driverOrder.map(function(driverId){
+      var u = driverTextsUsers.filter(function(x){ return x.id === driverId; })[0] || {};
+      var text = driverScheduleText(day, byDriver[driverId]);
+      var hasPhone = String(u.phone || "").replace(/\D/g, "").length >= 7;
+      return '<div class="dt-card">' +
+        '<div class="dt-card-head"><span class="dt-driver">' + escHtml(u.displayName || u.email || "Driver") + (u.displayName && u.email ? ' <span style="font-weight:400">(' + escHtml(u.email) + ')</span>' : '') + '</span>' +
+          (hasPhone ? '<span class="dt-phone">' + escHtml(u.phone) + '</span>' : '<span class="dt-phone dt-missing">No mobile number - add it in Manage users</span>') +
+        '</div>' +
+        '<pre class="dt-text">' + escHtml(text) + '</pre>' +
+        '<div class="dt-actions">' +
+          (hasPhone ? '<a class="dt-send" href="' + escHtml(smsHref(u.phone, text)) + '">Text ' + escHtml(u.phone) + '</a>' : '') +
+          '<button type="button" data-dt-copy="' + escHtml(driverId) + '">Copy message</button>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+    driverTextsMsg("");
+  }
+  function openDriverTextsModal(){
+    cloudEl("driverTextsBackdrop").hidden = false;
+    cloudEl("driverTextsDay").innerHTML = "";
+    cloudEl("driverTextsList").innerHTML = "";
+    driverTextsMsg("Loading the drivers' numbers...");
+    // asked for fresh each time, so a number just saved in Manage users is already here
+    invokeFn("admin-users", {action: "list"}).then(function(res){
+      var users = res && res.data && res.data.users;
+      if (!users) throw new Error((res && res.data && res.data.error) || (res && res.error && res.error.message) || "no answer");
+      driverTextsUsers = users;
+      renderDriverTexts();
+    }).catch(function(e){
+      // the messages can still be copied - only the numbers are missing
+      driverTextsUsers = (jdUsersCache && jdUsersCache.data && jdUsersCache.data.users) || [];
+      renderDriverTexts();
+      driverTextsMsg(isNetworkProblem(e) ? "You're offline - the drivers' numbers couldn't be loaded." : "The drivers' numbers couldn't be loaded: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+  function copyTextToClipboard(text){
+    if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(text);
+    return new Promise(function(resolve, reject){
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.cssText = "position:fixed;left:-9999px;top:0;";
+      document.body.appendChild(ta); ta.select();
+      var ok = false;
+      try{ ok = document.execCommand("copy"); }catch(e){}
+      ta.remove();
+      if (ok) resolve(); else reject(new Error("copy not allowed"));
+    });
+  }
+  document.addEventListener("click", function(ev){
+    if (ev.target.closest && ev.target.closest("[data-jd-text-drivers]")){ openDriverTextsModal(); return; }
+    var copyBtn = ev.target.closest && ev.target.closest("[data-dt-copy]");
+    if (!copyBtn) return;
+    var textEl = copyBtn.closest(".dt-card").querySelector(".dt-text");
+    copyTextToClipboard(textEl.textContent).then(function(){
+      driverTextsMsg("Copied - paste it into a text to that driver.", "good");
+    }, function(){
+      driverTextsMsg("Couldn't copy here - select the message above and copy it by hand.", "bad");
+    });
+  });
+  var driverTextsDayEl = cloudEl("driverTextsDay");
+  if (driverTextsDayEl) driverTextsDayEl.addEventListener("change", renderDriverTexts);
+  var driverTextsCloseBtnEl = cloudEl("driverTextsCloseBtn");
+  if (driverTextsCloseBtnEl) driverTextsCloseBtnEl.addEventListener("click", function(){ cloudEl("driverTextsBackdrop").hidden = true; });
+  var driverTextsBackdropEl = cloudEl("driverTextsBackdrop");
+  if (driverTextsBackdropEl) driverTextsBackdropEl.addEventListener("click", function(ev){ if (ev.target === driverTextsBackdropEl) driverTextsBackdropEl.hidden = true; });
 
   // Jumps to the delivery's job, selects the matching rows (by barcode,
   // against the snapshot saved on the delivery), and opens the same
@@ -8760,6 +8952,9 @@
   function renderJdAssetsDeployed(openCheckouts, assetsById, jobNameById, boxId){
     var box = cloudEl(boxId || "jdAssetsDeployed");
     if (!box) return;
+    // Consumables are used up on the job - they aren't coming back, so they
+    // aren't "deployed". (They still print on the delivery's asset slip.)
+    openCheckouts = openCheckouts.filter(function(c){ return !isConsumable(assetsById[c.asset_id]); });
     if (!openCheckouts.length){ box.innerHTML = ""; return; }
     box.innerHTML = '<h3 class="jd-deliveries-title">Deployed assets</h3>' +
       '<div class="jd-deliveries-list">' +
@@ -8775,10 +8970,11 @@
         var assetDesc = asset && asset.description ? String(asset.description) : "";
         var jobName = c.job_id ? (jobNameById[c.job_id] || "Unknown job") : "Unknown job";
         var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
-        return '<div class="jd-delivery-row">' +
-          '<span class="jd-delivery-job">' + escHtml(assetLabel) + (assetDesc ? ' <span style="font-weight:400;color:#666">' + escHtml(assetDesc) + '</span>' : '') + '</span>' +
-          '<span class="jd-delivery-driver">' + escHtml(jobName) + '</span>' +
-          '<span class="jd-delivery-when">out since ' + escHtml(since) + '</span>' +
+        return '<div class="jd-delivery-row jd-asset-row">' +
+          '<span class="jd-delivery-job"><span class="jd-asset-name">' + escHtml(assetLabel) + '</span>' +
+            (assetDesc ? '<span class="jd-asset-desc">' + escHtml(assetDesc) + '</span>' : '') + '</span>' +
+          '<span class="jd-asset-where"><span class="jd-delivery-driver">' + escHtml(jobName) + '</span>' +
+            '<span class="jd-delivery-when">out since ' + escHtml(since) + '</span></span>' +
         '</div>';
       }).join("") +
       '</div>';
@@ -10691,6 +10887,29 @@
     if (isNaN(d)) return iso;
     return d.toLocaleDateString(undefined, {month: "short", day: "numeric"});
   }
+  // the day as a driver reads it: "Today", or "Thu, Oct 9"
+  function driverFormatDay(iso){
+    if (!iso) return "";
+    if (iso === todayLocalIso()) return "Today";
+    var d = new Date(iso + "T00:00:00");
+    if (isNaN(d)) return iso;
+    return d.toLocaleDateString(undefined, {weekday: "short", month: "short", day: "numeric"});
+  }
+  function driverWhenText(d){
+    return [driverFormatDay(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" · ");
+  }
+  // a tap-to-call link for a phone number as it was typed, or "" when it isn't one
+  function driverTelHref(phone){
+    var cleaned = String(phone || "").replace(/[^\d+]/g, "");
+    return cleaned.replace(/\D/g, "").length >= 7 ? "tel:" + cleaned : "";
+  }
+  // the two big buttons under an address: open it in Maps, and call the contact
+  function driverActionLinksHtml(d, address){
+    var telHref = driverTelHref(d.poc_phone);
+    if (!address && !telHref) return "";
+    return (address ? '<a class="driver-link-btn" href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">Open in Maps</a>' : '') +
+      (telHref ? '<a class="driver-link-btn" href="' + escHtml(telHref) + '">Call ' + escHtml(d.poc_name || "the contact") + '</a>' : '');
+  }
   function openDriverDashboard(){
     cloudEl("driverDashboard").hidden = false;
     cloudEl("driverUserEmail").textContent = (cloud.user && cloud.user.email) || "";
@@ -10722,21 +10941,26 @@
       var jobName = jobMeta.project || job.name || "Untitled job";
       var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
       var address = jobMeta.address || "";
-      var when = [driverFormatDate(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" ");
+      var when = driverWhenText(d);
       var itemCount = (d.items || []).length;
       var assetCount = (d.asset_ids || []).length;
+      var links = driverActionLinksHtml(d, address);
+      // the equipment slip is signed and the asset slip isn't yet: say so on the card
+      var halfSigned = !!d.signed_at && assetCount > 0 && !d.asset_signed_at;
       return '<div class="driver-card">' +
         '<div class="driver-card-head"><span class="driver-job">' + (i + 1) + '. ' + escHtml(jobName) + (jobNum ? ' — ' + escHtml(jobNum) : '') + '</span>' +
-          (when ? '<span class="driver-when">' + escHtml(when) + '</span>' : '') +
+          '<span class="driver-when">' + escHtml(when || "No time set") + '</span>' +
         '</div>' +
-        (d.van ? '<div class="driver-address"><b>' + escHtml(d.van) + '</b></div>' : '') +
-        (address ? '<div class="driver-address">' + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : '') +
+        '<div class="driver-address">' + (address ? escHtml(address) : "No address on this job") + '</div>' +
         '<div class="driver-card-stats">' +
-          '<span><b>' + itemCount + '</b> item' + (itemCount === 1 ? "" : "s") + '</span>' +
+          (d.van ? '<span><b>' + escHtml(d.van) + '</b></span>' : '') +
+          (itemCount || !assetCount ? '<span><b>' + itemCount + '</b> item' + (itemCount === 1 ? "" : "s") + '</span>' : '') +
           (assetCount ? '<span><b>' + assetCount + '</b> asset' + (assetCount === 1 ? "" : "s") + '</span>' : '') +
-          (d.poc_name ? '<span>POC: <b>' + escHtml(d.poc_name) + '</b>' + (d.poc_phone ? " · " + escHtml(d.poc_phone) : "") + '</span>' : '') +
+          (d.poc_name ? '<span>Contact: <b>' + escHtml(d.poc_name) + '</b>' + (d.poc_phone ? " · " + escHtml(d.poc_phone) : "") + '</span>' : '') +
         '</div>' +
-        '<button type="button" class="driver-open-btn" data-driver-open="' + d.id + '">View &amp; Sign</button>' +
+        (halfSigned ? '<span class="driver-status-badge">Delivery slip signed - the asset slip still needs a signature</span>' : '') +
+        (links ? '<div class="driver-card-actions">' + links + '</div>' : '') +
+        '<button type="button" class="driver-open-btn" data-driver-open="' + d.id + '">' + (halfSigned ? 'Sign asset slip' : 'View &amp; Sign') + '</button>' +
       '</div>';
     }).join("");
   }
@@ -10748,60 +10972,132 @@
   });
   var driverSignOutBtnEl = cloudEl("driverSignOutBtn");
   if (driverSignOutBtnEl) driverSignOutBtnEl.addEventListener("click", function(){
+    // a big button is easy to press by accident, and signing back in needs the password
+    if (!confirm("Sign out of the drivers page?")) return;
     var realBtn = cloudEl("cloudSignOutBtn");
     if (realBtn) realBtn.click();
   });
+  var driverRefreshBtnEl = cloudEl("driverRefreshBtn");
+  if (driverRefreshBtnEl) driverRefreshBtnEl.addEventListener("click", function(){ loadDriverDeliveries(); });
   document.addEventListener("visibilitychange", function(){
     if (!document.hidden && document.body.classList.contains("role-driver")) loadDriverDeliveries();
   });
 
-  // ---------- delivery sign modal (driver) - plain canvas signature pad,
-  // sized once when the modal opens (no live-resize tracking - this is a
-  // one-shot signing screen, not something left open across a rotation) ----------
+  // ---------- delivery sign screen (driver) ----------
+  // The signature box. Each line drawn is remembered as fractions of the box,
+  // so when the box changes size (the tablet is turned, or the on-screen
+  // keyboard closes) what was signed is redrawn to fit instead of being lost
+  // or landing away from the finger. One pad per box, made once and reset each
+  // time the screen opens.
+  var SIGNATURE_EXPORT_W = 900; // the saved image is always this wide, whatever the screen
   function setupSignaturePad(canvas){
+    if (canvas.eqSignaturePad){ canvas.eqSignaturePad.clear(); return canvas.eqSignaturePad; }
     var ctx = canvas.getContext("2d");
-    var ratio = window.devicePixelRatio || 1;
-    var rect = canvas.getBoundingClientRect();
-    canvas.width = Math.max(1, Math.round(rect.width * ratio));
-    canvas.height = Math.max(1, Math.round(rect.height * ratio));
-    ctx.scale(ratio, ratio);
-    ctx.lineWidth = 2.2; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#1a1a18";
-    var drawing = false, hasSignature = false;
-    function pos(ev){ var r = canvas.getBoundingClientRect(); return {x: ev.clientX - r.left, y: ev.clientY - r.top}; }
+    var strokes = [], current = null, activePointer = null, boxW = 0, boxH = 0;
+    function paint(c, w, h){
+      c.lineWidth = Math.max(2, w / 300); c.lineCap = "round"; c.lineJoin = "round"; c.strokeStyle = "#1a1a18";
+      strokes.forEach(function(st){
+        c.beginPath();
+        c.moveTo(st[0].x * w, st[0].y * h);
+        if (st.length === 1) c.lineTo(st[0].x * w + 0.1, st[0].y * h + 0.1); // a tap leaves a dot
+        for (var i = 1; i < st.length; i++) c.lineTo(st[i].x * w, st[i].y * h);
+        c.stroke();
+      });
+    }
+    function fit(){
+      var rect = canvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;   // not on screen right now
+      var ratio = window.devicePixelRatio || 1;
+      boxW = rect.width; boxH = rect.height;
+      canvas.width = Math.max(1, Math.round(boxW * ratio));
+      canvas.height = Math.max(1, Math.round(boxH * ratio));
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      paint(ctx, boxW, boxH);
+    }
+    function point(ev){
+      var r = canvas.getBoundingClientRect();
+      return {x: (ev.clientX - r.left) / (r.width || 1), y: (ev.clientY - r.top) / (r.height || 1)};
+    }
+    function segment(a, b){
+      ctx.beginPath(); ctx.moveTo(a.x * boxW, a.y * boxH); ctx.lineTo(b.x * boxW, b.y * boxH); ctx.stroke();
+    }
     canvas.addEventListener("pointerdown", function(ev){
+      if (activePointer !== null) return;       // a resting palm or second finger doesn't start another line
       ev.preventDefault();
-      drawing = true; hasSignature = true;
-      var p = pos(ev); ctx.beginPath(); ctx.moveTo(p.x, p.y);
+      // the box changed size since it was last fitted (and nothing reported it): fit it now
+      var now = canvas.getBoundingClientRect();
+      if (Math.abs(now.width - boxW) > 1 || Math.abs(now.height - boxH) > 1) fit();
+      activePointer = ev.pointerId;
+      current = [point(ev)];
+      strokes.push(current);
+      ctx.lineWidth = Math.max(2, boxW / 300); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#1a1a18";
+      segment(current[0], {x: current[0].x + 0.1 / (boxW || 1), y: current[0].y + 0.1 / (boxH || 1)});
       try{ canvas.setPointerCapture(ev.pointerId); }catch(e){}
+      if (pad.onDraw) pad.onDraw();
     });
     canvas.addEventListener("pointermove", function(ev){
-      if (!drawing) return;
-      var p = pos(ev); ctx.lineTo(p.x, p.y); ctx.stroke();
+      if (ev.pointerId !== activePointer || !current) return;
+      // a fast stroke reports several positions per screen frame - use them all for a smooth line
+      var evs = ev.getCoalescedEvents ? ev.getCoalescedEvents() : [];
+      if (!evs.length) evs = [ev];
+      evs.forEach(function(e){
+        var p = point(e);
+        segment(current[current.length - 1], p);
+        current.push(p);
+      });
     });
-    ["pointerup", "pointercancel", "pointerleave"].forEach(function(evt){
-      canvas.addEventListener(evt, function(){ drawing = false; });
+    ["pointerup", "pointercancel"].forEach(function(evt){
+      canvas.addEventListener(evt, function(ev){
+        if (ev.pointerId !== activePointer) return;
+        activePointer = null; current = null;
+      });
     });
-    return {
-      clear: function(){ ctx.clearRect(0, 0, canvas.width, canvas.height); hasSignature = false; },
-      isEmpty: function(){ return !hasSignature; },
-      toDataUrl: function(){ return canvas.toDataURL("image/png"); }
+    var pad = {
+      onDraw: null,
+      fit: fit,
+      clear: function(){ strokes = []; current = null; activePointer = null; ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); fit(); },
+      isEmpty: function(){ return !strokes.length; },
+      // the same drawing at one fixed size, so the saved signature is the same
+      // from any tablet or phone and stays small enough to email
+      toDataUrl: function(){
+        var out = document.createElement("canvas");
+        out.width = SIGNATURE_EXPORT_W;
+        out.height = Math.max(1, Math.round(SIGNATURE_EXPORT_W * (boxW && boxH ? boxH / boxW : 1 / 3)));
+        paint(out.getContext("2d"), out.width, out.height);
+        return out.toDataURL("image/png");
+      }
     };
+    canvas.eqSignaturePad = pad;
+    if (typeof ResizeObserver !== "undefined") new ResizeObserver(function(){ fit(); }).observe(canvas);
+    window.addEventListener("resize", fit);
+    fit();
+    return pad;
   }
   function deliveryItemsTableHtml(items){
+    var total = 0;
     var rows = (items || []).map(function(it){
-      return "<tr><td>" + escHtml(it.barcode) + "</td><td>" + escHtml(it.manufacturer) + "</td><td>" + escHtml(it.model) + "</td><td>" + escHtml(it.deviceType) + "</td>" +
-        "<td>" + escHtml(it.totalQty == null ? "" : String(it.totalQty)) + "</td><td>" + escHtml(it.serialNumber) + "</td></tr>";
+      total += Number(it.totalQty) || 0;
+      var name = [it.manufacturer, it.model].filter(function(v){ return v && String(v).trim(); }).join(" ");
+      return '<tr><td class="ds-qty">' + escHtml(it.totalQty == null ? "" : String(it.totalQty)) + '</td>' +
+        '<td><span class="ds-item-name">' + escHtml(name || it.deviceType || "—") + '</span>' +
+          (name && it.deviceType ? '<span class="ds-item-sub">' + escHtml(it.deviceType) + '</span>' : '') + '</td>' +
+        '<td>' + escHtml(it.barcode) + '</td><td>' + escHtml(it.serialNumber) + '</td></tr>';
     }).join("");
-    return "<thead><tr><th>BarCode</th><th>Manufacturer</th><th>Model</th><th>Device Type</th><th>Qty</th><th>Serial Number</th></tr></thead><tbody>" + rows + "</tbody>";
+    return '<thead><tr><th class="ds-qty">Qty</th><th>Item</th><th>BarCode</th><th>Serial Number</th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td class="ds-qty">' + (total || "") + '</td><td colspan="3">Total items</td></tr></tfoot>';
   }
   function assetItemsTableHtml(ids, qtyMap){
+    var total = 0;
     var rows = (ids || []).map(function(id){
       var a = assetsCache.filter(function(x){ return x.id === id; })[0];
-      var q = (qtyMap && qtyMap[id]) || 1;
-      var name = a ? escHtml(a.label || "Untitled asset") + (a.description ? "<br><small>" + escHtml(a.description) + "</small>" : "") : "Asset not found";
-      return "<tr><td>" + name + "</td><td>" + escHtml(a ? a.category : "") + "</td><td>" + escHtml(String(q)) + "</td></tr>";
+      var q = Number((qtyMap && qtyMap[id]) || 1) || 1;
+      total += q;
+      var name = a ? '<span class="ds-item-name">' + escHtml(a.label || "Untitled asset") + '</span>' +
+        (a.description ? '<span class="ds-item-sub">' + escHtml(a.description) + '</span>' : '') : "Asset not found";
+      return '<tr><td class="ds-qty">' + q + '</td><td>' + name + '</td><td>' + escHtml(a ? a.category : "") + '</td></tr>';
     }).join("");
-    return "<thead><tr><th>Asset</th><th>Category</th><th>Qty</th></tr></thead><tbody>" + rows + "</tbody>";
+    return '<thead><tr><th class="ds-qty">Qty</th><th>Asset</th><th>Category</th></tr></thead><tbody>' + rows + '</tbody>' +
+      '<tfoot><tr><td class="ds-qty">' + total + '</td><td colspan="2">Total items</td></tr></tfoot>';
   }
   function deliverySignMsg(text, kind){
     var m = cloudEl("deliverySignMsg");
@@ -10816,13 +11112,18 @@
     var jobName = jobMeta.project || job.name || "Untitled job";
     var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
     var address = jobMeta.address || "";
-    var when = [driverFormatDate(delivery.scheduled_date), deliveryTimeRange(delivery)].filter(Boolean).join(" ");
+    var when = driverWhenText(delivery);
+    var contact = [delivery.poc_name, delivery.poc_phone].filter(Boolean).join(" · ");
+    var links = driverActionLinksHtml(delivery, address);
     cloudEl("deliverySignMeta").innerHTML =
-      "<div><b>" + escHtml(jobName) + (jobNum ? " — " + escHtml(jobNum) : "") + "</b></div>" +
-      (address ? "<div>" + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : "") +
-      (when ? "<div>" + escHtml(when) + "</div>" : "") +
-      (delivery.van ? "<div>Van: <b>" + escHtml(delivery.van) + "</b></div>" : "") +
-      (delivery.poc_name ? "<div>POC: " + escHtml(delivery.poc_name) + (delivery.poc_phone ? " · " + escHtml(delivery.poc_phone) : "") + "</div>" : "");
+      '<div class="ds-meta-job">' + escHtml(jobName) + (jobNum ? " — " + escHtml(jobNum) : "") + '</div>' +
+      '<div class="ds-meta-grid">' +
+        '<div><span class="ds-k">When</span><span class="ds-v">' + escHtml(when || "No time set") + '</span></div>' +
+        '<div><span class="ds-k">Van</span><span class="ds-v">' + escHtml(delivery.van || "—") + '</span></div>' +
+        '<div class="ds-wide"><span class="ds-k">Deliver to</span><span class="ds-v">' + (address ? escHtml(address) : "No address on this job") + '</span></div>' +
+        (contact ? '<div class="ds-wide"><span class="ds-k">Contact on site</span><span class="ds-v">' + escHtml(contact) + '</span></div>' : '') +
+      '</div>' +
+      (links ? '<div class="ds-meta-actions">' + links + '</div>' : '');
 
     cloudEl("deliverySignItemsTable").innerHTML = deliveryItemsTableHtml(delivery.items);
     // assets only: there is no equipment slip to sign, just the asset slip
@@ -10847,10 +11148,20 @@
 
     deliverySignMsg("");
     cloudEl("deliverySignBackdrop").hidden = false;
+    cloudEl("deliverySignPanel").scrollTop = 0;   // always opens at the top, not where the last delivery was left
 
     if (!equipSigned) currentDeliveryPad = setupSignaturePad(cloudEl("deliverySignCanvas"));
     if (hasAssets && !assetSigned) currentAssetPad = setupSignaturePad(cloudEl("assetSignCanvas"));
+    // a "type the name first" / "sign first" message goes away as soon as that is being done
+    [currentDeliveryPad, currentAssetPad].forEach(function(p){ if (p) p.onDraw = clearDeliverySignWarning; });
   }
+  function clearDeliverySignWarning(){
+    if (/\bbad\b/.test(cloudEl("deliverySignMsg").className)) deliverySignMsg("");
+  }
+  ["deliverySignerName", "assetSignerName"].forEach(function(id){
+    var nameEl = cloudEl(id);
+    if (nameEl) nameEl.addEventListener("input", clearDeliverySignWarning);
+  });
   function closeDeliverySignModal(){
     cloudEl("deliverySignBackdrop").hidden = true;
     currentDelivery = null; currentDeliveryPad = null; currentAssetPad = null;
