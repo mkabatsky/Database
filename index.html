@@ -1096,7 +1096,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 19 - October 7, 2026">Build 19</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
@@ -2528,10 +2528,10 @@
       input.value = rowSent(r);
       return;
     }
-    var total = rowTotal(r);
-    if (total > 0 && n > total){
-      showSnackbar("Qty Sent can't be more than the Total QTY (" + total + ").");
-      n = total;
+    var got = rowReceived(r);
+    if (got > 0 && n > got){
+      showSnackbar("Qty Sent can't be more than the Qty Received (" + got + ").");
+      n = got;
     }
     r.qtySent = n;
     r.qtyRemaining = rowRemaining(r);
@@ -2546,9 +2546,11 @@
   }
 
   // ---------- quantities and partial shipments ----------
-  // Qty Sent adds up what has gone out on packing slips, so an item can ship in
-  // parts. Qty Remaining is Total QTY minus Qty Sent. Both are worked out, not
-  // typed in.
+  // Total QTY    = what is expected on the job. It takes no part in the sums.
+  // Qty Received = what has arrived.
+  // Qty Sent     = what has gone out on delivery slips (it adds up, so an item
+  //                can ship in parts; it can also be corrected by hand).
+  // Qty Remaining = Qty Received - Qty Sent. Worked out, never typed.
   var lastShipQty = new Map();     // row -> qty that just went out on a slip (used once, by the print)
   var shipQtyOverride = new Map(); // row -> the "Qty to ship" typed in the slip preview
   // Items this open delivery slip has already marked shipped (by Print or by
@@ -2562,15 +2564,43 @@
     return held;
   }
   function rowTotal(r){ return Number(r.totalQty) || 0; }
+  function qtyBlank(v){ return v === "" || v === null || v === undefined; }
+  // Qty Received: the number in the box. An item that has a Date Received but
+  // no number typed yet counts as all of it having arrived - the same number
+  // the Qty Received box fills itself in with (see normalizeSentQty).
+  function rowReceived(r){
+    if (qtyBlank(r.qtyReceived)) return isIsoDateString(r.dateReceived) ? rowTotal(r) : 0;
+    return Number(r.qtyReceived) || 0;
+  }
   function rowSent(r){ return Number(r.qtySent) || 0; }
-  function rowRemaining(r){ return Math.max(0, rowTotal(r) - rowSent(r)); }
-  // Rows shipped before partial shipments existed have no Qty Sent. A Date
-  // Shipped on one of those means everything went out.
+  function rowRemaining(r){ return Math.max(0, rowReceived(r) - rowSent(r)); }
+  // Fills in the boxes that fill themselves in:
+  //  - Qty Received, once the item has a Date Received and nothing was typed:
+  //    everything expected (a different number can be typed for a part receipt)
+  //  - Qty Sent, on rows shipped before partial shipments existed (a Date
+  //    Shipped but no Qty Sent): everything received went out
+  //  - Qty Remaining
   function normalizeSentQty(r){
-    if (r.qtySent === undefined || r.qtySent === null || r.qtySent === ""){
-      r.qtySent = isIsoDateString(r.dateShipped) ? rowTotal(r) : 0;
+    if (qtyBlank(r.qtyReceived) && isIsoDateString(r.dateReceived) && rowTotal(r) > 0) r.qtyReceived = rowTotal(r);
+    if (qtyBlank(r.qtySent)){
+      r.qtySent = isIsoDateString(r.dateShipped) ? rowReceived(r) : 0;
     }
     r.qtyRemaining = rowRemaining(r);
+  }
+  // While a row's numbers are being typed, keeps its Qty Remaining box and its
+  // tick box (locked once nothing is left to ship) in step, without redrawing
+  // the table under the cursor.
+  function refreshRowQty(tr, id, r){
+    r.qtyRemaining = rowRemaining(r);
+    var remBox = tr.querySelector('input[data-field="qtyRemaining"]');
+    if (remBox) remBox.value = r.qtyRemaining;
+    var cb = tr.querySelector('.rownum input[type="checkbox"]');
+    if (!cb || !String(r.dateShipped || "").trim()) return;
+    var locked = rowRemaining(r) === 0;
+    cb.disabled = locked;
+    cb.title = locked ? "Already shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another delivery slip or label run."
+      : rowRemaining(r) + " left to ship - tick to send the rest.";
+    if (locked && selectedIds.has(id)){ cb.checked = false; selectedIds.delete(id); updateSelectionUI(); }
   }
   // an item only counts as shipped once nothing is left to ship
   function isFullyShipped(r){
@@ -2584,9 +2614,9 @@
       if (held !== undefined) return held;
     }
     var typed = shipQtyOverride.get(r);
-    // No Total QTY on the row: there's nothing to count down from, so it's
+    // No Qty Received on the row: there's nothing to count down from, so it's
     // whatever is typed for this slip (nothing typed = the item goes, with no number).
-    if (rowTotal(r) === 0) return typed !== undefined ? Math.max(0, typed) : 0;
+    if (rowReceived(r) === 0) return typed !== undefined ? Math.max(0, typed) : 0;
     var q = typed !== undefined ? Math.min(typed, rowRemaining(r)) : rowRemaining(r);
     return Math.max(0, q);
   }
@@ -2669,6 +2699,7 @@
   var lastRenderWasEmpty = null;
   function renderRows(){
     captureFocus();
+    rows.forEach(normalizeSentQty);
     var allIds = getVisibleIds();
     var ids = allIds, numById = null;
     if (allIds.length > rowsLimit){
@@ -2694,15 +2725,16 @@
       // can be ticked again so the rest can go on a later slip
       var alreadyShipped = !!(r.dateShipped && String(r.dateShipped).trim()) && rowRemaining(r) === 0;
       rowCb.checked = !alreadyShipped && selectedIds.has(id);
-      if (!alreadyShipped && r.dateShipped) rowCb.title = rowRemaining(r) + " of " + rowTotal(r) + " left to ship - tick to send the rest.";
+      if (!alreadyShipped && r.dateShipped) rowCb.title = rowRemaining(r) + " left to ship - tick to send the rest.";
       if (alreadyShipped){
         rowCb.disabled = true;
         rowCb.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another delivery slip or label run.";
         rowCb.setAttribute("aria-label", "Row " + (idx + 1) + " already shipped — cannot be selected");
       } else {
         rowCb.setAttribute("aria-label", "Select row " + (idx + 1) + " for labels");
-        rowCb.addEventListener("change", function(){ setRowSelected(id, rowCb.checked); });
       }
+      // (always wired up: a locked row unlocks in place when more of it is received)
+      rowCb.addEventListener("change", function(){ setRowSelected(id, rowCb.checked); });
       var delBtn = document.createElement("button");
       delBtn.className = "del-btn";
       delBtn.type = "button";
@@ -2732,17 +2764,12 @@
         if (c.key === "qtyRemaining"){
           input.readOnly = true;
           input.tabIndex = -1;
-          input.title = "Worked out from Total QTY and Qty Sent";
+          input.title = "Worked out: Qty Received minus Qty Sent";
         }
         // Qty Sent fills in by itself from delivery slips, and can be corrected by hand
         if (c.key === "qtySent"){
           input.title = "Filled in from delivery slips - type a number to correct it";
           input.addEventListener("change", function(){ applyTypedQtySent(id, input); });
-        }
-        // an item that's been received gets its full quantity as Qty Received,
-        // unless a different number was typed (partial receipt)
-        if (c.key === "qtyReceived" && isIsoDateString(r.dateReceived) && (r.qtyReceived === undefined || r.qtyReceived === null || r.qtyReceived === "")){
-          r.qtyReceived = rowTotal(r);
         }
         input.value = r[c.key] === undefined || r[c.key] === null ? "" : r[c.key];
         input.dataset.rowId = id;
@@ -2772,9 +2799,12 @@
           // a Date Shipped typed in by hand means the whole item went out;
           // clearing it means none did
           if (c.key === "dateShipped"){
-            r.qtySent = v ? rowTotal(r) : 0;
+            r.qtySent = v ? rowReceived(r) : 0;
             r.qtyRemaining = rowRemaining(r);
           }
+          // Qty Remaining follows Qty Received as it's typed (Total QTY and Date
+          // Received only matter while no Qty Received has been typed)
+          if (c.key === "qtyReceived" || c.key === "totalQty" || c.key === "dateReceived" || c.key === "dateShipped") refreshRowQty(tr, id, r);
           if (c.key === "barcode" || c.key === "dateReceived"){
             var shipBox = tr.querySelector('input[data-field="dateShipped"]');
             if (shipBox) applyShipInputState(shipBox, r);
@@ -3627,7 +3657,7 @@
       // the qty going out on this slip (all that remains, or the partial amount)
       var qty = slipQty(r);
       totalQty += qty;
-      var qtyText = qty > 0 ? String(qty) : ((r.totalQty === "" || r.totalQty === undefined || r.totalQty === null) ? "" : String(qty));
+      var qtyText = qty > 0 ? String(qty) : (rowReceived(r) === 0 ? "" : String(qty));
       return "<tr>" +
         '<td style="text-align:center"><span class="ps-checkbox"></span></td>' +
         "<td>" + escHtml(r.barcode) + "</td>" +
@@ -3844,7 +3874,7 @@
     var leanRows = selRows.map(function(r){
       var qty = qtyShownOnSlip(r);   // the same number the slip itself shows
       totalQty += qty;
-      var qtyText = qty > 0 ? String(qty) : ((r.totalQty === "" || r.totalQty === undefined || r.totalQty === null) ? "" : String(qty));
+      var qtyText = qty > 0 ? String(qty) : (rowReceived(r) === 0 ? "" : String(qty));
       return [r.barcode || "", r.manufacturer || "", r.model || "", truncateText(r.deviceType, 50) || "", qtyText, r.serialNumber || ""];
     });
     var slipMeta = {
@@ -4232,9 +4262,9 @@
       if (slipShipped.has(id)){ lastShipQty.set(r, slipShipped.get(id)); return; }
       if (shipBlockReason(r) || shipDate < r.dateReceived){ skipped++; return; }
       var q = qtyToShip(r);
-      // A row with no Total QTY still ships - it just has no number. Otherwise
+      // A row with no Qty Received still ships - it just has no number. Otherwise
       // 0 means nothing is left to send, or 0 was typed for this slip.
-      if (q <= 0 && !(rowTotal(r) === 0 && !isIsoDateString(r.dateShipped))){ skipped++; return; }
+      if (q <= 0 && !(rowReceived(r) === 0 && !isIsoDateString(r.dateShipped))){ skipped++; return; }
       r.qtySent = rowSent(r) + q;
       r.qtyRemaining = rowRemaining(r);
       r.dateShipped = shipDate;
@@ -7002,7 +7032,7 @@
         manufacturer: row.manufacturer,
         model: row.model,
         deviceType: row.deviceType,
-        totalQty: sentNow > 0 ? sentNow : row.totalQty,
+        totalQty: sentNow > 0 ? sentNow : "",
         serialNumber: row.serialNumber
       };
     });
@@ -7938,12 +7968,12 @@
     var boxes = selRows.map(function(r, i){
       var label = [r.manufacturer, r.model].filter(function(v){ return v && String(v).trim(); }).join(" ") || r.barcode || "Item";
       var q = qtyToShip(r);
-      var noTotal = rowTotal(r) === 0;
+      var noCount = rowReceived(r) === 0;
       return '<label class="ship-qty-row">' +
         '<span class="ship-qty-name">' + escHtml(label) + ' <small>' + escHtml(r.barcode || "") + '</small></span>' +
-        '<span class="ship-qty-left">' + (noTotal ? 'no Total QTY set' + (rowSent(r) ? ' - ' + rowSent(r) + ' sent' : '')
-          : rowSent(r) + ' sent, ' + rowRemaining(r) + ' of ' + rowTotal(r) + ' left') + '</span>' +
-        '<input type="number" min="0" step="1" data-ship-idx="' + i + '" value="' + (noTotal && !q ? "" : q) + '" placeholder="qty" aria-label="Qty to ship">' +
+        '<span class="ship-qty-left">' + (noCount ? 'no Qty Received set' + (rowSent(r) ? ' - ' + rowSent(r) + ' sent' : '')
+          : rowReceived(r) + ' received, ' + rowSent(r) + ' sent, ' + rowRemaining(r) + ' left') + '</span>' +
+        '<input type="number" min="0" step="1" data-ship-idx="' + i + '" value="' + (noCount && !q ? "" : q) + '" placeholder="qty" aria-label="Qty to ship">' +
       '</label>';
     }).join("");
     el.packingSlipPreview.insertAdjacentHTML("afterbegin",
@@ -7959,8 +7989,8 @@
     var n = Math.floor(Number(ev.target.value));
     if (!(n >= 0)) n = 0;
     var held = slipShipped.has(id) ? slipShipped.get(id) : null;
-    // with a Total QTY, no more than is left can go (plus what this slip already sent)
-    if (rowTotal(r) > 0){
+    // with a Qty Received, no more than is left of it can go (plus what this slip already sent)
+    if (rowReceived(r) > 0){
       var max = rowRemaining(r) + (held || 0);
       if (n > max){
         showSnackbar("Only " + max + " left to ship for this item.");
@@ -7977,7 +8007,7 @@
     if (n !== held){
       r.qtySent = Math.max(0, rowSent(r) - held + n);
       r.qtyRemaining = rowRemaining(r);
-      if (rowSent(r) === 0 && rowTotal(r) > 0) r.dateShipped = "";
+      if (rowSent(r) === 0 && rowReceived(r) > 0) r.dateShipped = "";
       else if (!isIsoDateString(r.dateShipped)) r.dateShipped = el.packingSlipDateShipped.value || todayLocalIso();
       slipShipped.set(id, n);
       persist();
@@ -7995,7 +8025,7 @@
     cloud.sb.from("eq_deliveries").select("items").eq("id", deliveryId).maybeSingle().then(function(res){
       if (res.error || !res.data) return res;
       var items = (res.data.items || []).map(function(it){
-        return it && String(it.barcode || "").trim() === barcode ? Object.assign({}, it, {totalQty: n > 0 ? n : r.totalQty}) : it;
+        return it && String(it.barcode || "").trim() === barcode ? Object.assign({}, it, {totalQty: n > 0 ? n : ""}) : it;
       });
       return cloud.sb.from("eq_deliveries").update({items: items, updated_by: cloud.clientId}).eq("id", deliveryId);
     }).then(function(res){
@@ -9028,12 +9058,12 @@
       });
       return Promise.all(shipped.map(function(row){
         var data = Object.assign({}, row.data);
-        var total = Number(data.totalQty) || 0;
-        var sent = (data.qtySent === "" || data.qtySent === null || data.qtySent === undefined) ? total : (Number(data.qtySent) || 0);
+        var got = rowReceived(data);
+        var sent = qtyBlank(data.qtySent) ? got : (Number(data.qtySent) || 0);
         var back = Number(barcodes[String(data.barcode || "").trim()].totalQty) || sent;
         sent = Math.max(0, sent - back);
         data.qtySent = sent;
-        data.qtyRemaining = Math.max(0, total - sent);
+        data.qtyRemaining = Math.max(0, got - sent);
         if (sent === 0) data.dateShipped = "";   // an earlier partial shipment keeps its date
         return cloud.sb.from("eq_rows").update({data: data, updated_by: cloud.clientId}).eq("id", row.id).then(function(u){
           if (u.error) throw u.error;
@@ -9095,10 +9125,11 @@
     var emailItems = shipped.map(function(id){
       var r = rows.get(id);
       var prevShip = r.dateShipped;
+      var cameBack = rowSent(r);   // what had gone out is what comes back
       r.dateShipped = "";
       r.qtySent = 0;
-      r.qtyRemaining = rowTotal(r);
-      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, qty: rowTotal(r), serialNumber: r.serialNumber, previousShipDate: prevShip};
+      r.qtyRemaining = rowRemaining(r);
+      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, qty: cameBack || "", serialNumber: r.serialNumber, previousShipDate: prevShip};
     });
     persist();
     renderRows();
@@ -10439,7 +10470,7 @@
     var items = selRows.map(function(r){
       // the qty going out on THIS delivery (all that's left, or the partial amount typed above)
       var goingOut = qtyToShip(r);
-      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: goingOut > 0 ? goingOut : r.totalQty, serialNumber: r.serialNumber, notes: r.notes};
+      return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, totalQty: goingOut > 0 ? goingOut : "", serialNumber: r.serialNumber, notes: r.notes};
     });
     var shipDate = el.packingSlipDateShipped.value || scheduledDate || todayLocalIso();
     var shipResult = {applied: 0, skipped: 0, rows: []};
