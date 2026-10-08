@@ -284,6 +284,12 @@
   .col-item .move-btn:disabled:hover{background:transparent;color:var(--ink-muted);}
   .modal-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;}
   .slip-folder-current{font-size:13.5px;font-weight:600;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt);overflow-wrap:anywhere;}
+  #slipFolderBackdrop .modal-panel{max-width:520px;overflow:auto;}
+  /* signed slips are only saved by the signed-in (cloud) app */
+  .slip-folder-signed{display:none;flex-direction:column;gap:10px;border-top:1px solid var(--border);padding-top:12px;flex:none;}
+  body.cloud .slip-folder-signed{display:flex;}
+  .slip-folder-check{display:flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;cursor:pointer;}
+  .slip-folder-check input{width:18px;height:18px;flex:none;}
   .modal-footer .hint{font-size:12px;color:var(--ink-muted);}
 
   #labelsPrintRoot{display:none;}
@@ -893,7 +899,11 @@
   .dt-text{margin:0 0 8px;padding:10px 12px;border-radius:8px;background:var(--surface-alt);font:inherit;font-size:13px;line-height:1.45;white-space:pre-wrap;overflow-wrap:anywhere;}
   .dt-actions{display:flex;gap:8px;flex-wrap:wrap;}
   .dt-actions button, .dt-actions a{padding:8px 14px;font-size:13px;}
-  .dt-send{display:inline-flex;align-items:center;border-radius:8px;background:var(--accent);color:var(--accent-ink);font-weight:600;text-decoration:none;}
+  .dt-send{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:7px;background:var(--surface);color:var(--ink);font-weight:500;text-decoration:none;}
+  .dt-result{font-size:12.5px;color:var(--ink-muted);margin-top:8px;}
+  .dt-result:empty{display:none;}
+  .dt-result.bad{color:var(--danger);font-weight:600;}
+  .dt-result.good{color:var(--success);font-weight:600;}
   .jd-delivery-driver{color:var(--ink);}
   .jd-delivery-when{color:var(--ink);font-weight:600;white-space:nowrap;}
   .jd-delivery-slip-btn{padding:6px 11px;font-size:12.5px;flex:none;}
@@ -1210,12 +1220,12 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 22 - October 8, 2026">Build 22</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 23 - October 8, 2026">Build 23</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
     <div class="sync-status"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Saved on this device</span></div>
-    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="jobsDashboardBtn" type="button">Dashboard</button><button id="pendingDeliveriesBtn" type="button">Deliveries</button><button id="assetsBtn" type="button">Assets</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
+    <div class="cloud-bar cloud-only"><span class="cloud-user" id="cloudUser"></span><button id="cloudJobsBtn" type="button">Jobs</button><button id="jobsDashboardBtn" type="button">Dashboard</button><button id="pendingDeliveriesBtn" type="button">Deliveries</button><button id="assetsBtn" type="button">Assets</button><button id="signedSlipsBtn" class="primary" type="button" hidden="" title="Signed slips are ready to go into your slip folder. The browser needs this click before it may save there again.">Save signed slips</button><button id="manageUsersBtn" type="button">Manage Users</button><button id="cloudSignOutBtn" type="button">Sign out</button></div>
     <span id="roleBanner"></span>
   </div>
 
@@ -1600,7 +1610,7 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">One message per driver, with that driver's deliveries for the day in order. <b>Text</b> opens the messaging app on this phone or computer with the driver's number and the message already filled in - you press send. <b>Copy</b> puts the message on the clipboard to paste anywhere. Each driver's mobile number is set in Manage users.</p>
+    <p class="modal-sub">One message per driver, with that driver's deliveries for the day in order. <b>Send as text</b> sends it from here, through Verizon's email-to-text service - it only reaches Verizon numbers, and Verizon doesn't confirm delivery. <b>Open in my messaging app</b> hands the number and the message to this phone or computer for you to send. <b>Copy</b> puts the message on the clipboard. Each driver's mobile number is set in Manage users.</p>
     <label class="dt-day">Day <select id="driverTextsDay"></select></label>
     <div class="dt-list" id="driverTextsList"></div>
     <div class="pd-msg" id="driverTextsMsg" aria-live="polite"></div>
@@ -1890,6 +1900,12 @@
       <button id="slipFolderClearBtn" type="button">Stop using a folder</button>
     </div>
     <p class="modal-sub" id="slipFolderHint"></p>
+    <div class="slip-folder-signed">
+      <label class="slip-folder-check"><input type="checkbox" id="slipFolderSignedChk" checked=""> Also save every signed slip into this folder</label>
+      <p class="modal-sub">A slip is signed on the driver's tablet, so it is saved from here: while this app is open on this computer, each signed delivery slip and asset slip goes into the folder as a PDF within a couple of minutes. Slips signed while the app was closed are saved the next time it is opened (up to 30 days back).</p>
+      <div class="modal-actions"><button id="slipFolderSignedNowBtn" type="button">Save signed slips now</button></div>
+      <p class="modal-sub" id="slipFolderSignedStatus"></p>
+    </div>
   </div>
 </div>
 
@@ -3977,6 +3993,7 @@
   // a folder is picked, the slip downloads the normal way.
   var SLIP_FOLDER_DB = "equipmentDatabase.slipFolder", SLIP_FOLDER_KEY = "folder";
   var slipFolderHandle = null;
+  var slipFolderChanged = function(){};   // overridden below, where signed slips are saved into the folder
   function slipFolderSupported(){ return typeof window.showDirectoryPicker === "function" && !!window.indexedDB; }
   function slipFolderStore(mode, fn){
     return new Promise(function(resolve, reject){
@@ -4059,7 +4076,7 @@
         renderSlipFolderSettings('Saved. "Export signable slip (PDF)" now saves into this folder.');
       }, function(){
         renderSlipFolderSettings("This folder is used until this page is closed - the browser wouldn't remember it for next time.");
-      });
+      }).then(function(){ slipFolderChanged(); });
     }, function(e){
       if (e && e.name === "AbortError") return;   // the folder window was closed without choosing
       renderSlipFolderSettings("Couldn't use that folder: " + (e && e.message ? e.message : e) + " If the browser refuses a folder, make a folder for slips inside it and choose that one.");
@@ -4069,6 +4086,7 @@
     slipFolderHandle = null;
     slipFolderStore("readwrite", function(st){ return st.delete(SLIP_FOLDER_KEY); }).then(function(){}, function(){});
     renderSlipFolderSettings("Exported slips go to Downloads again.");
+    slipFolderChanged();
   });
   loadSlipFolder();
 
@@ -6983,6 +7001,7 @@
       }
       applyRoleUi("staff");
       applyStaffKind(pr.data);
+      startSignedSlipSaving();
       // Staff's cover page is the fleet Dashboard (every job's status at a
       // glance), not the plain Jobs list - same reasoning as the Dashboard
       // button itself: this is a staff-only view, so only the staff branch
@@ -7390,7 +7409,7 @@
   // send-signed-slip the moment it's signed. Built from the delivery itself
   // (not the staff user's currently-open job), so it carries that delivery's
   // own job/address/van/POC plus the signer's name and signature.
-  function buildSignedSlipPdfBase64(delivery, kind, signedBy, signedAtIso, signatureDataUrl){
+  function buildSignedSlipPdfBase64(delivery, kind, signedBy, signedAtIso, signatureDataUrl, assetList){
     if (typeof window.jspdf === "undefined") return "";
     var jsPDFCtor = window.jspdf.jsPDF;
     // compressed: the signature picture alone used to make this about 1 MB
@@ -7457,7 +7476,7 @@
     if (isAssets){
       head = [["Asset", "Category", "Qty"]];
       body = (delivery.asset_ids || []).map(function(id){
-        var a = assetsCache.filter(function(x){ return x.id === id; })[0];
+        var a = (assetList || assetsCache).filter(function(x){ return x.id === id; })[0];
         var name = a ? (a.label || "Untitled asset") + (a.description ? "\n" + a.description : "") : "Asset not found";
         return [name, a ? a.category : "", String((delivery.asset_qty || {})[id] || 1)];
       });
@@ -7534,6 +7553,198 @@
       return "";
     }).catch(function(e){
       return isNetworkProblem(e) ? "You're offline" : explain(e && e.message ? e.message : String(e));
+    });
+  }
+
+  // ---------- signed slips into the slip folder ----------
+  // A slip is signed on a driver's tablet, which has no way into the office's
+  // OneDrive. So the saving is done from here: a full-access computer that has
+  // a slip folder chosen ("Slip folder" on the delivery slip window) saves
+  // every signed slip into it as a PDF - within a couple of minutes while the
+  // app is open, and on the next start for anything signed while it was closed.
+  var SIGNED_FILED_KEY = "equipmentDatabase.slipFolder.signedFiled.v1";   // the slips this computer has already saved
+  var SIGNED_AUTO_KEY = "equipmentDatabase.slipFolder.signedAuto.v1";     // "0" = switched off on this computer
+  var SIGNED_LOOKBACK_DAYS = 30, SIGNED_CHECK_MS = 2 * 60000, SIGNED_FILED_MAX = 4000;
+  var signedSlipsBusy = false, signedSlipsTimer = null;
+
+  function signedSlipsAutoOn(){
+    try{ return window.localStorage.getItem(SIGNED_AUTO_KEY) !== "0"; }catch(e){ return true; }
+  }
+  function signedSlipsFiled(){
+    try{ return JSON.parse(window.localStorage.getItem(SIGNED_FILED_KEY) || "[]") || []; }catch(e){ return []; }
+  }
+  function rememberSignedSlipFiled(key){
+    var list = signedSlipsFiled();
+    if (list.indexOf(key) !== -1) return;
+    list.push(key);
+    try{ window.localStorage.setItem(SIGNED_FILED_KEY, JSON.stringify(list.slice(-SIGNED_FILED_MAX))); }catch(e){}
+  }
+  function setSignedSlipsStatus(text){
+    var st = cloudEl("slipFolderSignedStatus");
+    if (st) st.textContent = text || "";
+  }
+  function signedSlipsClock(){
+    return new Date().toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"});
+  }
+  // "Signed Delivery Slip - Job name - Job number - 100826 - 1a2b3c4d.pdf". The
+  // date is the day it was signed; the last part is the delivery's own id, so
+  // two deliveries to one job on one day never share a name.
+  function signedSlipFilename(d, kind){
+    var job = d.eq_jobs || {}, jm = job.meta || {};
+    var at = new Date(kind === "assets" ? d.asset_signed_at : d.signed_at);
+    var pad2 = function(n){ return String(n).padStart(2, "0"); };
+    var parts = [kind === "assets" ? "Signed Asset Slip" : "Signed Delivery Slip", sanitizeFilename(jm.project || job.name || "Untitled job")];
+    if (jm.projectNumber && String(jm.projectNumber).trim()) parts.push(sanitizeFilename(jm.projectNumber));
+    if (!isNaN(at)) parts.push(pad2(at.getMonth() + 1) + pad2(at.getDate()) + String(at.getFullYear()).slice(2));
+    parts.push(String(d.id).slice(0, 8));
+    return parts.join(" - ") + ".pdf";
+  }
+  // rows of a table by id, asked for a few at a time (a delivery carries its signatures)
+  function fetchRowsByIds(table, columns, ids, perRequest){
+    var all = [], chunks = [];
+    for (var i = 0; i < ids.length; i += perRequest) chunks.push(ids.slice(i, i + perRequest));
+    return chunks.reduce(function(p, chunk){
+      return p.then(function(){
+        return cloud.sb.from(table).select(columns).in("id", chunk).then(function(r){
+          if (r.error) throw r.error;
+          all = all.concat(r.data || []);
+        });
+      });
+    }, Promise.resolve()).then(function(){ return all; });
+  }
+  // [{id, kind}] - the slips signed in the last 30 days that this computer hasn't saved yet
+  function findUnsavedSignedSlips(){
+    var since = new Date(Date.now() - SIGNED_LOOKBACK_DAYS * 86400000).toISOString();
+    var filed = signedSlipsFiled();
+    return Promise.all([
+      cloud.sb.from("eq_deliveries").select("id,signed_at").gte("signed_at", since),
+      cloud.sb.from("eq_deliveries").select("id,asset_signed_at").gte("asset_signed_at", since)
+    ]).then(function(res){
+      if (res[0].error) throw res[0].error;
+      if (res[1].error) throw res[1].error;
+      var todo = [];
+      (res[0].data || []).forEach(function(d){ if (d.signed_at && filed.indexOf(d.id + ":equipment") === -1) todo.push({id: d.id, kind: "equipment"}); });
+      (res[1].data || []).forEach(function(d){ if (d.asset_signed_at && filed.indexOf(d.id + ":assets") === -1) todo.push({id: d.id, kind: "assets"}); });
+      return todo;
+    });
+  }
+  // true when the file was written, false when one of that name was already there
+  function writeSlipIfMissing(folder, name, blob){
+    return folder.getFileHandle(name).then(function(){ return false; }, function(){
+      return folder.getFileHandle(name, {create: true}).then(function(fh){ return fh.createWritable(); }).then(function(w){
+        return Promise.resolve(w.write(blob)).then(function(){ return w.close(); });
+      }).then(function(){ return true; });
+    });
+  }
+  function base64ToBlob(b64, type){
+    var bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], {type: type});
+  }
+  function writeSignedSlips(folder, todo){
+    var counts = {saved: 0, already: 0, failed: 0};
+    var ids = Array.from(new Set(todo.map(function(t){ return t.id; })));
+    var byId = {};
+    return fetchRowsByIds("eq_deliveries", "*, eq_jobs(id,name,meta)", ids, 15).then(function(list){
+      list.forEach(function(d){ byId[d.id] = d; });
+      var assetIds = [];
+      todo.forEach(function(t){
+        if (t.kind !== "assets" || !byId[t.id]) return;
+        (byId[t.id].asset_ids || []).forEach(function(aid){ if (assetIds.indexOf(aid) === -1) assetIds.push(aid); });
+      });
+      return assetIds.length ? fetchRowsByIds("eq_assets", "*", assetIds, 80) : [];
+    }).then(function(assetList){
+      return todo.reduce(function(p, t){
+        return p.then(function(){
+          var d = byId[t.id];
+          if (!d) return;
+          var isAssets = t.kind === "assets", b64 = "";
+          // one slip that can't be drawn (a damaged signature picture) doesn't hold up the rest
+          try{
+            b64 = buildSignedSlipPdfBase64(d, t.kind, isAssets ? d.asset_signed_by : d.signed_by, isAssets ? d.asset_signed_at : d.signed_at,
+              isAssets ? d.asset_signature_data : d.signature_data, assetList);
+          }catch(e){ b64 = ""; }
+          if (!b64){ counts.failed++; return; }
+          return writeSlipIfMissing(folder, signedSlipFilename(d, t.kind), base64ToBlob(b64, "application/pdf")).then(function(wrote){
+            if (wrote) counts.saved++; else counts.already++;
+            rememberSignedSlipFiled(t.id + ":" + t.kind);
+          });
+        });
+      }, Promise.resolve());
+    }).then(function(){ return counts; });
+  }
+  // fromClick: a person pressed a button. Only then may the browser be asked
+  // to let this page save into the folder (it asks again after a restart).
+  function saveSignedSlipsToFolder(fromClick){
+    if (signedSlipsBusy || !cloud.user || (cloud.role && cloud.role !== "staff")) return Promise.resolve();
+    if (!fromClick && !signedSlipsAutoOn()) return Promise.resolve();
+    signedSlipsBusy = true;
+    var folder = null, btn = cloudEl("signedSlipsBtn");
+    return Promise.resolve(slipFolderHandle || loadSlipFolder()).then(function(h){
+      folder = h;
+      if (!folder){
+        if (btn) btn.hidden = true;
+        if (fromClick) setSignedSlipsStatus("Choose a folder first.");
+        return null;
+      }
+      return findUnsavedSignedSlips();
+    }).then(function(todo){
+      if (!todo) return;
+      if (!todo.length){
+        if (btn) btn.hidden = true;
+        setSignedSlipsStatus("Checked at " + signedSlipsClock() + " - nothing new. Every slip signed in the last " + SIGNED_LOOKBACK_DAYS + " days has been saved.");
+        return;
+      }
+      var access = {mode: "readwrite"}, waiting = todo.length + " signed slip" + (todo.length === 1 ? "" : "s");
+      return Promise.resolve(folder.queryPermission ? folder.queryPermission(access) : "granted").then(function(state){
+        return state === "granted" || !fromClick || !folder.requestPermission ? state : folder.requestPermission(access);
+      }).then(function(state){
+        if (state !== "granted"){
+          if (btn){ btn.hidden = false; btn.textContent = "Save " + waiting; }
+          setSignedSlipsStatus(waiting + " waiting. The browser needs a click before it may save into the folder again - press Save signed slips now.");
+          return;
+        }
+        if (btn) btn.hidden = true;
+        return writeSignedSlips(folder, todo).then(function(c){
+          var folderName = folder.name || "the slip folder";
+          setSignedSlipsStatus("Checked at " + signedSlipsClock() + " - saved " + c.saved + " signed slip" + (c.saved === 1 ? "" : "s") + ' in "' + folderName + '"' +
+            (c.already ? ", " + c.already + " already there" : "") + (c.failed ? ", " + c.failed + " couldn't be made into a PDF" : "") + ".");
+          if (c.saved) showSnackbar("Saved " + c.saved + " signed slip" + (c.saved === 1 ? "" : "s") + ' in your slip folder "' + folderName + '".');
+        });
+      });
+    }).catch(function(e){
+      setSignedSlipsStatus(isNetworkProblem(e) ? "You're offline - signed slips will be saved when the connection is back."
+        : "Couldn't save signed slips: " + (e && e.message ? e.message : e));
+    }).then(function(){ signedSlipsBusy = false; });
+  }
+  function startSignedSlipSaving(){
+    clearInterval(signedSlipsTimer);
+    setTimeout(function(){ saveSignedSlipsToFolder(false); }, 8000);   // once the app has settled after signing in
+    signedSlipsTimer = setInterval(function(){ saveSignedSlipsToFolder(false); }, SIGNED_CHECK_MS);
+  }
+  // a folder was just chosen (that click also gave permission) or given up
+  slipFolderChanged = function(){
+    if (slipFolderHandle){ saveSignedSlipsToFolder(true); return; }
+    var btn = cloudEl("signedSlipsBtn");
+    if (btn) btn.hidden = true;
+    setSignedSlipsStatus("");
+  };
+  var signedSlipsBtnEl = cloudEl("signedSlipsBtn");
+  if (signedSlipsBtnEl) signedSlipsBtnEl.addEventListener("click", function(){ saveSignedSlipsToFolder(true); });
+  var slipFolderSignedNowBtnEl = cloudEl("slipFolderSignedNowBtn");
+  if (slipFolderSignedNowBtnEl) slipFolderSignedNowBtnEl.addEventListener("click", function(){
+    if (!signedSlipsBusy) setSignedSlipsStatus("Checking...");
+    saveSignedSlipsToFolder(true);
+  });
+  var slipFolderSignedChkEl = cloudEl("slipFolderSignedChk");
+  if (slipFolderSignedChkEl){
+    slipFolderSignedChkEl.checked = signedSlipsAutoOn();
+    slipFolderSignedChkEl.addEventListener("change", function(){
+      try{ window.localStorage.setItem(SIGNED_AUTO_KEY, slipFolderSignedChkEl.checked ? "1" : "0"); }catch(e){}
+      if (slipFolderSignedChkEl.checked){ saveSignedSlipsToFolder(true); return; }
+      var btn = cloudEl("signedSlipsBtn");
+      if (btn) btn.hidden = true;
+      setSignedSlipsStatus("Signed slips are not being saved from this computer.");
     });
   }
 
@@ -8820,9 +9031,11 @@
         '</div>' +
         '<pre class="dt-text">' + escHtml(text) + '</pre>' +
         '<div class="dt-actions">' +
-          (hasPhone ? '<a class="dt-send" href="' + escHtml(smsHref(u.phone, text)) + '">Text ' + escHtml(u.phone) + '</a>' : '') +
+          (hasPhone ? '<button type="button" class="primary" data-dt-send="' + escHtml(driverId) + '">Send as text (Verizon numbers)</button>' : '') +
+          (hasPhone ? '<a class="dt-send" href="' + escHtml(smsHref(u.phone, text)) + '">Open in my messaging app</a>' : '') +
           '<button type="button" data-dt-copy="' + escHtml(driverId) + '">Copy message</button>' +
         '</div>' +
+        '<div class="dt-result"></div>' +
       '</div>';
     }).join("");
     driverTextsMsg("");
@@ -8859,6 +9072,33 @@
   }
   document.addEventListener("click", function(ev){
     if (ev.target.closest && ev.target.closest("[data-jd-text-drivers]")){ openDriverTextsModal(); return; }
+    // Send as text: the server emails Verizon's email-to-text address for that
+    // driver's number (send-driver-texts looks the number up itself).
+    var sendBtn = ev.target.closest && ev.target.closest("[data-dt-send]");
+    if (sendBtn){
+      var sendCard = sendBtn.closest(".dt-card"), resultEl = sendCard.querySelector(".dt-result");
+      var showResult = function(text, kind){ resultEl.textContent = text; resultEl.className = "dt-result" + (kind ? " " + kind : ""); };
+      sendBtn.disabled = true;
+      showResult("Sending...");
+      invokeFn("send-driver-texts", {messages: [{driverId: sendBtn.dataset.dtSend, text: sendCard.querySelector(".dt-text").textContent}]}).then(function(res){
+        sendBtn.disabled = false;
+        var result = res.data && res.data.results && res.data.results[0];
+        var err = (res.error && res.error.message) || (res.data && res.data.error) || (result && !result.ok ? (result.error || "not sent") : "") || (!result ? "no answer" : "");
+        if (err){
+          // an answer with no reason in it means the function itself isn't there
+          showResult(/non-2xx|failed to send a request|failed to fetch|not found|404/i.test(err)
+            ? "Sending from here isn't set up yet - see \"Text messages\" in this build's read-me (the send-driver-texts function)."
+            : "Not sent: " + err, "bad");
+          return;
+        }
+        showResult("Handed to Verizon for " + result.to + " at " + new Date().toLocaleTimeString(undefined, {hour: "numeric", minute: "2-digit"}) +
+          ". Verizon doesn't report whether it arrived - check with the driver the first time.", "good");
+      }).catch(function(e){
+        sendBtn.disabled = false;
+        showResult(isNetworkProblem(e) ? "You're offline - not sent." : "Not sent: " + (e && e.message ? e.message : e), "bad");
+      });
+      return;
+    }
     var copyBtn = ev.target.closest && ev.target.closest("[data-dt-copy]");
     if (!copyBtn) return;
     var textEl = copyBtn.closest(".dt-card").querySelector(".dt-text");
