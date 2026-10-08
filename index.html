@@ -1097,7 +1097,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 20 - October 8, 2026">Build 20</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 21 - October 8, 2026">Build 21</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
@@ -9160,10 +9160,47 @@
     });
   }
 
+  // Items going back into stock also come off any delivery for this job that
+  // is still scheduled for a driver - one whose equipment slip hasn't been
+  // signed yet. A delivery left with nothing on it (no equipment, no assets)
+  // is cancelled; one that still has other items or assets carries on with
+  // those. Deliveries already signed for are history and are left as they are.
+  function takeOffScheduledDeliveries(jobId, barcodes){
+    var gone = {};
+    (barcodes || []).forEach(function(b){
+      b = String(b || "").trim();
+      if (b) gone[b] = true;
+    });
+    if (!jobId || !cloud.sb || !Object.keys(gone).length) return Promise.resolve({changed: 0, cancelled: 0});
+    return Promise.resolve(cloud.sb.from("eq_deliveries").select("*").eq("job_id", jobId).eq("status", "assigned")).then(function(r){
+      if (r.error) throw r.error;
+      var result = {changed: 0, cancelled: 0};
+      var work = (r.data || []).filter(function(d){ return !d.signed_at; }).map(function(d){
+        var items = d.items || [];
+        var kept = items.filter(function(it){ return !(it && gone[String(it.barcode || "").trim()]); });
+        if (kept.length === items.length) return null;
+        if (!kept.length && !(d.asset_ids || []).length){
+          // nothing left to deliver: it comes off the dashboard and the driver's
+          // list, the same as Cancel delivery (its item list stays, for the record)
+          return cloud.sb.from("eq_deliveries").update({status: "cancelled", updated_by: cloud.clientId}).eq("id", d.id).eq("status", "assigned").then(function(u){
+            if (u.error) throw u.error;
+            result.cancelled++;
+          });
+        }
+        return cloud.sb.from("eq_deliveries").update({items: kept, updated_by: cloud.clientId}).eq("id", d.id).eq("status", "assigned").then(function(u){
+          if (u.error) throw u.error;
+          result.changed++;
+        });
+      }).filter(Boolean);
+      return Promise.all(work).then(function(){ return result; });
+    });
+  }
+
   // ---------- return to stock (staff only) ----------
   // Ticked shipped rows go back into warehouse stock: Date Shipped and Qty Sent
-  // are cleared (so Qty Remaining is everything received again). The rows save
-  // like any other edit, and the warehouse gets one email listing what came back.
+  // are cleared (so Qty Remaining is everything received again), and they come
+  // off any delivery still scheduled for a driver. The rows save like any other
+  // edit, and the warehouse gets one email listing what came back.
   function returnRowsToStock(){
     if (cloud.role && cloud.role !== "staff"){ showSnackbar("Only staff can return items to stock."); return; }
     var shipped = returnPickIds();
@@ -9174,7 +9211,7 @@
       return;
     }
     var n = shipped.length;
-    if (!confirm("Return " + n + " item" + (n === 1 ? "" : "s") + " to stock?\n\nTheir Date Shipped is cleared and what was sent goes back into stock. The warehouse gets an email.")) return;
+    if (!confirm("Return " + n + " item" + (n === 1 ? "" : "s") + " to stock?\n\nTheir Date Shipped is cleared and what was sent goes back into stock. They also come off any delivery still scheduled for a driver. The warehouse gets an email.")) return;
     var emailItems = shipped.map(function(id){
       var r = rows.get(id);
       var prevShip = r.dateShipped;
@@ -9188,15 +9225,34 @@
     });
     persist();
     renderRows();
-    invokeFn("notify-return-to-stock", {jobId: cloud.jobId, items: emailItems}).then(function(res){
+    var jobId = cloud.jobId;
+    var offDeliveries = takeOffScheduledDeliveries(jobId, emailItems.map(function(it){ return it.barcode; })).then(function(res){
+      if (res.changed || res.cancelled){
+        if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+        if (!cloudEl("pendingDeliveriesBackdrop").hidden) loadPendingDeliveries();
+      }
+      return res;
+    }, function(e){
+      return {error: isNetworkProblem(e) ? "you're offline" : (e && e.message ? e.message : String(e))};
+    });
+    var emailed = invokeFn("notify-return-to-stock", {jobId: jobId, items: emailItems}).then(function(res){
       if (res.error) return res.error.message;
       var data = res.data || {};
       return data.error || "";
     }).catch(function(e){
       return e && e.message ? e.message : String(e);
-    }).then(function(emailErr){
-      if (emailErr) showSnackbar("Returned " + n + " to stock, but the email didn't send: " + emailErr);
-      else showSnackbar("Returned " + n + " item" + (n === 1 ? "" : "s") + " to stock. The warehouse has been emailed.");
+    });
+    Promise.all([emailed, offDeliveries]).then(function(both){
+      var emailErr = both[0], del = both[1];
+      var msg = "Returned " + n + " item" + (n === 1 ? "" : "s") + " to stock.";
+      if (del.error){
+        msg += " Couldn't check the scheduled deliveries (" + del.error + ") - if " + (n === 1 ? "it is" : "they are") + " on one, take " + (n === 1 ? "it" : "them") + " off from the Dashboard.";
+      } else {
+        if (del.changed) msg += " Taken off " + del.changed + " scheduled deliver" + (del.changed === 1 ? "y" : "ies") + ".";
+        if (del.cancelled) msg += " " + del.cancelled + " deliver" + (del.cancelled === 1 ? "y had nothing left on it and was" : "ies had nothing left on them and were") + " cancelled.";
+      }
+      msg += emailErr ? " The email didn't send: " + emailErr : " The warehouse has been emailed.";
+      showSnackbar(msg);
     });
   }
   var returnStockBtnEl = cloudEl("returnStockBtn");
