@@ -1227,7 +1227,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 24 - October 8, 2026">Build 24</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 25 - October 8, 2026">Build 25</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
@@ -7543,7 +7543,7 @@
   // by the time this runs, so a failed email never un-signs anything - the
   // caller just says so on screen.
   function sendSignedSlipEmail(deliveryId, kind, pdfBase64, signedBy, signatureDataUrl){
-    if (!pdfBase64) return Promise.resolve("The slip PDF couldn't be built (PDF library didn't load).");
+    if (!pdfBase64) return Promise.resolve("the slip PDF couldn't be built");
     // "Failed to send a request to the Edge Function" is the browser saying it
     // couldn't reach the function at all - almost always because it isn't
     // deployed yet, not a problem with the email itself.
@@ -11160,26 +11160,92 @@
   function openDriverDashboard(){
     cloudEl("driverDashboard").hidden = false;
     cloudEl("driverUserEmail").textContent = (cloud.user && cloud.user.email) || "";
+    startDriverLiveUpdates();
     return loadDriverDeliveries();
   }
-  function loadDriverDeliveries(){
-    driverMsg("Loading...");
-    return Promise.all([
-      cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("driver_id", cloud.user.id).eq("status", "assigned")
-        .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true}),
-      fetchAllRows(function(){ return cloud.sb.from("eq_assets").select("id,label,category,description").order("id", {ascending: true}); })
-    ]).then(function(results){
-      var delRes = results[0], assetsRes = results[1];
-      if (delRes.error){ driverMsg("Couldn't load: " + delRes.error.message, "bad"); return; }
-      driverDeliveriesCache = delRes.data || [];
-      if (!assetsRes.error) assetsCache = assetsRes.data || [];
-      renderDriverDashboard();
+  // The list keeps itself up to date - see startDriverLiveUpdates below.
+  // quiet = one of those background refreshes: no "Loading..." flashed under
+  // the list, and one that fails leaves what is on screen alone.
+  var driverLoadSeq = 0;
+  function loadDriverDeliveries(quiet){
+    if (!cloud.user) return Promise.resolve();
+    var seq = ++driverLoadSeq;
+    if (!quiet) driverMsg("Loading...");
+    return Promise.resolve().then(function(){
+      return cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("driver_id", cloud.user.id).eq("status", "assigned")
+        .order("scheduled_date", {ascending: true}).order("scheduled_time", {ascending: true});
+    }).then(function(delRes){
+      if (delRes.error) throw delRes.error;
+      var deliveries = delRes.data || [];
+      // Only the assets these deliveries carry, and only the ones not already
+      // known. (Every asset in the system used to be fetched on every refresh.)
+      var missing = [];
+      deliveries.forEach(function(d){
+        (d.asset_ids || []).forEach(function(id){
+          if (missing.indexOf(id) === -1 && !assetsCache.some(function(a){ return a.id === id; })) missing.push(id);
+        });
+      });
+      var assetsReq = missing.length
+        ? fetchRowsByIds("eq_assets", "id,label,category,description", missing, 80).then(null, function(){ return []; })
+        : Promise.resolve([]);
+      return assetsReq.then(function(newAssets){
+        // An answer that set off before a newer refresh (or before a slip was
+        // signed) is out of date by now - the newer one decides what shows.
+        if (seq !== driverLoadSeq) return;
+        if (newAssets.length) assetsCache = assetsCache.concat(newAssets);
+        driverDeliveriesCache = deliveries;
+        renderDriverDashboard();
+      });
     }).catch(function(e){
+      if (quiet || seq !== driverLoadSeq) return;
       driverMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't load: " + (e && e.message ? e.message : e), "bad");
     });
   }
+  // A slip has just been signed. The list shows that at once from what is
+  // already known - signed and finished comes off, signed with the asset slip
+  // still to do changes its button - and then checks with the server. It does
+  // not wait for the slip email.
+  function driverDeliverySigned(delivery){
+    driverDeliveriesCache = driverDeliveriesCache.map(function(d){
+      return d.id === delivery.id ? Object.assign({}, d, delivery) : d;
+    }).filter(function(d){ return d.status === "assigned"; });
+    renderDriverDashboard();
+    loadDriverDeliveries(true);
+  }
+  // Keeps the list current without anyone pressing Refresh: a delivery the
+  // office has just assigned, changed or cancelled comes through the live
+  // connection within a second or two, and once a minute the list is checked
+  // anyway in case that connection has dropped (a tablet's often does).
+  var driverLiveChannel = null, driverLiveTimer = null, driverPollTimer = null;
+  function scheduleDriverRefresh(){
+    clearTimeout(driverLiveTimer);
+    driverLiveTimer = setTimeout(function(){
+      if (document.body.classList.contains("role-driver")) loadDriverDeliveries(true);
+    }, 400);
+  }
+  function startDriverLiveUpdates(){
+    if (!cloud.user) return;
+    if (driverLiveChannel){ try{ cloud.sb.removeChannel(driverLiveChannel); }catch(e){} driverLiveChannel = null; }
+    try{
+      driverLiveChannel = cloud.sb.channel("driver-" + cloud.clientId)
+        .on("postgres_changes", {event: "*", schema: "public", table: "eq_deliveries", filter: "driver_id=eq." + cloud.user.id}, scheduleDriverRefresh)
+        .subscribe(function(status){ if (status === "SUBSCRIBED") scheduleDriverRefresh(); });
+    }catch(e){ driverLiveChannel = null; }
+    clearInterval(driverPollTimer);
+    driverPollTimer = setInterval(function(){ if (!document.hidden) scheduleDriverRefresh(); }, 60000);
+  }
+  var driverShownKey = null;   // what the list on screen was drawn from
   function renderDriverDashboard(){
     var list = cloudEl("driverList");
+    // Drawn again only when something a card shows has changed, so a
+    // background refresh never swaps a button out from under a finger.
+    var key = todayLocalIso() + JSON.stringify(driverDeliveriesCache.map(function(d){
+      var j = d.eq_jobs || {}, m = j.meta || {};
+      return [d.id, d.scheduled_date, d.scheduled_time, d.duration_min, d.van, d.poc_name, d.poc_phone, d.signed_at, d.asset_signed_at,
+        (d.items || []).length, (d.asset_ids || []).length, j.name, m.project, m.projectNumber, m.address];
+    }));
+    if (key === driverShownKey){ driverMsg(driverDeliveriesCache.length ? "" : "No deliveries assigned yet."); return; }
+    driverShownKey = key;
     if (!driverDeliveriesCache.length){ list.innerHTML = ""; driverMsg("No deliveries assigned yet."); return; }
     driverMsg("");
     list.innerHTML = driverDeliveriesCache.map(function(d, i){
@@ -11227,7 +11293,10 @@
   var driverRefreshBtnEl = cloudEl("driverRefreshBtn");
   if (driverRefreshBtnEl) driverRefreshBtnEl.addEventListener("click", function(){ loadDriverDeliveries(); });
   document.addEventListener("visibilitychange", function(){
-    if (!document.hidden && document.body.classList.contains("role-driver")) loadDriverDeliveries();
+    if (!document.hidden && document.body.classList.contains("role-driver")) loadDriverDeliveries(true);
+  });
+  window.addEventListener("online", function(){
+    if (document.body.classList.contains("role-driver")) loadDriverDeliveries(true);
   });
 
   // ---------- delivery sign screen (driver) ----------
@@ -11440,13 +11509,16 @@
       deliverySignSubmitBtnEl.disabled = false;
       if (r.error){ deliverySignMsg("Couldn't submit: " + r.error.message, "bad"); return; }
       currentDelivery = Object.assign(currentDelivery, patch);
+      driverDeliverySigned(currentDelivery);   // the list behind this screen is right from this moment
       cloudEl("deliverySignEquipDone").hidden = false;
       cloudEl("deliverySignEquipFields").hidden = true;
       deliverySignMsg("Signed. Emailing the slip...", "good");
       var eqDeliveryId = currentDelivery.id;
-      var eqPdf = buildSignedSlipPdfBase64(currentDelivery, "equipment", name, patch.signed_at, patch.signature_data);
+      // the signature is saved by now, so a slip that can't be drawn only costs the email
+      var eqPdf = "";
+      try{ eqPdf = buildSignedSlipPdfBase64(currentDelivery, "equipment", name, patch.signed_at, patch.signature_data); }catch(e){}
       sendSignedSlipEmail(eqDeliveryId, "equipment", eqPdf, name, patch.signature_data).then(function(emailErr){
-        loadDriverDeliveries();
+        loadDriverDeliveries(true);
         if (emailErr){
           deliverySignMsg("Signed, but the slip email didn't send: " + emailErr + ". Let the warehouse know this delivery was signed.", "bad");
           return;
@@ -11480,13 +11552,15 @@
       assetSignSubmitBtnEl.disabled = false;
       if (r.error){ deliverySignMsg("Couldn't submit: " + r.error.message, "bad"); return; }
       currentDelivery = Object.assign(currentDelivery, patch);
+      driverDeliverySigned(currentDelivery);
       cloudEl("deliverySignAssetDone").hidden = false;
       cloudEl("deliverySignAssetFields").hidden = true;
       deliverySignMsg("Signed. Emailing the slip...", "good");
       var assetDeliveryId = currentDelivery.id;
-      var assetPdf = buildSignedSlipPdfBase64(currentDelivery, "assets", name, patch.asset_signed_at, patch.asset_signature_data);
+      var assetPdf = "";
+      try{ assetPdf = buildSignedSlipPdfBase64(currentDelivery, "assets", name, patch.asset_signed_at, patch.asset_signature_data); }catch(e){}
       sendSignedSlipEmail(assetDeliveryId, "assets", assetPdf, name, patch.asset_signature_data).then(function(emailErr){
-        if (patch.status === "delivered") loadDriverDeliveries();
+        loadDriverDeliveries(true);
         if (emailErr){
           deliverySignMsg("Signed, but the asset slip email didn't send: " + emailErr + ". Let the warehouse know this was signed.", "bad");
           return;
