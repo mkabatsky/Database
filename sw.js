@@ -1,6 +1,6 @@
 // Service worker: lets the app open offline and pick up new versions when online.
 // Bump CACHE (v4 -> v5 ...) whenever you upload a new index.html so phones refresh.
-var CACHE = "equipment-db-v23";
+var CACHE = "equipment-db-v24";
 var CORE = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 // only these outside sites are ever cached; the database (supabase.co) must never be
 var CACHEABLE_HOSTS = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com"];

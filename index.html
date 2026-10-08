@@ -1031,7 +1031,14 @@
   .assets-pick-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:13px;}
   .assets-pick-table th, .assets-pick-table td{padding:7px 9px;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;}
   .assets-pick-table th{position:sticky;top:0;background:var(--surface-alt);z-index:1;}
-  .assets-pick-table td input[type="number"]{width:64px;}
+  /* The Pick column holds a tick box and, for a ticked consumable, its
+     quantity. The tick box was picking up the item table's "fill the whole
+     cell" rule, so it took the full width of the column and pushed the
+     quantity box out over the Label. Both are their own size here, side by
+     side, and the quantity has a border so it reads as a box to type in. */
+  .assets-pick-table th:first-child{width:110px;min-width:110px;}   /* room for both from the start, so nothing shifts when a quantity box appears */
+  .assets-pick-table td input[type="checkbox"]{width:18px;min-width:0;height:18px;min-height:0;padding:0;margin:0;vertical-align:middle;}
+  .assets-pick-table td input[type="number"]{width:64px;min-width:0;margin-left:8px;padding:5px 6px;vertical-align:middle;border:1px solid var(--border);border-radius:6px;background:var(--surface);}
   /* partial shipments: the "Qty to ship" boxes above the slip */
   .ship-qty-panel{border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin:0 0 12px;background:var(--surface-alt);}
   .ship-qty-head{font-size:12.5px;font-weight:700;margin-bottom:8px;}
@@ -1220,7 +1227,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 23 - October 8, 2026">Build 23</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 24 - October 8, 2026">Build 24</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
