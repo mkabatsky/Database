@@ -292,6 +292,7 @@
   .rownum input[type="checkbox"],
   .rownum-head input[type="checkbox"]{width:14px;height:14px;min-width:0;flex:none;accent-color:var(--accent);}
   .rownum input[type="checkbox"]:disabled{accent-color:var(--ink-muted);opacity:.4;cursor:not-allowed;}
+  .rownum input[type="checkbox"].return-cb{accent-color:var(--danger);}
   .rownum{padding:8px 10px;color:var(--ink-muted);font-size:12.5px;display:flex;align-items:center;gap:6px;}
 
   /* ── Labels modal ── */
@@ -1096,7 +1097,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 19 - October 7, 2026">Build 19</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 20 - October 8, 2026">Build 20</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
@@ -1174,7 +1175,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 7h11M11 3l4 4-4 4"></path><path d="M20 17H9m4 4-4-4 4-4"></path></svg>
             Transfer
           </button>
-          <button id="returnStockBtn" class="mob-hide" title="Return the checked shipped items to warehouse stock: clears Date Shipped and Qty Sent, and emails the warehouse (staff only)">
+          <button id="returnStockBtn" class="mob-hide" title="Return shipped items to warehouse stock: tick them in the table first (the Shipped filter lists them all). Clears Date Shipped and Qty Sent, and emails the warehouse (staff only)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
             Return to stock
           </button>
@@ -2027,6 +2028,10 @@
   var lastDeleted = null;
   var saveTimer = null;
   var selectedIds = new Set(); // ids currently checked for label generation
+  // A fully shipped row's tick box picks it for RETURN TO STOCK instead. Those
+  // picks are kept apart from selectedIds, so a shipped item can never end up
+  // on another delivery slip, label run, copy or transfer.
+  var returnIds = new Set();
   var rowClipboard = []; // rows copied via the Copy button (barcode always excluded)
   var columnVisible = {}; // key -> boolean, which columns are included in exports
   COLS.forEach(function(c){ columnVisible[c.key] = true; });
@@ -2161,7 +2166,7 @@
   function loadSnapshotPayload(payload){
     rows.clear();
     order = [];
-    selectedIds.clear();
+    selectedIds.clear(); returnIds.clear();
     meta = {};
     if (payload && payload.meta){
       Object.keys(payload.meta).forEach(function(k){
@@ -2587,20 +2592,49 @@
     }
     r.qtyRemaining = rowRemaining(r);
   }
+  // shipped, with nothing left to send
+  function rowLocked(r){
+    return !!String(r.dateShipped || "").trim() && rowRemaining(r) === 0;
+  }
+  // only full-access staff return items to stock (same rule as the button itself)
+  function canReturnToStock(){
+    return !(typeof cloud !== "undefined" && cloud && cloud.role && cloud.role !== "staff");
+  }
+  // Sets a row's tick box up for what it means right now:
+  //  - not shipped, or only partly: pick the row for labels / a delivery slip / copy / transfer
+  //  - shipped with nothing left:   pick the row to return it to stock (staff)
+  function syncRowCheckbox(cb, id, r, idx){
+    var locked = rowLocked(r);
+    cb.classList.toggle("return-cb", locked);
+    if (locked){
+      cb.disabled = !canReturnToStock();
+      cb.checked = !cb.disabled && returnIds.has(id);
+      cb.title = "Shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another delivery slip or label run." +
+        (cb.disabled ? "" : " Tick it to return it to stock.");
+    } else {
+      returnIds.delete(id);
+      cb.disabled = false;
+      cb.checked = selectedIds.has(id);
+      cb.title = r.dateShipped ? rowRemaining(r) + " left to ship - tick to send the rest." : "";
+    }
+    if (idx !== undefined){
+      cb.setAttribute("aria-label", locked ? "Row " + (idx + 1) + " already shipped — tick to return it to stock" : "Select row " + (idx + 1) + " for labels");
+    }
+  }
   // While a row's numbers are being typed, keeps its Qty Remaining box and its
-  // tick box (locked once nothing is left to ship) in step, without redrawing
-  // the table under the cursor.
+  // tick box in step, without redrawing the table under the cursor.
   function refreshRowQty(tr, id, r){
     r.qtyRemaining = rowRemaining(r);
     var remBox = tr.querySelector('input[data-field="qtyRemaining"]');
     if (remBox) remBox.value = r.qtyRemaining;
+    var sentBox = tr.querySelector('input[data-field="qtySent"]');
+    if (sentBox && document.activeElement !== sentBox) sentBox.value = rowSent(r);
     var cb = tr.querySelector('.rownum input[type="checkbox"]');
-    if (!cb || !String(r.dateShipped || "").trim()) return;
-    var locked = rowRemaining(r) === 0;
-    cb.disabled = locked;
-    cb.title = locked ? "Already shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another delivery slip or label run."
-      : rowRemaining(r) + " left to ship - tick to send the rest.";
-    if (locked && selectedIds.has(id)){ cb.checked = false; selectedIds.delete(id); updateSelectionUI(); }
+    if (!cb) return;
+    var wasLocked = cb.classList.contains("return-cb");
+    if (rowLocked(r)) selectedIds.delete(id);
+    syncRowCheckbox(cb, id, r);
+    if (wasLocked !== cb.classList.contains("return-cb")) updateSelectionUI();
   }
   // an item only counts as shipped once nothing is left to ship
   function isFullyShipped(r){
@@ -2700,6 +2734,10 @@
   function renderRows(){
     captureFocus();
     rows.forEach(normalizeSentQty);
+    returnIds.forEach(function(id){
+      var rr = rows.get(id);
+      if (!rr || !rowLocked(rr)) returnIds.delete(id);
+    });
     var allIds = getVisibleIds();
     var ids = allIds, numById = null;
     if (allIds.length > rowsLimit){
@@ -2721,20 +2759,17 @@
       numWrap.className = "rownum";
       var rowCb = document.createElement("input");
       rowCb.type = "checkbox";
-      // only an item with nothing left to ship is locked; a partly shipped one
-      // can be ticked again so the rest can go on a later slip
-      var alreadyShipped = !!(r.dateShipped && String(r.dateShipped).trim()) && rowRemaining(r) === 0;
-      rowCb.checked = !alreadyShipped && selectedIds.has(id);
-      if (!alreadyShipped && r.dateShipped) rowCb.title = rowRemaining(r) + " left to ship - tick to send the rest.";
-      if (alreadyShipped){
-        rowCb.disabled = true;
-        rowCb.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another delivery slip or label run.";
-        rowCb.setAttribute("aria-label", "Row " + (idx + 1) + " already shipped — cannot be selected");
-      } else {
-        rowCb.setAttribute("aria-label", "Select row " + (idx + 1) + " for labels");
-      }
-      // (always wired up: a locked row unlocks in place when more of it is received)
-      rowCb.addEventListener("change", function(){ setRowSelected(id, rowCb.checked); });
+      // a partly shipped item is ticked like any other (so the rest can go on a
+      // later slip); one with nothing left is ticked only to return it to stock
+      syncRowCheckbox(rowCb, id, r, idx);
+      rowCb.addEventListener("change", function(){
+        if (rowCb.classList.contains("return-cb")){
+          if (rowCb.checked) returnIds.add(id); else returnIds.delete(id);
+          updateSelectionUI();
+        } else {
+          setRowSelected(id, rowCb.checked);
+        }
+      });
       var delBtn = document.createElement("button");
       delBtn.className = "del-btn";
       delBtn.type = "button";
@@ -2822,19 +2857,9 @@
           // flow) also locks the row's selection checkbox immediately
           if (c.key === "dateShipped"){
             var rowCbEl = tr.querySelector('.rownum input[type="checkbox"]');
-            if (v){
-              selectedIds.delete(id);
-              if (rowCbEl){
-                rowCbEl.checked = false;
-                rowCbEl.disabled = true;
-                rowCbEl.title = "Already shipped on " + formatDateForMsg(v) + " — can't be added to another delivery slip or label run.";
-              }
-              updateSelectionUI();
-            } else if (rowCbEl && rowCbEl.disabled){
-              rowCbEl.disabled = false;
-              rowCbEl.title = "";
-              updateSelectionUI();
-            }
+            if (v) selectedIds.delete(id);
+            if (rowCbEl) syncRowCheckbox(rowCbEl, id, r);
+            updateSelectionUI();
           }
           persist();
           updateFooter();
@@ -2905,9 +2930,23 @@
     if (on) selectedIds.add(id); else selectedIds.delete(id);
     updateSelectionUI();
   }
+  // every row that would go back if Return to stock were clicked now: shipped
+  // rows ticked for a return, plus any ticked row that is partly shipped
+  function returnPickIds(){
+    return getVisibleIds().filter(function(id){
+      if (returnIds.has(id)) return true;
+      var r = rows.get(id);
+      return selectedIds.has(id) && !!r && !!String(r.dateShipped || "").trim();
+    });
+  }
   function setAllSelected(on){
-    var ids = getVisibleIds().filter(isRowShippable); // already-shipped rows can't be (de)selected in bulk either
-    ids.forEach(function(id){ if (on) selectedIds.add(id); else selectedIds.delete(id); });
+    var visible = getVisibleIds();
+    visible.filter(isRowShippable).forEach(function(id){ if (on) selectedIds.add(id); else selectedIds.delete(id); });
+    // Shipped rows are only ticked in bulk from the Shipped filter, where
+    // they're all that's listed - never as a side effect of "select all" elsewhere.
+    var shippedIds = visible.filter(function(id){ return !isRowShippable(id); });
+    if (!on) shippedIds.forEach(function(id){ returnIds.delete(id); });
+    else if (statusFilter === "shipped" && canReturnToStock()) shippedIds.forEach(function(id){ returnIds.add(id); });
     renderRows();
   }
   // the number on a toolbar button (how many are ticked / copied), shown as a
@@ -2918,6 +2957,17 @@
   function updateSelectionUI(){
     var ids = getVisibleIds().filter(isRowShippable);
     var checkedVisible = ids.filter(function(id){ return selectedIds.has(id); }).length;
+    if (statusFilter === "shipped" && !ids.length){
+      // the Shipped filter: the header box ticks what's listed for a return
+      ids = getVisibleIds();
+      checkedVisible = ids.filter(function(id){ return returnIds.has(id); }).length;
+    }
+    var retBtn = document.getElementById("returnStockBtn");
+    if (retBtn){
+      var oldBadge = retBtn.querySelector(".btn-badge");
+      if (oldBadge) oldBadge.remove();
+      retBtn.insertAdjacentHTML("beforeend", countBadge(returnPickIds().length));
+    }
     if (el.selectAllRowsCb){
       el.selectAllRowsCb.checked = ids.length > 0 && checkedVisible === ids.length;
       el.selectAllRowsCb.indeterminate = checkedVisible > 0 && checkedVisible < ids.length;
@@ -4752,7 +4802,7 @@
     }
     rows.clear();
     order = [];
-    selectedIds.clear();
+    selectedIds.clear(); returnIds.clear();
     meta = {};
     COLS.forEach(function(c){ columnVisible[c.key] = true; });
     columnWidths = {};
@@ -4819,7 +4869,7 @@
           }
           rows.clear();
           order = [];
-          selectedIds.clear();
+          selectedIds.clear(); returnIds.clear();
           result.rows.forEach(function(data){
             var id = nextId();
             rows.set(id, data);
@@ -5574,7 +5624,7 @@
     mobSort.value = sortKey || "";
   };
   document.getElementById("mobSelectAllBtn").addEventListener("click", function(){ setAllSelected(true); });
-  document.getElementById("mobClearSelBtn").addEventListener("click", function(){ selectedIds.clear(); renderRows(); });
+  document.getElementById("mobClearSelBtn").addEventListener("click", function(){ selectedIds.clear(); returnIds.clear(); renderRows(); });
 
   // ---------- table view toggle (tablet/phone widths) ----------
   // The card layout at <=820px never had column headers or resize handles
@@ -6384,7 +6434,7 @@
     cloud.jobId = null;
     if (id) lsDel(CK.cache + id);
     lsDel(CK.lastJob);
-    rows.clear(); order = []; meta = {}; selectedIds.clear(); cloud.synced = new Map(); cloud.metaBase = {};
+    rows.clear(); order = []; meta = {}; selectedIds.clear(); returnIds.clear(); cloud.synced = new Map(); cloud.metaBase = {};
     buildMetaGrid(); updateSubhead(); renderRows();
     cloudStatus("bad", "No job open");
     showJobs("That job was deleted. Pick another one.");
@@ -6431,7 +6481,7 @@
     cloud.jobName = job.name || "";
     cloud.pulling = false; cloud.pullAgain = false; cloud.pushing = false; cloud.pushAgain = false;
     lsSet(CK.lastJob, job.id);
-    rows.clear(); order = []; selectedIds.clear(); meta = {};
+    rows.clear(); order = []; selectedIds.clear(); returnIds.clear(); meta = {};
     cloud.synced = new Map(); cloud.metaBase = {}; cloud.maxPos = 0;
     rowsLimit = ROWS_SHOWN; freshRowIds = new Set();
     var cached = loadCache(job.id);
@@ -6756,7 +6806,7 @@
     document.body.classList.add("cloud");
     // the list already on this device (from before sync existed) is kept aside so it can be uploaded once
     cloud.localPayload = rows.size ? buildSnapshotPayload() : null;
-    rows.clear(); order = []; meta = {}; selectedIds.clear();
+    rows.clear(); order = []; meta = {}; selectedIds.clear(); returnIds.clear();
     try{
       var pr = JSON.parse(lsGet(CK.prefs) || "null");
       if (pr){
@@ -8168,7 +8218,7 @@
       return;
     }
     if (!matchedIds.length && barcodes.length) showSnackbar("This request's items aren't in the table anymore - the slip has its assets only.");
-    selectedIds.clear();
+    selectedIds.clear(); returnIds.clear();
     matchedIds.forEach(function(id){ selectedIds.add(id); });
     renderRows();
     closePendingDeliveriesModal();
@@ -8659,7 +8709,7 @@
           showSnackbar("None of this delivery's items are in the table anymore - they may have been deleted.");
           return;
         }
-        selectedIds.clear();
+        selectedIds.clear(); returnIds.clear();
         matchedIds.forEach(function(id){ selectedIds.add(id); });
         renderRows();
         activeDeliveryRequestId = null;
@@ -9111,17 +9161,20 @@
   }
 
   // ---------- return to stock (staff only) ----------
-  // Checked shipped rows go back into warehouse stock: Date Shipped and Qty Sent
-  // are cleared (Qty Remaining = the full quantity again). The rows save like any
-  // other edit, and the warehouse gets one email listing what came back.
+  // Ticked shipped rows go back into warehouse stock: Date Shipped and Qty Sent
+  // are cleared (so Qty Remaining is everything received again). The rows save
+  // like any other edit, and the warehouse gets one email listing what came back.
   function returnRowsToStock(){
     if (cloud.role && cloud.role !== "staff"){ showSnackbar("Only staff can return items to stock."); return; }
-    var ids = getVisibleIds().filter(function(id){ return selectedIds.has(id); });
-    if (!ids.length){ showSnackbar("Check the shipped items you want to return to stock first."); return; }
-    var shipped = ids.filter(function(id){ var r = rows.get(id); return r && String(r.dateShipped || "").trim(); });
-    if (!shipped.length){ showSnackbar("None of the checked items are shipped, so there's nothing to return to stock."); return; }
+    var shipped = returnPickIds();
+    if (!shipped.length){
+      var anyTicked = getVisibleIds().some(function(id){ return selectedIds.has(id); });
+      showSnackbar(anyTicked ? "None of the ticked items are shipped, so there's nothing to return to stock."
+        : "Tick the shipped items you want to return to stock first - the Shipped filter lists them all.");
+      return;
+    }
     var n = shipped.length;
-    if (!confirm("Return " + n + " item" + (n === 1 ? "" : "s") + " to stock?\n\nTheir Date Shipped is cleared and the full quantity goes back into stock. The warehouse gets an email.")) return;
+    if (!confirm("Return " + n + " item" + (n === 1 ? "" : "s") + " to stock?\n\nTheir Date Shipped is cleared and what was sent goes back into stock. The warehouse gets an email.")) return;
     var emailItems = shipped.map(function(id){
       var r = rows.get(id);
       var prevShip = r.dateShipped;
@@ -9129,6 +9182,8 @@
       r.dateShipped = "";
       r.qtySent = 0;
       r.qtyRemaining = rowRemaining(r);
+      returnIds.delete(id);
+      selectedIds.delete(id);   // back in stock and unticked, like any other item
       return {barcode: r.barcode, manufacturer: r.manufacturer, model: r.model, deviceType: r.deviceType, qty: cameBack || "", serialNumber: r.serialNumber, previousShipDate: prevShip};
     });
     persist();
