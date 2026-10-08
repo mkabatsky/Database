@@ -107,6 +107,7 @@
   }
   .field input:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--focus);}
 
+  html{scrollbar-gutter:stable;}
   .toolbar{display:flex;flex-direction:column;gap:10px;padding:12px 14px;}
   .toolbar-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .toolbar-row-secondary{border-top:1px solid var(--border);padding-top:10px;}
@@ -118,9 +119,16 @@
   .search-box input:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--focus);}
   .search-box svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);color:var(--ink-muted);pointer-events:none;}
   .spacer{flex:1;}
-  .row-count{color:var(--ink-muted);font-size:12.5px;white-space:nowrap;}
+  .row-count{color:var(--ink-muted);font-size:12.5px;white-space:nowrap;min-width:18ch;text-align:right;font-variant-numeric:tabular-nums;}
   .status-filter{display:flex;border:1px solid var(--border);border-radius:7px;overflow:hidden;flex:none;}
   .btn-group{display:flex;gap:10px;flex:none;margin-left:auto;}
+  /* A button's count sits in a corner bubble instead of in its label, so the
+     button never changes width and nothing beside it shifts or wraps. */
+  .toolbar button{position:relative;}
+  .btn-badge{position:absolute;top:-8px;right:-8px;min-width:18px;height:18px;box-sizing:border-box;padding:0 5px;border-radius:9px;background:var(--accent);color:var(--accent-ink);font-size:10.5px;font-weight:700;line-height:18px;text-align:center;pointer-events:none;box-shadow:0 0 0 2px var(--surface);}
+  .paste-count{display:inline-flex;align-items:center;gap:4px;flex:none;color:var(--ink-muted);font-size:13px;font-weight:600;}
+  .paste-count input{width:64px;box-sizing:border-box;border:1px solid var(--border);border-radius:7px;padding:7px 6px 7px 8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13px;text-align:right;}
+  .paste-count input:focus{outline:2px solid var(--focus);outline-offset:0;border-color:var(--focus);}
   .status-filter button{border:none;border-radius:0;border-right:1px solid var(--border);}
   .status-filter button:last-child{border-right:none;}
   .status-filter button.active{background:var(--accent);color:var(--accent-ink);}
@@ -1179,14 +1187,10 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="4" width="10" height="4" rx="1"></rect><path d="M8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"></path><path d="M15 12h6m-3-3 3 3-3 3"></path></svg>
           Paste
         </button>
-        <select id="pasteCountSel" class="mob-hide" title="How many copies of each copied row to paste">
-          <option value="1">1×</option>
-          <option value="5">5×</option>
-          <option value="10">10×</option>
-          <option value="20">20×</option>
-          <option value="50">50×</option>
-          <option value="100">100×</option>
-        </select>
+        <label class="paste-count mob-hide" title="How many copies of each copied row to paste - type any number from 1 to 500">
+          <input id="pasteCountSel" type="number" inputmode="numeric" min="1" max="500" step="1" value="1" aria-label="How many copies to paste">
+          <span>×</span>
+        </label>
         <button id="columnsBtn" class="mob-hide">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M9 4v16M15 4v16"></path></svg>
           Columns
@@ -1310,6 +1314,7 @@
         <label>Van<select id="assignVanSelect"><option value="">No van</option><option value="Van 1">Van 1</option><option value="Van 2">Van 2</option><option value="Van 3">Van 3</option><option value="Van 4">Van 4</option><option value="Van 5">Van 5</option><option value="Van 6">Van 6</option><option value="Van 7">Van 7</option><option value="Van 8">Van 8</option><option value="Van 9">Van 9</option><option value="Van 10">Van 10</option><option value="Van 11">Van 11</option><option value="Van 12">Van 12</option><option value="Van 13">Van 13</option><option value="Van 14">Van 14</option><option value="Van 15">Van 15</option><option value="Van 16">Van 16</option><option value="Van 17">Van 17</option><option value="Van 18">Van 18</option><option value="Van 19">Van 19</option><option value="Van 20">Van 20</option></select></label>
         <label>Delivery date<input type="date" id="assignDeliveryDate"></label>
         <label>Delivery time<input type="time" id="assignDeliveryTime"></label>
+        <label>Length<select id="assignDeliveryLength" title="How long this delivery keeps the driver busy, starting at the delivery time"><option value="30">30 minutes</option><option value="60" selected="">1 hour</option><option value="90">1.5 hours</option><option value="120">2 hours</option><option value="180">3 hours</option><option value="240">4 hours</option><option value="360">6 hours</option><option value="480">8 hours</option></select></label>
         <label>POC name<input type="text" id="assignPocName"></label>
         <label>POC phone<input type="tel" id="assignPocPhone"></label>
         <label>POC email<input type="email" id="assignPocEmail"></label>
@@ -2511,6 +2516,35 @@
     input.title = blocked ? "Can't ship yet — this item " + reason + " first." : "";
   }
 
+  // Qty Sent typed straight into the table: a correction to what the delivery
+  // slips recorded. Something sent means the item has a Date Shipped; nothing
+  // sent means it doesn't.
+  function applyTypedQtySent(id, input){
+    var r = rows.get(id);
+    if (!r) return;
+    var n = Math.max(0, Math.floor(Number(sanitizeNumber(input.value)) || 0));
+    if (n > 0 && shipBlockReason(r)){
+      showSnackbar("Can't ship yet — this item " + shipBlockReason(r) + " first.");
+      input.value = rowSent(r);
+      return;
+    }
+    var total = rowTotal(r);
+    if (total > 0 && n > total){
+      showSnackbar("Qty Sent can't be more than the Total QTY (" + total + ").");
+      n = total;
+    }
+    r.qtySent = n;
+    r.qtyRemaining = rowRemaining(r);
+    if (n > 0 && !isIsoDateString(r.dateShipped)){
+      var today = todayLocalIso();
+      r.dateShipped = (isIsoDateString(r.dateReceived) && r.dateReceived > today) ? r.dateReceived : today;
+    }
+    if (n === 0) r.dateShipped = "";
+    if (isFullyShipped(r)) selectedIds.delete(id);
+    persist();
+    renderRows();
+  }
+
   // ---------- quantities and partial shipments ----------
   // Qty Sent adds up what has gone out on packing slips, so an item can ship in
   // parts. Qty Remaining is Total QTY minus Qty Sent. Both are worked out, not
@@ -2550,6 +2584,9 @@
       if (held !== undefined) return held;
     }
     var typed = shipQtyOverride.get(r);
+    // No Total QTY on the row: there's nothing to count down from, so it's
+    // whatever is typed for this slip (nothing typed = the item goes, with no number).
+    if (rowTotal(r) === 0) return typed !== undefined ? Math.max(0, typed) : 0;
     var q = typed !== undefined ? Math.min(typed, rowRemaining(r)) : rowRemaining(r);
     return Math.max(0, q);
   }
@@ -2562,7 +2599,14 @@
       lastShipQty.delete(r);
       return v;
     }
-    return qtyToShip(r);
+    return qtyShownOnSlip(r);
+  }
+  // the number a slip shows for a row: what is going out on it - or, for an
+  // item shipped in full before this slip was opened, what was sent (not the 0 left)
+  function qtyShownOnSlip(r){
+    var q = qtyToShip(r);
+    if (q === 0 && shipQtyOverride.get(r) === undefined && slipQtyHeld(r) === undefined && isFullyShipped(r)) return rowSent(r);
+    return q;
   }
 
   function matchesStatusFilter(row){
@@ -2646,8 +2690,11 @@
       numWrap.className = "rownum";
       var rowCb = document.createElement("input");
       rowCb.type = "checkbox";
-      var alreadyShipped = !!(r.dateShipped && String(r.dateShipped).trim());
+      // only an item with nothing left to ship is locked; a partly shipped one
+      // can be ticked again so the rest can go on a later slip
+      var alreadyShipped = !!(r.dateShipped && String(r.dateShipped).trim()) && rowRemaining(r) === 0;
       rowCb.checked = !alreadyShipped && selectedIds.has(id);
+      if (!alreadyShipped && r.dateShipped) rowCb.title = rowRemaining(r) + " of " + rowTotal(r) + " left to ship - tick to send the rest.";
       if (alreadyShipped){
         rowCb.disabled = true;
         rowCb.title = "Already shipped on " + formatDateForMsg(r.dateShipped) + " — can't be added to another delivery slip or label run.";
@@ -2680,11 +2727,17 @@
         if (c.type === "number") input.min = "0";
         if (c.mono) input.className = "mono";
         // Qty Sent and Qty Remaining are worked out (see rowRemaining), so they're shown, not typed
-        if (c.key === "qtySent" || c.key === "qtyRemaining"){
-          normalizeSentQty(r);
+        if (c.key === "qtySent" || c.key === "qtyRemaining") normalizeSentQty(r);
+        // Qty Remaining is worked out (Total QTY minus Qty Sent), so it's shown, not typed
+        if (c.key === "qtyRemaining"){
           input.readOnly = true;
           input.tabIndex = -1;
-          input.title = "Worked out from Total QTY and what has already shipped";
+          input.title = "Worked out from Total QTY and Qty Sent";
+        }
+        // Qty Sent fills in by itself from delivery slips, and can be corrected by hand
+        if (c.key === "qtySent"){
+          input.title = "Filled in from delivery slips - type a number to correct it";
+          input.addEventListener("change", function(){ applyTypedQtySent(id, input); });
         }
         // an item that's been received gets its full quantity as Qty Received,
         // unless a different number was typed (partial receipt)
@@ -2701,6 +2754,7 @@
           input.addEventListener("blur", function(){ registerAutocompleteValue(c.key, input.value); });
         }
         input.addEventListener("input", function(){
+          if (c.key === "qtySent") return;   // applied when the box is left (applyTypedQtySent)
           // nothing ships before it has been received and has a BarCode
           if (c.key === "dateShipped" && input.value && shipBlockReason(r)){
             showSnackbar("Can't ship yet — this item " + shipBlockReason(r) + " first.");
@@ -2815,7 +2869,7 @@
   // ---------- row selection (for label generation) ----------
   function isRowShippable(id){
     var r = rows.get(id);
-    return !!r && !isIsoDateString(r.dateShipped);
+    return !!r && !isFullyShipped(r);
   }
   function setRowSelected(id, on){
     if (on) selectedIds.add(id); else selectedIds.delete(id);
@@ -2826,6 +2880,11 @@
     ids.forEach(function(id){ if (on) selectedIds.add(id); else selectedIds.delete(id); });
     renderRows();
   }
+  // the number on a toolbar button (how many are ticked / copied), shown as a
+  // corner bubble so the button keeps its size
+  function countBadge(n){
+    return n ? '<span class="btn-badge">' + n + '</span>' : "";
+  }
   function updateSelectionUI(){
     var ids = getVisibleIds().filter(isRowShippable);
     var checkedVisible = ids.filter(function(id){ return selectedIds.has(id); }).length;
@@ -2835,18 +2894,18 @@
     }
     el.labelsBtn.textContent = "";
     var svg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="7" width="18" height="12" rx="2"></rect><path d="M7 7V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v2"></path><path d="M7 13h4M7 16h7"></path></svg>';
-    el.labelsBtn.innerHTML = svg + (selectedIds.size ? " Labels (" + selectedIds.size + ")" : " Labels");
+    el.labelsBtn.innerHTML = svg + " Labels" + countBadge(selectedIds.size);
     el.labelsBtn.disabled = selectedIds.size === 0;
 
     el.packingSlipBtn.textContent = "";
     var psSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 8V6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"></path><rect x="3" y="8" width="18" height="13" rx="2"></rect><path d="M9 12h6M9 16h6"></path></svg>';
-    el.packingSlipBtn.innerHTML = psSvg + (selectedIds.size ? " Create Delivery Slip (" + selectedIds.size + ")" : " Create Delivery Slip");
+    el.packingSlipBtn.innerHTML = psSvg + " Create Delivery Slip" + countBadge(selectedIds.size);
     // with a job open the slip can also be assets only, so the button stays available
     el.packingSlipBtn.disabled = selectedIds.size === 0 && !(typeof cloud !== "undefined" && cloud && cloud.jobId);
 
     el.copyRowsBtn.textContent = "";
     var copySvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path></svg>';
-    el.copyRowsBtn.innerHTML = copySvg + (selectedIds.size ? " Copy (" + selectedIds.size + ")" : " Copy");
+    el.copyRowsBtn.innerHTML = copySvg + " Copy" + countBadge(selectedIds.size);
     el.copyRowsBtn.disabled = selectedIds.size === 0;
     updatePasteBtn();
   }
@@ -2854,7 +2913,7 @@
   function updatePasteBtn(){
     el.pasteRowsBtn.textContent = "";
     var pasteSvg = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="4" width="10" height="4" rx="1"></rect><path d="M8 6H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h9a2 2 0 0 0 2-2v-3"></path><path d="M15 12h6m-3-3 3 3-3 3"></path></svg>';
-    el.pasteRowsBtn.innerHTML = pasteSvg + (rowClipboard.length ? " Paste (" + rowClipboard.length + ")" : " Paste");
+    el.pasteRowsBtn.innerHTML = pasteSvg + " Paste" + countBadge(rowClipboard.length);
     el.pasteRowsBtn.disabled = rowClipboard.length === 0;
   }
 
@@ -3568,7 +3627,7 @@
       // the qty going out on this slip (all that remains, or the partial amount)
       var qty = slipQty(r);
       totalQty += qty;
-      var qtyText = (r.totalQty === "" || r.totalQty === undefined || r.totalQty === null) ? "" : String(qty);
+      var qtyText = qty > 0 ? String(qty) : ((r.totalQty === "" || r.totalQty === undefined || r.totalQty === null) ? "" : String(qty));
       return "<tr>" +
         '<td style="text-align:center"><span class="ps-checkbox"></span></td>' +
         "<td>" + escHtml(r.barcode) + "</td>" +
@@ -3710,13 +3769,10 @@
   }
   function closePackingSlipModal(){
     el.packingSlipBackdrop.hidden = true;
-    // what this slip shipped comes off the selection now (a partly shipped
-    // item stays ticked, so the rest can go on a later slip)
+    // What this slip shipped comes off the selection now. A partly shipped
+    // item is unticked too - tick it again when the rest is going out.
     if (slipShipped.size){
-      slipShipped.forEach(function(q, id){
-        var r = rows.get(id);
-        if (!r || rowRemaining(r) === 0) selectedIds.delete(id);
-      });
+      slipShipped.forEach(function(q, id){ selectedIds.delete(id); });
       slipShipped = new Map();
       renderRows();
     }
@@ -3786,9 +3842,9 @@
     // copy is built separately from lean row data instead of that markup
     var totalQty = 0;
     var leanRows = selRows.map(function(r){
-      var qty = Number(r.totalQty) || 0;
+      var qty = qtyShownOnSlip(r);   // the same number the slip itself shows
       totalQty += qty;
-      var qtyText = (r.totalQty === "" || r.totalQty === undefined || r.totalQty === null) ? "" : String(qty);
+      var qtyText = qty > 0 ? String(qty) : ((r.totalQty === "" || r.totalQty === undefined || r.totalQty === null) ? "" : String(qty));
       return [r.barcode || "", r.manufacturer || "", r.model || "", truncateText(r.deviceType, 50) || "", qtyText, r.serialNumber || ""];
     });
     var slipMeta = {
@@ -4121,10 +4177,25 @@
     updatePasteBtn();
     showSnackbar("Copied " + rowClipboard.length + " row" + (rowClipboard.length === 1 ? "" : "s") + " (BarCode, Date Received and Date Shipped not included)");
   });
+  // how many copies of each copied row to paste: starts at 1, any number can be typed
+  var PASTE_MAX_COPIES = 500, PASTE_MAX_ROWS = 5000;
+  function pasteCopies(){
+    var n = parseInt(el.pasteCountSel.value, 10);
+    if (!(n >= 1)) n = 1;
+    return Math.min(n, PASTE_MAX_COPIES);
+  }
+  el.pasteCountSel.addEventListener("change", function(){ el.pasteCountSel.value = pasteCopies(); });
+  el.pasteCountSel.addEventListener("focus", function(){ el.pasteCountSel.select(); });
+  el.pasteCountSel.addEventListener("keydown", function(ev){ if (ev.key === "Enter") el.pasteCountSel.blur(); });
   el.pasteRowsBtn.addEventListener("click", function(){
     if (!rowClipboard.length) return;
     // the chosen count = how many copies of each copied row to paste (1 copied row x 10 = 10 new rows)
-    var copies = parseInt(el.pasteCountSel.value, 10) || 1;
+    var copies = pasteCopies();
+    // a slip of the finger (500 x a big selection) would freeze the page and flood the sync
+    var maxCopies = Math.max(1, Math.floor(PASTE_MAX_ROWS / rowClipboard.length));
+    var trimmed = copies > maxCopies;
+    if (trimmed) copies = maxCopies;
+    el.pasteCountSel.value = copies;
     var newIds = [];
     for (var n = 0; n < copies; n++){
       rowClipboard.forEach(function(copy){
@@ -4140,7 +4211,8 @@
     persist();
     // the search and sort stay as they are, so pasting keeps you in the view you were filtering
     renderRows();
-    showSnackbar("Pasted " + newIds.length + " row" + (newIds.length === 1 ? "" : "s") + " — add a BarCode and Date Received for each (or use Labels to generate a barcode)");
+    showSnackbar("Pasted " + newIds.length + " row" + (newIds.length === 1 ? "" : "s") + " — add a BarCode and Date Received for each (or use Labels to generate a barcode)" +
+      (trimmed ? ". Limited to " + PASTE_MAX_ROWS + " new rows at a time." : ""));
   });
 
   // applies the chosen Date Shipped to every selected row (skipping any row
@@ -4160,7 +4232,9 @@
       if (slipShipped.has(id)){ lastShipQty.set(r, slipShipped.get(id)); return; }
       if (shipBlockReason(r) || shipDate < r.dateReceived){ skipped++; return; }
       var q = qtyToShip(r);
-      if (q <= 0){ skipped++; return; }
+      // A row with no Total QTY still ships - it just has no number. Otherwise
+      // 0 means nothing is left to send, or 0 was typed for this slip.
+      if (q <= 0 && !(rowTotal(r) === 0 && !isIsoDateString(r.dateShipped))){ skipped++; return; }
       r.qtySent = rowSent(r) + q;
       r.qtyRemaining = rowRemaining(r);
       r.dateShipped = shipDate;
@@ -6859,39 +6933,82 @@
   // the call site added near ensureBarcodes' definition.
   notifyItemsReceived = function(rows){
     if (!cloud.jobId || !cloud.sb || !rows || !rows.length) return;
-    invokeFn("notify-item-received", {
-      jobId: cloud.jobId,
-      items: rows.map(function(row){
-        return {
-          barcode: row.barcode,
-          manufacturer: row.manufacturer,
-          model: row.model,
-          deviceType: row.deviceType,
-          serialNumber: row.serialNumber
-        };
-      })
-    }).catch(function(e){ console.warn("item-received email failed", e); });
+    var jobId = cloud.jobId;
+    var items = rows.map(function(row){
+      return {
+        barcode: row.barcode,
+        manufacturer: row.manufacturer,
+        model: row.model,
+        deviceType: row.deviceType,
+        serialNumber: row.serialNumber
+      };
+    });
+    queueDigestEmail("received", jobId, items, "", function(){
+      invokeFn("notify-item-received", {jobId: jobId, items: items}).catch(function(e){ console.warn("item-received email failed", e); });
+    });
   };
+
+  // ---------- received / shipped emails go out together, at set times ----------
+  // Instead of one email per label run or per slip, these go into a queue
+  // (eq_email_queue) and the send-email-digest function mails them as one
+  // email: what was received at 12 PM and again at 5 PM, what was shipped at
+  // 5 PM. Until add-email-digest.sql has been run and that function exists,
+  // each one is still emailed straight away, the way it always was.
+  var emailDigestUnavailable = false;
+  function queueDigestEmail(kind, jobId, items, shipDate, sendNow){
+    if (emailDigestUnavailable){ sendNow(); return; }
+    Promise.resolve().then(function(){
+      return cloud.sb.from("eq_email_queue").insert({kind: kind, job_id: jobId, items: items, ship_date: shipDate || ""});
+    }).then(function(r){
+      if (!r || !r.error) return;
+      if (isNetworkProblem(r.error)){ console.warn(kind + " email not queued (offline)"); return; }
+      if (r.error.code === "PGRST205" || r.error.code === "42P01" || /eq_email_queue/.test(String(r.error.message || ""))) emailDigestUnavailable = true;
+      sendNow();
+    }, function(e){ console.warn(kind + " email not queued", e); });
+  }
+  // Asks the server to send whatever is due. The server only ever sends at the
+  // set times and each queued item goes out once, so asking early, late or
+  // from several screens at once is harmless.
+  function emailDigestTick(){
+    if (!cloud.sb || !cloud.user || emailDigestUnavailable || navigator.onLine === false) return;
+    invokeFn("send-email-digest", {}).then(function(res){
+      var status = res && res.error && res.error.context && res.error.context.status;
+      if (status === 404) emailDigestUnavailable = true;   // that function hasn't been set up yet
+    }).catch(function(){});
+  }
+  setInterval(emailDigestTick, 10 * 60000);
+  setTimeout(emailDigestTick, 20000);
+  // ...and just after 12 PM and 5 PM, so an open screen sends them on time
+  (function scheduleSlotTick(){
+    var now = new Date(), next = null;
+    [12, 17].forEach(function(h){
+      var t = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, 0, 30);
+      if (t > now && (!next || t < next)) next = t;
+    });
+    if (!next) next = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 12, 0, 30);
+    setTimeout(function(){ emailDigestTick(); scheduleSlotTick(); }, next - now + Math.random() * 20000);
+  })();
 
   // ---------- items-shipped email ----------
   // Fires once per packing slip printed (staff's existing "Create Packing
   // Slip" -> "Print packing slip" flow), listing everything on that slip.
   notifyItemsShipped = function(rows, shipDate){
     if (!cloud.jobId || !cloud.sb || !rows || !rows.length) return;
-    invokeFn("notify-items-shipped", {
-      jobId: cloud.jobId,
-      shipDate: shipDate || "",
-      items: rows.map(function(row){
-        return {
-          barcode: row.barcode,
-          manufacturer: row.manufacturer,
-          model: row.model,
-          deviceType: row.deviceType,
-          totalQty: row.totalQty,
-          serialNumber: row.serialNumber
-        };
-      })
-    }).catch(function(e){ console.warn("items-shipped email failed", e); });
+    var jobId = cloud.jobId;
+    var items = rows.map(function(row){
+      var sentNow = slipQtyHeld(row);   // what just went out on the slip (a partial shipment is less than the total)
+      return {
+        barcode: row.barcode,
+        manufacturer: row.manufacturer,
+        model: row.model,
+        deviceType: row.deviceType,
+        totalQty: sentNow > 0 ? sentNow : row.totalQty,
+        serialNumber: row.serialNumber
+      };
+    });
+    queueDigestEmail("shipped", jobId, items, shipDate, function(){
+      invokeFn("notify-items-shipped", {jobId: jobId, shipDate: shipDate || "", items: items}).catch(function(e){ console.warn("items-shipped email failed", e); });
+    });
   };
 
   // ---------- item-unshipped email ----------
@@ -6933,6 +7050,7 @@
 
   function deliveryMsg(text, kind){
     var m = cloudEl("deliveryRequestMsg");
+    delete m.dataset.slotFull;
     m.textContent = text || "";
     m.className = "delivery-request-msg" + (kind ? " " + kind : "");
   }
@@ -6942,6 +7060,42 @@
   // delivery request.
   function rowsMissingBarcode(rows){
     return rows.filter(function(r){ return !r.barcode || !String(r.barcode).trim(); });
+  }
+
+  // ---------- a requested time can't be booked when every driver is taken ----------
+  // The database answers with two numbers only: how many drivers there are, and
+  // how many are already spoken for at that time (deliveries assigned to them,
+  // plus other requests still waiting for a driver). That comes from
+  // add-delivery-scheduling.sql; without it - or offline - there's no way to
+  // tell, so nothing is blocked.
+  function checkRequestSlot(dateIso, time){
+    if (!dateIso || !time || !cloud.sb) return Promise.resolve(null);
+    return Promise.resolve().then(function(){
+      return cloud.sb.rpc("eq_slot_status", {p_date: dateIso, p_time: time, p_minutes: DELIVERY_LENGTH_MIN});
+    }).then(function(r){
+      var row = r && !r.error && (Array.isArray(r.data) ? r.data[0] : r.data);
+      if (!row) return null;
+      var drivers = Number(row.drivers) || 0, booked = Number(row.booked) || 0;
+      return {drivers: drivers, booked: booked, full: drivers > 0 && booked >= drivers};
+    }, function(){ return null; });
+  }
+  function requestSlotFullText(dateIso, time){
+    return "All drivers are already booked on " + formatDeliveryDate(dateIso) + " at " + formatDeliveryTime(time) + ". Pick a different time.";
+  }
+  // looked up as soon as a date or time is picked, so it shows before Submit
+  var requestSlotSeq = 0;
+  function refreshRequestSlotNote(){
+    var dateIso = cloudEl("deliveryDate").value, time = cloudEl("deliveryTime").value;
+    var seq = ++requestSlotSeq;
+    var msgEl = cloudEl("deliveryRequestMsg");
+    if (msgEl.dataset.slotFull) deliveryMsg("");
+    checkRequestSlot(dateIso, time).then(function(slot){
+      if (seq !== requestSlotSeq || cloudEl("deliveryRequestBackdrop").hidden) return;
+      if (slot && slot.full){
+        deliveryMsg(requestSlotFullText(dateIso, time), "bad");
+        msgEl.dataset.slotFull = "1";
+      }
+    });
   }
 
   function openDeliveryRequestModal(opts){
@@ -7003,6 +7157,29 @@
     var ampm = h >= 12 ? "PM" : "AM";
     var h12 = h % 12; if (h12 === 0) h12 = 12;
     return (h12 < 10 ? "0" + h12 : String(h12)) + ":" + min + " " + ampm;
+  }
+  // A delivery keeps its driver busy from its start time for its length
+  // (1 hour unless a different Length was picked when it was assigned).
+  var DELIVERY_LENGTH_MIN = 60;
+  function timeToMinutes(hhmm){
+    var m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || ""));
+    return m ? parseInt(m[1], 10) * 60 + parseInt(m[2], 10) : null;
+  }
+  function minutesToTime(min){
+    min = Math.max(0, Math.min(23 * 60 + 59, min));
+    var h = Math.floor(min / 60), mm = min % 60;
+    return (h < 10 ? "0" : "") + h + ":" + (mm < 10 ? "0" : "") + mm;
+  }
+  function deliveryLengthOf(d){
+    var n = Number(d && d.duration_min);
+    return n > 0 ? n : DELIVERY_LENGTH_MIN;
+  }
+  // "09:00 AM - 11:00 AM" when the delivery has a length saved, otherwise just its start time
+  function deliveryTimeRange(d){
+    var start = formatDeliveryTime(d && d.scheduled_time);
+    var startMin = timeToMinutes(d && d.scheduled_time);
+    if (!start || startMin === null || !(Number(d.duration_min) > 0)) return start;
+    return start + " - " + formatDeliveryTime(minutesToTime(startMin + Number(d.duration_min)));
   }
   function deliveryJobLine(){
     return [meta.project, meta.projectNumber].filter(function(v){ return v && String(v).trim(); }).join(" - ");
@@ -7127,7 +7304,7 @@
     var jm = job.meta || {};
     var isAssets = kind === "assets";
     var jobLine = [jm.project || job.name, jm.projectNumber].filter(function(v){ return v && String(v).trim(); }).join(" - ");
-    var when = [driverFormatDate(delivery.scheduled_date), formatDeliveryTime(delivery.scheduled_time)].filter(Boolean).join(" ");
+    var when = [driverFormatDate(delivery.scheduled_date), deliveryTimeRange(delivery)].filter(Boolean).join(" ");
     var signedText = new Date(signedAtIso).toLocaleString(undefined, {dateStyle: "medium", timeStyle: "short"});
 
     doc.setTextColor(NAVY[0], NAVY[1], NAVY[2]);
@@ -7293,7 +7470,7 @@
     printDeliverySlipOnly(assetPage ? docHtml + '<div style="page-break-before:always"></div>' + assetPage : docHtml, landscape);
   };
 
-  function submitDeliveryRequest(){
+  function submitDeliveryRequest(slotChecked){
     var selRows = getSelectedRows();
     var assetIds = Array.from(deliveryAssetPickedIds);
     if (!selRows.length && !assetIds.length){ deliveryMsg("Nothing to request yet. Check at least one item in the table, or click Assets and pick the ones you need.", "bad"); return; }
@@ -7325,6 +7502,20 @@
 
     var btn = cloudEl("deliveryRequestSubmitBtn");
     btn.disabled = true;
+    // no driver is free at that time: it can't be requested
+    if (slotChecked !== true && time){
+      deliveryMsg("Checking that time...");
+      checkRequestSlot(dateIso, time).then(function(slot){
+        btn.disabled = false;
+        if (slot && slot.full){
+          deliveryMsg(requestSlotFullText(dateIso, time), "bad");
+          cloudEl("deliveryRequestMsg").dataset.slotFull = "1";
+          return;
+        }
+        submitDeliveryRequest(true);
+      });
+      return;
+    }
     deliveryMsg("Sending...");
 
     var items = selRows.map(function(r){
@@ -7369,6 +7560,10 @@
   if (deliveryBackdropEl) deliveryBackdropEl.addEventListener("click", function(ev){ if (ev.target === deliveryBackdropEl) closeDeliveryRequestModal(); });
   var deliverySubmitBtnEl = cloudEl("deliveryRequestSubmitBtn");
   if (deliverySubmitBtnEl) deliverySubmitBtnEl.addEventListener("click", submitDeliveryRequest);
+  ["deliveryDate", "deliveryTime"].forEach(function(id){
+    var inputEl = cloudEl(id);
+    if (inputEl) inputEl.addEventListener("change", refreshRequestSlotNote);
+  });
   var deliveryAssetsBtnEl = cloudEl("deliveryAssetsBtn");
   if (deliveryAssetsBtnEl) deliveryAssetsBtnEl.addEventListener("click", function(){ openAssetsModal("request"); });
 
@@ -7742,10 +7937,13 @@
     if (!selRows.length) return;
     var boxes = selRows.map(function(r, i){
       var label = [r.manufacturer, r.model].filter(function(v){ return v && String(v).trim(); }).join(" ") || r.barcode || "Item";
+      var q = qtyToShip(r);
+      var noTotal = rowTotal(r) === 0;
       return '<label class="ship-qty-row">' +
         '<span class="ship-qty-name">' + escHtml(label) + ' <small>' + escHtml(r.barcode || "") + '</small></span>' +
-        '<span class="ship-qty-left">' + rowRemaining(r) + ' of ' + rowTotal(r) + ' left</span>' +
-        '<input type="number" min="0" step="1" data-ship-idx="' + i + '" value="' + qtyToShip(r) + '" aria-label="Qty to ship">' +
+        '<span class="ship-qty-left">' + (noTotal ? 'no Total QTY set' + (rowSent(r) ? ' - ' + rowSent(r) + ' sent' : '')
+          : rowSent(r) + ' sent, ' + rowRemaining(r) + ' of ' + rowTotal(r) + ' left') + '</span>' +
+        '<input type="number" min="0" step="1" data-ship-idx="' + i + '" value="' + (noTotal && !q ? "" : q) + '" placeholder="qty" aria-label="Qty to ship">' +
       '</label>';
     }).join("");
     el.packingSlipPreview.insertAdjacentHTML("afterbegin",
@@ -7754,19 +7952,56 @@
 
   document.addEventListener("change", function(ev){
     if (!ev.target.dataset || ev.target.dataset.shipIdx === undefined) return;
-    var selRows = getSelectedRows();
-    var r = selRows[Number(ev.target.dataset.shipIdx)];
+    var ids = order.filter(function(id){ return selectedIds.has(id); });   // same order as getSelectedRows()
+    var id = ids[Number(ev.target.dataset.shipIdx)];
+    var r = rows.get(id);
     if (!r) return;
     var n = Math.floor(Number(ev.target.value));
     if (!(n >= 0)) n = 0;
-    var max = rowRemaining(r);
-    if (n > max){
-      showSnackbar("Only " + max + " left to ship for this item.");
-      n = max;
+    var held = slipShipped.has(id) ? slipShipped.get(id) : null;
+    // with a Total QTY, no more than is left can go (plus what this slip already sent)
+    if (rowTotal(r) > 0){
+      var max = rowRemaining(r) + (held || 0);
+      if (n > max){
+        showSnackbar("Only " + max + " left to ship for this item.");
+        n = max;
+      }
     }
-    shipQtyOverride.set(r, n);
+    if (held === null){
+      shipQtyOverride.set(r, n);
+      renderPackingSlipPreview();
+      return;
+    }
+    // This slip has already marked the item shipped (it was printed or
+    // assigned), so changing the number corrects what went out.
+    if (n !== held){
+      r.qtySent = Math.max(0, rowSent(r) - held + n);
+      r.qtyRemaining = rowRemaining(r);
+      if (rowSent(r) === 0 && rowTotal(r) > 0) r.dateShipped = "";
+      else if (!isIsoDateString(r.dateShipped)) r.dateShipped = el.packingSlipDateShipped.value || todayLocalIso();
+      slipShipped.set(id, n);
+      persist();
+      renderRows();
+      updateSavedDeliveryQty(r, n);
+    }
     renderPackingSlipPreview();
   });
+
+  // keeps the saved delivery's own item list in step when a quantity is corrected on its slip
+  function updateSavedDeliveryQty(r, n){
+    var deliveryId = assignSavedDeliveryId;
+    var barcode = String(r.barcode || "").trim();
+    if (!deliveryId || !barcode || !cloud.sb) return;
+    cloud.sb.from("eq_deliveries").select("items").eq("id", deliveryId).maybeSingle().then(function(res){
+      if (res.error || !res.data) return res;
+      var items = (res.data.items || []).map(function(it){
+        return it && String(it.barcode || "").trim() === barcode ? Object.assign({}, it, {totalQty: n > 0 ? n : r.totalQty}) : it;
+      });
+      return cloud.sb.from("eq_deliveries").update({items: items, updated_by: cloud.clientId}).eq("id", deliveryId);
+    }).then(function(res){
+      if (res && res.error) showSnackbar("Qty changed, but the saved delivery couldn't be updated: " + res.error.message);
+    }, function(){});
+  }
 
   // ---------- pending deliveries (staff only) ----------
   var pdStatus = "submitted";
@@ -8353,7 +8588,7 @@
         var job = d.eq_jobs || {};
         var jobMeta = job.meta || {};
         var jobName = jobMeta.project || job.name || "Untitled job";
-        var when = [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ");
+        var when = [driverFormatDate(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" ");
         var driverEmail = driverEmailById[d.driver_id] || "Unassigned";
         if (d.van) driverEmail += " · " + d.van;
         return '<div class="jd-delivery-row">' +
@@ -8423,9 +8658,13 @@
           var mr = rows.get(id);
           if (!mr || !isIsoDateString(mr.dateShipped)) return;
           var it = (delivery.items || []).filter(function(x){ return x && x.barcode === mr.barcode; })[0];
-          slipShipped.set(id, Number(it && it.totalQty) || rowTotal(mr));
+          // (a delivery saved before quantities were kept per delivery carries the
+          // row's Total QTY, so it's never taken as more than the row has sent)
+          var itemQty = Number(it && it.totalQty) || 0, sentQty = rowSent(mr);
+          slipShipped.set(id, itemQty && sentQty ? Math.min(itemQty, sentQty) : (itemQty || sentQty));
         });
         if (delivery.scheduled_time) cloudEl("assignDeliveryTime").value = delivery.scheduled_time;
+        if (Number(delivery.duration_min) > 0) cloudEl("assignDeliveryLength").value = String(delivery.duration_min);
         cloudEl("assignVanSelect").value = delivery.van || "";
         loadDriversForAssign().then(function(){
           if (delivery.driver_id) cloudEl("assignDriverSelect").value = delivery.driver_id;
@@ -8815,7 +9054,7 @@
     if (d && d.signed_at){ showSnackbar("The equipment slip is already signed, so this delivery can't be cancelled."); return; }
     var job = d && d.eq_jobs ? d.eq_jobs : {};
     var jobName = (job.meta && job.meta.project) || job.name || "this delivery";
-    var when = d ? [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ") : "";
+    var when = d ? [driverFormatDate(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" ") : "";
     if (!confirm("Cancel the delivery for " + jobName + (when ? " (" + when + ")" : "") + "?\n\nIt comes off the dashboard and the driver's list, and any assets out for it go back into stock.")) return;
     btn.disabled = true;
     var nowIso = new Date().toISOString();
@@ -10109,11 +10348,15 @@
 
   // Set once a delivery has saved from this form, cleared when a new slip starts.
   var assignSavedDeliveryId = null;
+  // true once a save has shown the Length column isn't in the database yet
+  // (it comes from add-delivery-scheduling.sql); deliveries then count as 1 hour
+  var deliveryLengthColumnMissing = false;
   function resetAssignDriverFields(){
     assignSavedDeliveryId = null;
     cloudEl("assignDriverSelect").innerHTML = '<option value="">Loading drivers...</option>';
     cloudEl("assignDeliveryDate").value = todayLocalIso();
     cloudEl("assignDeliveryTime").value = "";
+    cloudEl("assignDeliveryLength").value = String(DELIVERY_LENGTH_MIN);
     cloudEl("assignVanSelect").value = "";
     applySlipPoc({});
     assetPickedIds = new Set();
@@ -10179,6 +10422,7 @@
     var van = cloudEl("assignVanSelect").value || "";
     var scheduledDate = cloudEl("assignDeliveryDate").value || null;
     var scheduledTime = cloudEl("assignDeliveryTime").value || "";
+    var lengthMin = parseInt(cloudEl("assignDeliveryLength").value, 10) || DELIVERY_LENGTH_MIN;
     var pocName = cloudEl("assignPocName").value.trim();
     var pocPhone = cloudEl("assignPocPhone").value.trim();
     var pocEmail = cloudEl("assignPocEmail").value.trim();
@@ -10203,24 +10447,39 @@
     var driver = driversCache.filter(function(d){ return d.id === driverId; })[0];
     assignDriverBtnEl.disabled = true;
     assignDriverMsg("Assigning...");
-    // one driver can't be in two places: no second delivery at the same date and time
+    // one driver can't be in two places: nothing that overlaps a delivery they already have that day
     var slotCheck = (scheduledDate && scheduledTime)
-      ? cloud.sb.from("eq_deliveries").select("id,scheduled_time,eq_jobs(id,name,meta)").eq("driver_id", driverId).eq("scheduled_date", scheduledDate).eq("status", "assigned")
+      ? cloud.sb.from("eq_deliveries").select("*, eq_jobs(id,name,meta)").eq("driver_id", driverId).eq("scheduled_date", scheduledDate).eq("status", "assigned")
       : Promise.resolve({data: []});
     Promise.resolve(slotCheck).then(function(sr){
       if (sr.error) throw sr.error;
-      var clash = (sr.data || []).filter(function(x){ return String(x.scheduled_time || "").slice(0, 5) === scheduledTime.slice(0, 5); })[0];
+      var startMin = timeToMinutes(scheduledTime), endMin = startMin + lengthMin;
+      var clash = startMin === null ? null : (sr.data || []).filter(function(x){
+        var s = timeToMinutes(x.scheduled_time);
+        return s !== null && s < endMin && startMin < s + deliveryLengthOf(x);
+      })[0];
       if (clash){
         var cj = clash.eq_jobs || {};
-        var clashErr = new Error((driver ? driver.email : "That driver") + " already has a delivery on " + formatDeliveryDate(scheduledDate) + " at " + formatDeliveryTime(scheduledTime) +
-          " (" + ((cj.meta && cj.meta.project) || cj.name || "another job") + "). Pick a different time or a different driver.");
+        var cs = timeToMinutes(clash.scheduled_time);
+        var clashErr = new Error((driver ? driver.email : "That driver") + " is already booked on " + formatDeliveryDate(scheduledDate) + " from " +
+          formatDeliveryTime(minutesToTime(cs)) + " to " + formatDeliveryTime(minutesToTime(cs + deliveryLengthOf(clash))) +
+          " (" + ((cj.meta && cj.meta.project) || cj.name || "another job") + "). That overlaps " +
+          formatDeliveryTime(scheduledTime) + " to " + formatDeliveryTime(minutesToTime(endMin)) + " - pick a different time or a different driver.");
         clashErr.slotTaken = true;
         throw clashErr;
       }
-      return cloud.sb.from("eq_deliveries").insert({
-      id: deliveryId, job_id: deliveryJobId, driver_id: driverId, items: items, asset_ids: assetIds, asset_qty: buildAssetQtyMap(assetIds),
-      poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, van: van, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
-      status: "assigned", updated_by: cloud.clientId
+      var record = {
+        id: deliveryId, job_id: deliveryJobId, driver_id: driverId, items: items, asset_ids: assetIds, asset_qty: buildAssetQtyMap(assetIds),
+        poc_name: pocName, poc_phone: pocPhone, poc_email: pocEmail, van: van, scheduled_date: scheduledDate, scheduled_time: scheduledTime,
+        status: "assigned", updated_by: cloud.clientId
+      };
+      if (deliveryLengthColumnMissing) return cloud.sb.from("eq_deliveries").insert(record);
+      return cloud.sb.from("eq_deliveries").insert(Object.assign({duration_min: lengthMin}, record)).then(function(r){
+        if (r.error && /duration_min/.test(String(r.error.message || ""))){
+          deliveryLengthColumnMissing = true;
+          return cloud.sb.from("eq_deliveries").insert(record);
+        }
+        return r;
       });
     }).then(function(r){
       if (r.error) throw r.error;
@@ -10260,6 +10519,7 @@
       });
       assignDriverMsg("Assigned to " + (driver ? driver.email : "the driver") + (van ? " in " + van : "") +
         (assetNames.length ? " with " + assetNames.join(", ") : "") + ". Saved." +
+        (deliveryLengthColumnMissing && lengthMin !== DELIVERY_LENGTH_MIN ? " (The length isn't saved until add-delivery-scheduling.sql has been run - for now it counts as 1 hour.)" : "") +
         (shipResult.applied ? " Date Shipped set to " + formatDateForMsg(shipDate) + " for " + shipResult.applied + " item" + (shipResult.applied === 1 ? "" : "s") + "." : "") +
         (shipResult.skipped ? " " + shipResult.skipped + " item" + (shipResult.skipped === 1 ? "" : "s") + " not marked shipped (missing BarCode/Date Received, or received after the ship date)." : ""),
         shipResult.skipped ? "bad" : "good");
@@ -10320,7 +10580,7 @@
       var jobName = jobMeta.project || job.name || "Untitled job";
       var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
       var address = jobMeta.address || "";
-      var when = [driverFormatDate(d.scheduled_date), formatDeliveryTime(d.scheduled_time)].filter(Boolean).join(" ");
+      var when = [driverFormatDate(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" ");
       var itemCount = (d.items || []).length;
       var assetCount = (d.asset_ids || []).length;
       return '<div class="driver-card">' +
@@ -10414,7 +10674,7 @@
     var jobName = jobMeta.project || job.name || "Untitled job";
     var jobNum = jobMeta.projectNumber ? String(jobMeta.projectNumber).trim() : "";
     var address = jobMeta.address || "";
-    var when = [driverFormatDate(delivery.scheduled_date), formatDeliveryTime(delivery.scheduled_time)].filter(Boolean).join(" ");
+    var when = [driverFormatDate(delivery.scheduled_date), deliveryTimeRange(delivery)].filter(Boolean).join(" ");
     cloudEl("deliverySignMeta").innerHTML =
       "<div><b>" + escHtml(jobName) + (jobNum ? " — " + escHtml(jobNum) : "") + "</b></div>" +
       (address ? "<div>" + escHtml(address) + ' <a href="' + escHtml(driverMapsUrl(address)) + '" target="_blank" rel="noopener">(Open in Google Maps)</a></div>' : "") +
