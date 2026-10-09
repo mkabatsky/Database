@@ -1,6 +1,6 @@
 // Service worker: lets the app open offline and pick up new versions when online.
 // Bump CACHE (v4 -> v5 ...) whenever you upload a new index.html so phones refresh.
-var CACHE = "equipment-db-v28";
+var CACHE = "equipment-db-v29";
 var CORE = ["./", "./index.html", "./config.js", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png"];
 // only these outside sites are ever cached; the database (supabase.co) must never be
 var CACHEABLE_HOSTS = ["cdn.jsdelivr.net", "cdnjs.cloudflare.com"];
@@ -12,7 +12,8 @@ self.addEventListener("install", function(e){
 self.addEventListener("activate", function(e){
   e.waitUntil(
     caches.keys().then(function(keys){
-      return Promise.all(keys.filter(function(k){ return k !== CACHE; }).map(function(k){ return caches.delete(k); }));
+      // only this app's own older caches: the other apps on the same address keep theirs
+      return Promise.all(keys.filter(function(k){ return k.indexOf("equipment-db-") === 0 && k !== CACHE; }).map(function(k){ return caches.delete(k); }));
     }).then(function(){ return self.clients.claim(); })
   );
 });

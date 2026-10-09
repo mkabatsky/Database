@@ -724,7 +724,7 @@
   body.role-viewer #assetsBtn, body.locked-job #assetsBtn{display:none !important;}
   /* tech sees the list but can't add assets or mark one returned - those
      are staff-only actions */
-  body.role-tech #assetsNewForm, body.role-tech .asset-return-btn{display:none !important;}
+  body.role-tech #assetsNewForm, body.role-tech .asset-return-btn, body.role-tech .asset-transfer-btn{display:none !important;}
   /* same idea for the fuller Asset Audit page: an unlocked tech can view,
      search, and export, but add/edit/delete/import stay staff-only. */
   body.role-tech #assetAuditAddBtn, body.role-tech #assetAuditImportBtn,
@@ -940,6 +940,30 @@
   .pu-sub.pu-already{color:var(--accent);font-weight:700;}
   .pu-notes{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);margin-bottom:12px;}
   .pu-notes textarea{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);min-height:58px;resize:vertical;}
+  /* ---- transfer assets between jobs ---- */
+  .at-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px;}
+  .at-fields label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);min-width:0;}
+  .at-fields input{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);min-width:0;}
+  @media (max-width:640px){ .at-fields{grid-template-columns:1fr;} }
+  .jd-head-btns{display:flex;gap:8px;flex-wrap:wrap;}
+  .jd-assets-none{font-size:13px;color:var(--ink-muted);padding:4px 2px 0;}
+  .asset-history-row .ahr-note{color:var(--ink);font-style:italic;white-space:pre-line;}
+  /* Assets page: Transfer sits under the job the asset is out with */
+  .asset-audit-table .asset-audit-move{margin-top:4px;}
+  .asset-audit-table .asset-audit-move button{padding:3px 9px;font-size:12px;}
+  /* a different font, or a longer label, wraps to a second line instead of being cut off */
+  #assetAuditBackdrop .asset-audit-table .asset-audit-actions{flex-wrap:wrap;}
+  /* ---- pick-up slip: other items, typed in by the warehouse ---- */
+  .pu-custom{margin:0 0 14px;}
+  .pu-custom-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 4px;font-size:13px;font-weight:700;}
+  .pu-custom-head button{padding:5px 10px;font-size:12.5px;}
+  .pu-custom-sub{font-size:12.5px;color:var(--ink-muted);margin:0 0 8px;}
+  .pu-custom-list{display:flex;flex-direction:column;gap:6px;}
+  .pu-custom-row{display:flex;align-items:center;gap:8px;}
+  .pu-custom-row input{font:inherit;font-size:16px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);min-width:0;}
+  .pu-custom-row .pu-c-qty{flex:0 0 76px;width:76px;text-align:center;}
+  .pu-custom-row .pu-c-desc{flex:1 1 auto;}
+  .pu-custom-row button{flex:none;padding:6px 10px;}
   /* the office's note to the driver, on the driver's own pick-up screen */
   .ds-notes{margin-top:12px;padding:12px 14px;border-radius:12px;background:#fff4e0;color:#4a3600;font-size:17px;line-height:1.4;overflow-wrap:anywhere;}
   /* the "picked up" tick on the driver's pick-up slip: big enough for a finger,
@@ -1279,7 +1303,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 28 - October 8, 2026">Build 28</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 29 - October 9, 2026">Build 29</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
@@ -1677,11 +1701,16 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Full-access staff only. Sends a driver to bring deployed assets back from a job. It goes on the driver's list like a delivery. When the driver gets the slip signed on site, everything ticked as picked up goes back into stock.</p>
+    <p class="modal-sub">Full-access staff only. Sends a driver to bring deployed assets back from a job - and anything else you list under Other items. It goes on the driver's list like a delivery. When the driver gets the slip signed on site, every asset ticked as picked up goes back into stock.</p>
     <label class="pu-job">Job<select id="pickupJobSelect"></select></label>
     <div class="pu-job-info" id="pickupJobInfo"></div>
     <div class="pu-head" id="pickupListHead" hidden=""><span id="pickupListCount"></span><button type="button" id="pickupTickAllBtn">Tick all</button></div>
     <div class="pu-list" id="pickupAssetList"></div>
+    <div class="pu-custom">
+      <div class="pu-custom-head"><span>Other items to pick up</span><button type="button" id="pickupCustomAddBtn">Add item</button></div>
+      <p class="pu-custom-sub">For anything that isn't in the asset pool - road cases, tools, leftover cable. The driver ticks these off on the slip too. They don't change stock.</p>
+      <div class="pu-custom-list" id="pickupCustomList"></div>
+    </div>
     <div class="assign-driver-section">
       <h3>Assign to a driver</h3>
       <div class="assign-driver-fields">
@@ -1918,6 +1947,30 @@
 </div>
 
 <!-- ================= consumables sent to projects (audit report) ================= -->
+<div class="modal-backdrop" id="assetTransferBackdrop" hidden="">
+  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="assetTransferTitle">
+    <div class="modal-head">
+      <h2 id="assetTransferTitle">Transfer assets to another job</h2>
+      <button class="icon-btn" id="assetTransferCloseBtn" title="Close" aria-label="Close" type="button">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
+      </button>
+    </div>
+    <p class="modal-sub">Full-access staff only. For assets that go straight from one job to another without coming back to the warehouse. Only the records change - nobody is sent anywhere. Each asset's history keeps both jobs.</p>
+    <label class="pu-job">From job<select id="assetTransferFrom"></select></label>
+    <div class="pu-head" id="assetTransferListHead" hidden=""><span id="assetTransferCount"></span><button type="button" id="assetTransferTickAllBtn">Tick all</button></div>
+    <div class="pu-list" id="assetTransferList"></div>
+    <label class="pu-job">To job<select id="assetTransferTo"></select></label>
+    <div class="at-fields">
+      <label>Who has them at the new job (optional)<input type="text" id="assetTransferPoc" autocomplete="off" maxlength="120"></label>
+      <label>Note (optional)<input type="text" id="assetTransferNote" autocomplete="off" maxlength="240" placeholder="Why, or who moved them"></label>
+    </div>
+    <div class="assign-driver-actions">
+      <button type="button" class="primary" id="assetTransferGoBtn">Transfer</button>
+    </div>
+    <div class="assign-driver-msg" id="assetTransferMsg" aria-live="polite"></div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="consumableReportBackdrop" hidden="">
   <div class="modal-panel packing-slip-modal-panel jobs-dashboard-panel" role="dialog" aria-modal="true" aria-labelledby="consumableReportTitle">
     <div class="modal-head">
@@ -6179,13 +6232,14 @@
   var CLOUD = (window.EQDB_CLOUD && /^https?:\/\//.test(String(window.EQDB_CLOUD.url || "")) && window.EQDB_CLOUD.anonKey && !/^PASTE/.test(String(window.EQDB_CLOUD.anonKey))) ? window.EQDB_CLOUD : null;
   var cloud = {
     on: false, sb: null, user: null, jobId: null, jobName: "", channel: null,
+    leaving: false,           // true once the sign-in is going or gone and the page is about to reload: nothing more is read or sent
     synced: new Map(),        // row id -> {json, pos, ts}: what the server last confirmed
     metaBase: {},             // job details the server last confirmed
     maxPos: 0, live: false, pushing: false, pushAgain: false, pulling: false, pullAgain: false,
     pushTimer: null, retryTimer: null, applyTimer: null, localPayload: null,
     clientId: "c" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
   };
-  var CK = {user: "eqdb.cloud.user", lastJob: "eqdb.cloud.lastJob", cache: "eqdb.cloud.cache.", prefs: "eqdb.prefs.v1"};
+  var CK = {user: "eqdb.cloud.user", lastJob: "eqdb.cloud.lastJob", cache: "eqdb.cloud.cache.", prefs: "eqdb.prefs.v1", profile: "eqdb.cloud.profile"};
   var SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js";
   var supabaseLibPromise = null;
 
@@ -6413,19 +6467,53 @@
     return next(0);
   }
 
+  // Is a sign-in still kept in this browser? Without one the database does not
+  // refuse a save - it quietly changes nothing and says "done" - and it answers
+  // every read with "nothing". So nothing is sent or read without one.
+  function hasStoredSignIn(){
+    try{
+      for (var i = 0; i < window.localStorage.length; i++){
+        var k = window.localStorage.key(i);
+        if (k && /^sb-.+-auth-token$/.test(k) && window.localStorage.getItem(k)) return true;
+      }
+    }catch(e){ return true; }   // storage can't be looked at: don't hold saving up on a guess
+    return false;
+  }
+  // Nobody is signed in any more (it ended in another tab, or the page was
+  // started with no connection after the sign-in had gone). What is here stays
+  // in this device's copy of the job; online, the page goes to its sign-in form.
+  function noSignIn(){
+    clearTimeout(cloud.pushTimer); clearTimeout(cloud.retryTimer);
+    if (cloud.jobId) writeCache();
+    if (navigator.onLine === false) cloudStatusOffline(); else cloudStatus("bad", "Signed out - sign in again to save");
+    day.recheck();
+  }
   function pullAll(){
-    if (!cloud.jobId || !cloud.sb) return Promise.resolve();
+    if (!cloud.jobId || !cloud.sb || cloud.leaving) return Promise.resolve();
+    if (!hasStoredSignIn()){ noSignIn(); return Promise.resolve(); }
     if (cloud.pulling){ cloud.pullAgain = true; return Promise.resolve(); }
     cloud.pulling = true;
     var jobId = cloud.jobId;
     return cloud.sb.from("eq_jobs").select("*").eq("id", jobId).maybeSingle().then(function(jr){
       if (jr.error) throw jr.error;
-      if (!jr.data || jr.data.deleted){ jobGone(); return null; }
+      if (jr.data && jr.data.deleted){ jobGone(); return null; }
+      if (!jr.data){
+        // No answer for this job. That means "deleted" (or no longer yours) only
+        // while someone is signed in - so be sure of that, and ask once more,
+        // before anything is cleared.
+        if (cloud.leaving || !hasStoredSignIn()) return null;
+        return cloud.sb.from("eq_jobs").select("id,deleted").eq("id", jobId).maybeSingle().then(function(again){
+          if (again.error) throw again.error;
+          if (cloud.leaving || !hasStoredSignIn() || jobId !== cloud.jobId) return null;
+          if (!again.data || again.data.deleted) jobGone(); else cloud.pullAgain = true;   // (it is there after all: read it properly)
+          return null;
+        });
+      }
       cloud.jobName = jr.data.name || cloud.jobName;
       mergeRemoteMeta(jr.data.meta);
       return fetchJobRows(jobId);
     }).then(function(remote){
-      if (!remote || jobId !== cloud.jobId) return;
+      if (!remote || jobId !== cloud.jobId || cloud.leaving) return;
       reconcile(remote);
       return pushNow();
     }).catch(function(e){
@@ -6467,7 +6555,8 @@
   }
 
   function pushNow(){
-    if (!cloud.jobId || !cloud.sb) return Promise.resolve();
+    if (!cloud.jobId || !cloud.sb || cloud.leaving) return Promise.resolve();
+    if (!hasStoredSignIn()){ noSignIn(); return Promise.resolve(); }
     if (cloud.pushing){ cloud.pushAgain = true; return Promise.resolve(); }
     var jobId = cloud.jobId;
     var upserts = [], sent = new Map(), deletes = [];
@@ -6505,12 +6594,14 @@
         cloud.jobName = jobNameFromMeta();
         return sb.from("eq_jobs").update({name: cloud.jobName, meta: metaCopy, updated_by: cloud.clientId}).eq("id", jobId).then(function(r){
           if (r.error) throw r.error;
+          if (cloud.leaving || !hasStoredSignIn()){ var metaGone = new Error("the sign-in ended while this was being saved"); metaGone.noSignIn = true; throw metaGone; }
           cloud.metaBase = metaCopy;
         });
       });
     }
     return chain.then(function(){
       if (jobId !== cloud.jobId) return;
+      if (cloud.leaving || !hasStoredSignIn()){ var sentGone = new Error("the sign-in ended while this was being saved"); sentGone.noSignIn = true; throw sentGone; }
       sent.forEach(function(v, id){ if (rows.has(id)) cloud.synced.set(id, v); });
       if (sent.size || deletes.length) jobCountsChanged();   // the dashboard's item counts are out of date now
       deletes.forEach(function(id){ if (!rows.has(id)) cloud.synced.delete(id); });
@@ -6518,6 +6609,7 @@
       isDirty = false;
       cloudStatusOk();
     }).catch(function(e){
+      if (e && e.noSignIn){ if (!cloud.leaving) noSignIn(); return; }
       if (isNetworkProblem(e)){
         cloudStatusOffline();
       } else if (isRlsDenied(e)){
@@ -6567,6 +6659,7 @@
     schedulePush();
   }
   function jobGone(){
+    if (cloud.leaving) return;
     closeChannel();
     var id = cloud.jobId;
     cloud.jobId = null;
@@ -6637,16 +6730,423 @@
     return pullAll();
   }
 
+  var SW_CACHE = "equipment-db-v29";   // the same name as CACHE in sw.js
+  // ---------- a fresh sign-in every day ----------
+  // Everyone except a Dashboard login is signed out once the date has changed
+  // since they signed in, and the page then reloads - so every screen starts
+  // the day on the current build. The Equipment Database, the Install Tracker,
+  // the Field Engineering Tracker and the Apps page all carry this same block,
+  // because one sign-in covers them all: whichever page notices first does the
+  // signing out, and the others see it and reload.
+  //   - It waits for a quiet moment: nobody has touched any of the pages for a
+  //     few minutes, no window is open with something half filled in, the
+  //     device is online, and this page has nothing unsaved. The other open
+  //     pages are told first and given a moment to send their own work.
+  //     A tablet that was asleep at midnight is signed out when it wakes.
+  //   - A Dashboard login stays signed in. Its screen looks for a newer build
+  //     every few minutes instead, and reloads itself when there is one.
+  // app = {name, swCache, sb(), signedIn(), flush() -> promise of true when
+  //        nothing is left unsaved, beforeReload(), and optionally:
+  //        unsent() -> true while something hasn't been saved,
+  //        busy() -> true while a window is open that someone may be filling in,
+  //        beforeSignOut() -> called just before the sign-in is taken away}
+  function makeDayRule(app){
+    var DAY = "mkapps.signInDay", ACTIVE = "mkapps.lastActive", OUT = "mkapps.dayOut", SEEN = "mkapps.buildSeen." + app.name;
+    var ENDING = "mkapps.dayEnding", HOLD = "mkapps.dayHold.";
+    var QUIET_MS = 3 * 60000, TICK_MS = 30000, BUILD_MS = 10 * 60000, BUILD_AGAIN_MS = 45 * 60000, MAX_TRIES = 5;
+    var WAKE_MS = 2 * 60000;        // for this long after the new day is first seen, "nobody was working then" still decides it
+    var BUSY_MS = 30 * 60000;       // an open window holds the sign-out back only while it was touched this recently
+    var TOLD_MS = 2500, HOLD_MS = 20000;   // the other pages get this long to answer, and at most this long to send their work
+    var ending = false;    // this page is in the middle of ending the day (sending its work, or signing out)
+    var leaving = false;   // ...and the sign-in is going or gone: nothing more to do here but reload
+    var tries = 0, lastTry = 0, exempt = null, lastTouch = 0, lastBuild = Date.now(), verifying = false;
+    var noticedAt = 0, wasQuiet = false;
+    var me = Math.random().toString(36).slice(2, 10);
+    function get(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
+    function set(k, v){ try{ window.localStorage.setItem(k, v); }catch(e){} }
+    function del(k){ try{ window.localStorage.removeItem(k); }catch(e){} }
+    function today(){
+      var d = new Date(), p = function(n){ return (n < 10 ? "0" : "") + n; };
+      return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+    }
+    // {d: the day this sign-in was made, s: which sign-in, x: 1 for a Dashboard login}
+    function stamp(){
+      try{ var o = JSON.parse(get(DAY) || "null"); return o && typeof o === "object" && o.d ? o : null; }catch(e){ return null; }
+    }
+    // Which sign-in this is: the session's own id, which stays the same for as
+    // long as the sign-in is kept alive and is new after every fresh sign-in.
+    function keyOf(session){
+      var id = "";
+      try{
+        var part = String(session.access_token || "").split(".")[1] || "";
+        id = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/"))).session_id || "";
+      }catch(e){}
+      return String(id || ("u:" + ((session.user && session.user.id) || "")));
+    }
+    function lastActive(){ return Number(get(ACTIVE)) || 0; }
+    function quiet(){
+      return navigator.onLine !== false && Date.now() - lastActive() >= QUIET_MS;
+    }
+    // A page is about to carry on with this sign-in (fresh = the password was
+    // just typed). False = it is from an earlier day: don't carry on, call
+    // endAtStart() and show the sign-in form.
+    function accept(session, fresh){
+      var st = stamp(), key = keyOf(session);
+      ending = false; leaving = false; tries = 0; exempt = null; noticedAt = 0;
+      if (fresh || !st || st.s !== key){
+        set(DAY, JSON.stringify({d: today(), s: key}));
+        if (fresh) del(OUT);
+        return true;
+      }
+      return st.d === today() || !!st.x || !quiet();
+    }
+    // Ends the sign-in on this device. Signing out needs the server to answer;
+    // if it doesn't, what the browser keeps of the sign-in is removed anyway.
+    function signOutHere(){
+      return new Promise(function(resolve){
+        var done = false;
+        var finish = function(){
+          if (done) return;
+          done = true;
+          try{
+            var keys = [];
+            for (var i = 0; i < window.localStorage.length; i++){
+              var k = window.localStorage.key(i);
+              if (k && /^sb-.+-auth-token(-code-verifier)?$/.test(k)) keys.push(k);
+            }
+            keys.forEach(del);
+          }catch(e){}
+          resolve();
+        };
+        setTimeout(finish, 8000);
+        try{
+          var sb = app.sb();
+          // "local": this browser only - the same login on another device ends its own day
+          Promise.resolve(sb ? sb.auth.signOut({scope: "local"}) : null).then(finish, finish);
+        }catch(e){ finish(); }
+      });
+    }
+    function reload(){
+      try{ app.beforeReload(); }catch(e){}
+      try{ window.location.reload(); }catch(e){}
+    }
+    // the sign-in is gone (or going): keep what is on this device and start again clean
+    function leave(){
+      leaving = true; ending = true;
+      reload();
+    }
+    function endAtStart(){
+      ending = true; leaving = true;
+      set(OUT, today());
+      // (the stamp stays until the sign-in is really gone, so another page that
+      // is starting up at the same moment still sees it as yesterday's)
+      return signOutHere().then(function(){ del(DAY); ending = false; leaving = false; });
+    }
+    // send what this page hasn't saved yet - and don't wait on it for ever
+    function flushOwn(){
+      return new Promise(function(resolve){
+        var timer = setTimeout(function(){ resolve(false); }, 20000);
+        Promise.resolve().then(function(){ return app.flush(); }).then(function(clean){ clearTimeout(timer); resolve(!!clean); }, function(){ clearTimeout(timer); resolve(false); });
+      });
+    }
+    // Is another page still sending its work? (marks older than the limit are leftovers)
+    function othersHolding(){
+      var now = Date.now(), any = false;
+      try{
+        for (var i = window.localStorage.length - 1; i >= 0; i--){
+          var k = window.localStorage.key(i);
+          if (!k || k.indexOf(HOLD) !== 0 || k === HOLD + me) continue;
+          var age = now - (Number(get(k)) || 0);
+          if (age < HOLD_MS) any = true; else if (age > 3600000) del(k);
+        }
+      }catch(e){}
+      return any;
+    }
+    // Tell the other pages the day is about to end, and give any of them that
+    // still has work to send a moment to send it while the sign-in is there.
+    function tellOthers(){
+      set(ENDING, me + ":" + Date.now());
+      return new Promise(function(resolve){
+        var began = Date.now();
+        (function look(){
+          var waited = Date.now() - began;
+          if (leaving || (waited >= TOLD_MS && (waited >= HOLD_MS || !othersHolding()))){ resolve(); return; }
+          setTimeout(look, 500);
+        })();
+      });
+    }
+    // ...and the other side of that: another page is about to end the day.
+    function helpOut(){
+      if (ending || leaving || !app.signedIn()) return;
+      set(HOLD + me, String(Date.now()));
+      var done = function(){ del(HOLD + me); };
+      try{ Promise.resolve(app.flush()).then(done, done); }catch(e){ done(); }
+    }
+    // Can the site really be reached? (Wi-Fi with no internet behind it says
+    // "online" too. Signing out then would leave the person on a sign-in
+    // form they can't use, and a reload couldn't fetch a newer build anyway.)
+    function reachable(){
+      return new Promise(function(resolve){
+        var timer = setTimeout(function(){ resolve(false); }, 8000);
+        try{
+          fetch(String(window.location.href).split("#")[0], {method: "HEAD", cache: "no-store"}).then(function(r){ clearTimeout(timer); resolve(!!(r && r.ok)); }, function(){ clearTimeout(timer); resolve(false); });
+        }catch(e){ clearTimeout(timer); resolve(false); }
+      });
+    }
+    function end(){
+      ending = true;
+      reachable().then(function(ok){
+        if (leaving) return null;
+        if (!ok){ ending = false; return null; }   // as good as offline: wait, and don't count it as a try
+        return flushOwn();
+      }).then(function(clean){
+        if (clean === null || leaving) return;     // (leaving: signed out from elsewhere meanwhile, already reloading)
+        var st = stamp();
+        if (!st){ leave(); return; }               // another page has ended the day meanwhile: start clean like the rest
+        if (st.d === today() || st.x){ ending = false; return; }
+        // Something here still can't be saved: try again at the next look. After
+        // a few goes it is left on this device (it is sent the next time its job
+        // is opened) rather than keeping yesterday's sign-in for ever.
+        if (!clean && tries < MAX_TRIES){ tries++; ending = false; return; }
+        return tellOthers().then(function(){
+          if (leaving) return;
+          var now = stamp();
+          if (!now){ leave(); return; }
+          if (now.d === today() || now.x){ ending = false; return; }
+          leaving = true;
+          try{ if (app.beforeSignOut) app.beforeSignOut(); }catch(e){}
+          set(OUT, today());
+          // (the stamp stays until the sign-in is really gone, so a page starting up
+          // at this very moment still sees it as yesterday's and doesn't carry on with it)
+          return signOutHere().then(function(){ del(DAY); del(ENDING); reload(); });
+        });
+      });
+    }
+    // A Dashboard screen: reload when the site has a newer build than this page.
+    function buildCheck(){
+      var now = Date.now();
+      if (!app.swCache || navigator.onLine === false || now - lastBuild < BUILD_MS) return;
+      lastBuild = now;
+      try{
+        fetch("sw.js", {cache: "no-store"}).then(function(r){ return r.ok ? r.text() : ""; }).then(function(text){
+          var m = /CACHE\s*=\s*["']([^"']+)["']/.exec(text || "");
+          if (!m || m[1] === app.swCache) return;
+          // Once per build - and once more every 45 minutes if the reload came
+          // back as the old page (the files were uploaded a minute apart, or the
+          // connection dropped for a moment). A half-finished upload can't make
+          // the screen reload over and over.
+          var seen = null;
+          try{ seen = JSON.parse(get(SEEN) || "null"); }catch(e){}
+          if (seen && seen.b === m[1] && Date.now() - (Number(seen.t) || 0) < BUILD_AGAIN_MS) return;
+          // someone is using this screen, or it has work to send: leave it for the next look
+          if (Date.now() - lastActive() < QUIET_MS || (app.unsent && app.unsent())) return;
+          // the page itself must be the new one too (the two files can arrive a minute apart)
+          return fetch(String(window.location.href).split("#")[0], {cache: "no-store"}).then(function(r){ return r.ok ? r.text() : ""; }).then(function(page){
+            if (String(page || "").indexOf('"' + m[1] + '"') === -1) return;
+            set(SEEN, JSON.stringify({b: m[1], t: Date.now()}));
+            reload();
+          });
+        }).then(null, function(){});
+      }catch(e){}
+    }
+    // The sign-in went while this page wasn't looking (nothing told it): reload.
+    // (Also what a page calls - as day.recheck() - when it finds for itself that
+    // nobody seems to be signed in any more.)
+    function verify(){
+      if (verifying || navigator.onLine === false) return;
+      var sb = app.sb();
+      if (!sb) return;
+      verifying = true;
+      sb.auth.getSession().then(function(r){
+        verifying = false;
+        var session = r && r.data && r.data.session;
+        if (session && session.user){ if (!stamp()) set(DAY, JSON.stringify({d: today(), s: keyOf(session)})); return; }
+        if (r && r.error) return;   // couldn't tell
+        if (app.signedIn() && !ending && navigator.onLine !== false) leave();
+      }, function(){ verifying = false; });
+    }
+    function check(){
+      if (ending || !app.signedIn()) return;
+      var st = stamp();
+      if (!st){ verify(); return; }
+      if (exempt === null ? st.x : exempt){
+        if (st.d !== today()){ st.d = today(); set(DAY, JSON.stringify(st)); }
+        buildCheck();
+        return;
+      }
+      var now = Date.now();
+      if (st.d === today()){ noticedAt = 0; return; }
+      // The new day, seen for the first time on this page: was anyone working just then?
+      if (!noticedAt){ noticedAt = now; wasQuiet = now - lastActive() >= QUIET_MS; }
+      if (navigator.onLine === false) return;
+      // Nobody was working when the day turned (a tablet waking up): end it now,
+      // even if the screen has been touched since - a wake-up tap, or a few taps
+      // while the Wi-Fi came back. That only holds for the first couple of
+      // minutes; after that, or if someone was working across midnight, it
+      // waits for a pause in the work.
+      if (!(wasQuiet && now - noticedAt <= WAKE_MS) && now - lastActive() < QUIET_MS) return;
+      // a window is open on this page and was touched not long ago (a form half filled in, a slip being signed)
+      try{ if (app.busy && app.busy() && now - lastActive() < BUSY_MS) return; }catch(e){}
+      if (now - lastTry < TICK_MS) return;   // one go per look, however often the screen is touched
+      lastTry = now;
+      end();
+    }
+    // What this login is, once the page knows: true = a Dashboard login,
+    // false = anyone else, null = couldn't find out (keep what was known).
+    function role(isDashboard){
+      if (isDashboard !== null && isDashboard !== undefined){
+        exempt = !!isDashboard;
+        var st = stamp();
+        if (st && !!st.x !== exempt){
+          if (exempt) st.x = 1; else delete st.x;
+          set(DAY, JSON.stringify(st));
+        }
+      }
+      check();
+    }
+    // Signed out somewhere else (another page or tab did it): start again clean.
+    // (If this page is the one doing the signing out, its own steps finish the job.)
+    function signedOut(){
+      if (leaving) return;
+      leave();
+    }
+    // The page's own Sign out button is doing the signing out.
+    function forget(){ ending = true; leaving = true; del(DAY); }
+    function note(){
+      return get(OUT) === today() ? "It's a new day, so everyone was signed out. Sign in again to carry on." : "";
+    }
+    function touch(){
+      var now = Date.now();
+      if (now - lastTouch < 15000) return;
+      // the day's first touch is judged on what came before it
+      check();
+      if (leaving) return;
+      lastTouch = now;
+      set(ACTIVE, String(now));
+    }
+    function start(){
+      setInterval(check, TICK_MS);
+      document.addEventListener("visibilitychange", function(){ if (!document.hidden) check(); });
+      window.addEventListener("focus", check);
+      window.addEventListener("online", check);
+      window.addEventListener("pageshow", check);
+      window.addEventListener("pagehide", function(){ del(HOLD + me); });
+      window.addEventListener("storage", function(ev){ if (ev && ev.key === ENDING && ev.newValue) helpOut(); });
+      ["pointerdown", "keydown", "input"].forEach(function(t){ document.addEventListener(t, touch, true); });
+    }
+    return {accept: accept, endAtStart: endAtStart, role: role, check: check, recheck: verify, signedOut: signedOut, forget: forget, note: note, start: start};
+  }
+  // Sends what hasn't reached the database yet. True once nothing is left unsent.
+  function dayFlush(){
+    // only full-access staff ever have anything to send (nobody else's changes are kept)
+    if (!cloud.on || !cloud.sb || !cloud.jobId || (cloud.role && cloud.role !== "staff")) return Promise.resolve(true);
+    clearTimeout(saveTimer); clearTimeout(cloud.pushTimer);
+    writeCache();
+    var goes = 0;
+    // let a load or a save that is already running finish
+    function settle(){
+      if (!(cloud.pulling || cloud.pushing) || !cloud.jobId || cloud.leaving || ++goes > 40) return Promise.resolve();
+      return new Promise(function(resolve){ setTimeout(resolve, 500); }).then(settle);
+    }
+    // Something here isn't sent yet: read the job first. That merges what other
+    // people changed into this device's copy, and ends by sending it.
+    function mergeFirst(){
+      return isDirty && cloud.jobId && !cloud.leaving ? Promise.resolve(pullAll()).then(settle) : null;
+    }
+    function go(){
+      if (!cloud.jobId || cloud.leaving) return Promise.resolve(true);
+      // A load is running (the page has just woken up): let it finish first, so
+      // what other people changed is merged in before this device's copy is sent.
+      if (cloud.pulling){
+        if (++goes > 40) return Promise.resolve(false);
+        return new Promise(function(resolve){ setTimeout(resolve, 500); }).then(go);
+      }
+      return Promise.resolve(pushNow()).then(function(){
+        if (!cloud.pushing && !cloud.pushAgain && !cloud.pulling) return !isDirty;
+        // a save or a load was already on its way: let it land, then send what is left
+        if (++goes > 40) return false;
+        return new Promise(function(resolve){ setTimeout(resolve, 500); }).then(go);
+      });
+    }
+    return settle().then(mergeFirst).then(go);
+  }
+  // The sign-in is about to go, or has gone. From here nothing more is read or
+  // sent: without a sign-in the database answers every read with "nothing",
+  // which must never be taken for "this job was deleted". What couldn't be sent
+  // stays in this device's copy of the job, and goes up the next time the job
+  // is opened here.
+  function dayLeave(){
+    clearTimeout(saveTimer); clearTimeout(cloud.pushTimer); clearTimeout(cloud.retryTimer); clearTimeout(cloud.applyTimer);
+    if (cloud.jobId) writeCache();
+    cloud.leaving = true;
+    closeChannel();
+    isDirty = false;   // or the browser would stop the reload to ask "leave site?"
+  }
+  var day = makeDayRule({
+    name: "database", swCache: SW_CACHE,
+    sb: function(){ return cloud.sb; },
+    signedIn: function(){ return !!(cloud.on && cloud.user); },
+    flush: dayFlush,
+    unsent: function(){ return !!(cloud.jobId && isDirty); },
+    // a window with something being filled in or signed (the Dashboard and the job list are not that)
+    busy: function(){
+      var open = document.querySelectorAll(".modal-backdrop:not([hidden])");
+      for (var i = 0; i < open.length; i++){
+        if (open[i].id !== "jobsDashboardBackdrop" && open[i].id !== "cloudJobsBackdrop") return true;
+      }
+      return false;
+    },
+    beforeSignOut: dayLeave,
+    beforeReload: dayLeave
+  });
+  // Job copies on this device holding changes the database hasn't had yet (made
+  // offline, or left when the page reloaded before they could be sent). The
+  // Sign out button clears the copies, so it asks first; and the next sign-in
+  // on this device opens such a job first, so its changes are merged and sent.
+  // Gives [{id, name}].
+  function unsentJobCopies(){
+    var names = [];
+    try{
+      for (var i = 0; i < window.localStorage.length; i++){
+        var k = window.localStorage.key(i);
+        if (!k || k.indexOf(CK.cache) !== 0) continue;
+        var c = null;
+        try{ c = JSON.parse(lsGet(k) || "null"); }catch(e){}
+        if (!c) continue;
+        // the same comparison a save makes: each line against what the database last confirmed
+        var synced = new Map(c.synced || []), here = {}, differs = false;
+        (c.rows || []).forEach(function(pair){
+          here[pair[0]] = true;
+          var s = synced.get(pair[0]);
+          if (!s || s.json !== JSON.stringify(normalizeRowData(pair[1]))) differs = true;
+        });
+        synced.forEach(function(s, id){ if (!here[id]) differs = true; });
+        if (!differs && canon(c.meta || {}) !== canon(c.metaBase || {})) differs = true;
+        if (differs) names.push({id: k.slice(CK.cache.length), name: String((c.meta && c.meta.project) || c.name || "a job"), jobName: c.name || ""});
+      }
+    }catch(e){}
+    return names;
+  }
+  // The Install Tracker keeps its own list of who is what: a login that is a
+  // Dashboard there is left signed in by the daily sign-out, like one here.
+  // role = this login's type here, or null when it couldn't be read.
+  function dayRoleLookup(role){
+    if (role === "dashboard"){ day.role(true); return; }
+    Promise.resolve().then(function(){ return cloud.sb.from("it_profiles").select("role").eq("id", cloud.user.id).maybeSingle(); }).then(function(r){
+      day.role(role === null || !r || r.error ? null : (r.data && r.data.role) === "dashboard");
+    }, function(){ day.role(null); });
+  }
+
   // ----- sign in -----
   // Signed in somewhere else on the site while this page was sitting on its
   // sign-in form: carry on as that person, no second sign-in needed. Does
   // nothing when this page is already signed in, or is in the middle of its
   // own sign-in (the form's own handler finishes that).
   function pickUpSignIn(){
-    if (!cloud.sb || cloud.user || cloud.signingIn || cloudEl("cloudLogin").hidden) return;
+    if (!cloud.sb || cloud.user || cloud.signingIn || cloud.starting || cloudEl("cloudLogin").hidden) return;
     cloud.sb.auth.getSession().then(function(r){
       var session = r && r.data && r.data.session;
-      if (session && session.user && !cloud.user && !cloud.signingIn) afterSignIn(session.user);
+      if (session && session.user && !cloud.user && !cloud.signingIn && !cloud.starting && day.accept(session)) afterSignIn(session.user);
     }, function(){});
   }
   function showLogin(message){
@@ -6890,8 +7390,20 @@
       createJob(name, p);
     });
     cloudEl("cloudSignOutBtn").addEventListener("click", function(){
-      if (isDirty && !confirm("Some changes haven't synced yet. Sign out anyway?")) return;
+      if (isDirty){
+        if (!confirm("Some changes haven't synced yet. Sign out anyway?")) return;
+      } else {
+        // changes sitting in a job's copy on this device (made offline, or left when
+        // the page reloaded before they could be sent) would be cleared with it
+        var waiting = unsentJobCopies();
+        if (waiting.length && !confirm("Changes made on this device haven't reached the database yet (" + waiting.slice(0, 4).map(function(w){ return w.name; }).join(", ") + (waiting.length > 4 ? "..." : "") +
+          ").\n\nSigning out here discards them. To keep them: Cancel, open that job with a connection, and wait for it to say everything is saved.\n\nSign out anyway?")) return;
+      }
       isDirty = false;
+      day.forget();   // this button is doing the signing out
+      // nothing that is still on its way from the database is taken in from here on
+      clearTimeout(saveTimer); clearTimeout(cloud.pushTimer); clearTimeout(cloud.retryTimer); clearTimeout(cloud.applyTimer);
+      cloud.leaving = true;
       closeChannel();
       var done = function(){ clearCaches(); location.reload(); };
       cloud.sb.auth.signOut().then(done, done);
@@ -6926,6 +7438,7 @@
           return;
         }
         cloudEl("cloudPass").value = "";
+        if (r.data.session) day.accept(r.data.session, true);
         return afterSignIn(r.data.user);
       }).catch(function(e){
         btn.disabled = false; btn.textContent = "Sign in";
@@ -6992,10 +7505,9 @@
       });
       cloudWireUi();
       cloud.sb.auth.onAuthStateChange(function(evt){
-        if (evt === "SIGNED_OUT" && cloud.user){
-          closeChannel(); cloud.user = null; cloud.jobId = null;
-          showLogin("You were signed out. Sign in again.");
-        }
+        // Signed out somewhere else on the site, or by the new day: start again
+        // clean. (What hasn't been sent stays in this device's copy of the job.)
+        if (evt === "SIGNED_OUT" && cloud.user) day.signedOut();
         if (evt === "SIGNED_IN") pickUpSignIn();
       });
       // The same sign-in is shared by the Install Tracker and the Field
@@ -7003,12 +7515,24 @@
       // browser's storage is the other way this page hears that someone has
       // just signed in on one of those, or in another tab.
       window.addEventListener("storage", function(ev){
-        if (ev.newValue && ev.key && /^sb-.+-auth-token$/.test(ev.key)) pickUpSignIn();
+        if (!ev.key || !/^sb-.+-auth-token$/.test(ev.key)) return;
+        if (ev.newValue) pickUpSignIn(); else if (cloud.user) day.signedOut();
       });
+      day.start();
+      cloud.starting = true;   // until the stored sign-in has been looked at and decided on, just below
       return cloud.sb.auth.getSession();
     }).then(function(r){
       var session = r && r.data && r.data.session;
-      if (session && session.user) return afterSignIn(session.user);
+      if (session && session.user){
+        // yesterday's sign-in: it ends here, before anything is shown
+        if (!day.accept(session)){
+          cloudEl("cloudLoginBtn").disabled = true;   // not until the old sign-in is fully gone
+          return day.endAtStart().then(function(){ cloud.starting = false; cloudEl("cloudLoginBtn").disabled = false; showLogin(day.note()); cloudStatus("bad", "Signed out"); });
+        }
+        cloud.starting = false;
+        return afterSignIn(session.user);
+      }
+      cloud.starting = false;
       var saved = null;
       try{ saved = JSON.parse(lsGet(CK.user) || "null"); }catch(e){}
       if (navigator.onLine === false && saved){
@@ -7019,9 +7543,10 @@
         cloudEl("cloudLogin").hidden = true;
         return showJobs("You're offline — pick a job saved on this device.");
       }
-      showLogin("Sign in to continue");
+      showLogin(day.note() || "Sign in to continue");
       cloudStatus("bad", "Signed out");
     }).catch(function(e){
+      cloud.starting = false;
       showLogin("Couldn't start sync: " + (e && e.message ? e.message : e));
     });
   }
@@ -7117,10 +7642,20 @@
   function rolesResume(){
     // "*": the account-type column may not be in the database yet (add-account-types.sql)
     return cloud.sb.from("eq_profiles").select("*").eq("id", cloud.user.id).maybeSingle().then(function(pr){
+      // Couldn't be read just now (a network blip as the page reloads): go by
+      // what this login was the last time it could be read on this device.
+      var roleKnown = !pr.error;
+      if (pr.error){
+        var kept = null;
+        try{ kept = JSON.parse(lsGet(CK.profile) || "null"); }catch(e){}
+        if (kept && kept.id === cloud.user.id && kept.row){ pr = {data: kept.row, error: null}; roleKnown = true; }
+      } else if (pr.data) lsSet(CK.profile, JSON.stringify({id: cloud.user.id, row: pr.data}));   // (only a real line: "nothing" is also what a read with no sign-in gets back)
+      else lsDel(CK.profile);
       var role = (pr.data && pr.data.role) || "staff";
       var jobId = pr.data && pr.data.job_id;
       cloud.role = role;
       cloud.feKind = (pr.data && pr.data.fe_kind) || "";
+      dayRoleLookup(roleKnown ? role : null);
 
       if (role === "viewer" && (cloud.feKind === "fe" || cloud.feKind === "fe_viewer")){
         // Nothing is opened and nothing is loaded. They stay signed in (the
@@ -7167,6 +7702,11 @@
       applyRoleUi("staff");
       applyStaffKind(pr.data);
       startSignedSlipSaving();
+      var leftBehind = urlJobId ? null : unsentJobCopies()[0];
+      if (leftBehind){
+        showSnackbar("This job had changes on this device that hadn't reached the database. They are being sent now.");
+        return openJob({id: leftBehind.id, name: leftBehind.jobName});
+      }
       // Staff's cover page is the fleet Dashboard (every job's status at a
       // glance), not the plain Jobs list - same reasoning as the Dashboard
       // button itself: this is a staff-only view, so only the staff branch
@@ -7652,6 +8192,16 @@
         var name = a ? (a.label || "Untitled asset") + (a.description ? "\n" + a.description : "") : "Asset not found";
         return [name, a ? a.category : "", pickup ? (pickedIds.indexOf(id) !== -1 ? "Yes" : "No - still on site") : String((delivery.asset_qty || {})[id] || 1)];
       });
+      var typedIn = pickup ? pickupCustomItems(delivery) : [];
+      if (typedIn.length){
+        head = [["Item", "Category", "Picked up"]];
+        // no ticks saved for these lines at all: say so - a line is never assumed to have been collected
+        var tickedItems = Array.isArray(delivery.picked_item_ids) ? delivery.picked_item_ids : null;
+        body = body.concat(typedIn.map(function(it){
+          return [String(it.description || "") + (pickupCustomQty(it) > 1 ? "  (Qty " + pickupCustomQty(it) + ")" : ""), "Other item",
+            !tickedItems ? "Not recorded" : tickedItems.indexOf(it.id) !== -1 ? "Yes" : "No"];
+        }));
+      }
     } else {
       var items = delivery.items || [];
       head = [["BarCode", "Manufacturer", "Model", "Device Type", "Qty", "Serial Number"]];
@@ -7801,8 +8351,18 @@
       if (res[1].error) throw res[1].error;
       var todo = [];
       (res[0].data || []).forEach(function(d){ if (d.signed_at && filed.indexOf(d.id + ":equipment") === -1) todo.push({id: d.id, kind: "equipment"}); });
-      (res[1].data || []).forEach(function(d){ if (d.asset_signed_at && filed.indexOf(d.id + ":assets") === -1) todo.push({id: d.id, kind: "assets"}); });
-      return todo;
+      // (a database without picked_item_ids simply has none of these: any error here means "none")
+      return Promise.resolve().then(function(){
+        return cloud.sb.from("eq_deliveries").select("id,asset_signed_at").eq("kind", "pickup").not("picked_item_ids", "is", null).gte("asset_signed_at", since);
+      }).then(function(r3){ return r3 && !r3.error ? (r3.data || []) : []; }, function(){ return []; }).then(function(withItems){
+        var itemsIds = {};
+        withItems.forEach(function(d){
+          itemsIds[d.id] = true;
+          if (d.asset_signed_at && filed.indexOf(d.id + ":assets:items") === -1) todo.push({id: d.id, kind: "assets", withItems: true});
+        });
+        (res[1].data || []).forEach(function(d){ if (d.asset_signed_at && !itemsIds[d.id] && filed.indexOf(d.id + ":assets") === -1) todo.push({id: d.id, kind: "assets"}); });
+        return todo;
+      });
     });
   }
   // true when the file was written, false when one of that name was already there
@@ -7842,9 +8402,13 @@
               isAssets ? d.asset_signature_data : d.signature_data, assetList);
           }catch(e){ b64 = ""; }
           if (!b64){ counts.failed++; return; }
-          return writeSlipIfMissing(folder, signedSlipFilename(d, t.kind), base64ToBlob(b64, "application/pdf")).then(function(wrote){
+          // a pick-up that really has other items on it (not just an empty tick list) gets its own file name
+          var hasTypedIn = !!t.withItems && pickupCustomItems(d).length > 0;
+          var slipName = signedSlipFilename(d, t.kind);
+          if (hasTypedIn) slipName = slipName.replace(/\.pdf$/, " - with other items.pdf");
+          return writeSlipIfMissing(folder, slipName, base64ToBlob(b64, "application/pdf")).then(function(wrote){
             if (wrote) counts.saved++; else counts.already++;
-            rememberSignedSlipFiled(t.id + ":" + t.kind);
+            rememberSignedSlipFiled(t.id + ":" + t.kind + (t.withItems ? ":items" : ""));
           });
         });
       }, Promise.resolve());
@@ -9211,11 +9775,11 @@
         var when = [driverFormatDate(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" ");
         var driverEmail = driverEmailById[d.driver_id] || "Unassigned";
         if (d.van) driverEmail += " · " + d.van;
-        var pickup = isPickup(d), pickupCount = (d.asset_ids || []).length;
+        var pickup = isPickup(d), pickupCount = pickupLineCount(d);
         return '<div class="jd-delivery-row">' +
           '<span class="jd-delivery-job">' + (pickup ? '<span class="jd-pickup-tag">Pick-up</span>' : '') + escHtml(jobName) +
             '<span class="jd-delivery-address">' + (address ? escHtml(address) : "No address on this job") +
-              (pickup ? ' · ' + pickupCount + ' asset' + (pickupCount === 1 ? "" : "s") + ' to bring back' : '') + '</span></span>' +
+              (pickup ? ' · ' + pickupCount + ' item' + (pickupCount === 1 ? "" : "s") + ' to bring back' : '') + '</span></span>' +
           '<span class="jd-delivery-driver">' + escHtml(driverEmail) + '</span>' +
           (when ? '<span class="jd-delivery-when">' + escHtml(when) + '</span>' : '<span class="jd-delivery-when">No time set</span>') +
           (opts.readOnly ? '' : pickup
@@ -9250,10 +9814,13 @@
       var job = d.eq_jobs || {}, jm = job.meta || {};
       var num = jm.projectNumber ? String(jm.projectNumber).trim() : "";
       var address = String(jm.address || "").trim();
-      var itemCount = (d.items || []).length, assetCount = (d.asset_ids || []).length;
+      // a pick-up's own list (its assets and its typed-in lines) is one count
+      var puCount = isPickup(d) ? pickupLineCount(d) : 0;
+      var itemCount = isPickup(d) ? 0 : (d.items || []).length, assetCount = isPickup(d) ? 0 : (d.asset_ids || []).length;
       var load = [d.van,
+        puCount ? puCount + " item" + (puCount === 1 ? "" : "s") + " to pick up" : "",
         itemCount ? itemCount + " item" + (itemCount === 1 ? "" : "s") : "",
-        assetCount ? assetCount + " asset" + (assetCount === 1 ? "" : "s") + (isPickup(d) ? " to pick up" : "") : ""].filter(Boolean).join(", ");
+        assetCount ? assetCount + " asset" + (assetCount === 1 ? "" : "s") : ""].filter(Boolean).join(", ");
       var contact = [d.poc_name, d.poc_phone].filter(Boolean).join(" ");
       lines.push("");
       lines.push((i + 1) + ") " + (deliveryTimeRange(d) || "No time set") + " - " + (isPickup(d) ? "PICK-UP - " : "") + (jm.project || job.name || "Untitled job") + (num ? " (" + num + ")" : ""));
@@ -9463,16 +10030,23 @@
     // Consumables are used up on the job - they aren't coming back, so they
     // aren't "deployed". (They still print on the delivery's asset slip.)
     openCheckouts = openCheckouts.filter(function(c){ return !isConsumable(assetsById[c.asset_id]); });
-    if (!openCheckouts.length){ box.innerHTML = ""; return; }
+    // staff only: the dashboard-view screen (which passes its own box) is read-only
+    var canSchedule = !boxId && (!cloud.role || cloud.role === "staff");
+    if (!openCheckouts.length){
+      // nothing is out, but a pick-up can still be made for other items
+      box.innerHTML = canSchedule ? '<div class="jd-deliveries-head"><h3 class="jd-deliveries-title">Deployed assets</h3>' +
+        '<span class="jd-head-btns"><button type="button" class="jd-pickup-btn" data-jd-pickup-new="1">Create pick-up slip</button></span></div>' +
+        '<div class="jd-assets-none">Nothing from the asset pool is out with a job right now.</div>' : "";
+      return;
+    }
     // which of them already have a driver coming for them (from the schedule drawn just above)
     var pickupByAsset = {};
     jdDeliveriesCache.filter(isPickup).forEach(function(p){
       (p.asset_ids || []).forEach(function(id){ if (!pickupByAsset[id + "|" + p.job_id]) pickupByAsset[id + "|" + p.job_id] = p; });
     });
-    // staff only: the dashboard-view screen (which passes its own box) is read-only
-    var canSchedule = !boxId && (!cloud.role || cloud.role === "staff");
     box.innerHTML = '<div class="jd-deliveries-head"><h3 class="jd-deliveries-title">Deployed assets</h3>' +
-      (canSchedule ? '<button type="button" class="jd-pickup-btn" data-jd-pickup-new="1">Create pick-up slip</button>' : '') + '</div>' +
+      (canSchedule ? '<span class="jd-head-btns"><button type="button" class="jd-pickup-btn" data-jd-transfer="1" title="Move assets from one job straight to another, in the records">Transfer assets</button>' +
+        '<button type="button" class="jd-pickup-btn" data-jd-pickup-new="1">Create pick-up slip</button></span>' : '') + '</div>' +
       '<div class="jd-deliveries-list">' +
       openCheckouts.map(function(c){
         var asset = assetsById[c.asset_id];
@@ -9491,6 +10065,7 @@
             (assetDesc ? '<span class="jd-asset-desc">' + escHtml(assetDesc) + '</span>' : '') + '</span>' +
           '<span class="jd-asset-where"><span class="jd-delivery-driver">' + escHtml(jobName) + '</span>' +
             '<span class="jd-delivery-when">out since ' + escHtml(since) + '</span>' +
+            (/^Transferred from /.test(c.notes || "") ? '<span class="jd-delivery-when">' + escHtml(String(c.notes).split("\n")[0].replace(/\.$/, "")) + '</span>' : '') +
             (pickupByAsset[c.asset_id + "|" + c.job_id] ? '<span class="jd-asset-pickup">Pick-up scheduled' +
               (pickupWhenText(pickupByAsset[c.asset_id + "|" + c.job_id]) ? " " + escHtml(pickupWhenText(pickupByAsset[c.asset_id + "|" + c.job_id])) : "") + '</span>' : '') + '</span>' +
         '</div>';
@@ -9851,7 +10426,7 @@
     var when = d ? [driverFormatDate(d.scheduled_date), deliveryTimeRange(d)].filter(Boolean).join(" ") : "";
     var cancellingPickup = isPickup(d);
     if (!confirm(cancellingPickup
-      ? "Cancel the pick-up from " + jobName + (when ? " (" + when + ")" : "") + "?\n\nIt comes off the schedule and the driver's list. The assets stay where they are, still shown as deployed, until another pick-up is made or they are marked returned."
+      ? "Cancel the pick-up from " + jobName + (when ? " (" + when + ")" : "") + "?\n\nIt comes off the schedule and the driver's list. Anything on it stays where it is - an asset is still shown as deployed - until another pick-up is made or it is marked returned."
       : "Cancel the delivery for " + jobName + (when ? " (" + when + ")" : "") + "?\n\nIt comes off the dashboard and the driver's list, and any assets out for it go back into stock.")) return;
     btn.disabled = true;
     var nowIso = new Date().toISOString();
@@ -10311,9 +10886,18 @@
     if (!returnBtn) return;
     var checkoutId = returnBtn.dataset.assetReturn;
     returnBtn.disabled = true;
-    cloud.sb.from("eq_asset_checkouts").update({returned_at: new Date().toISOString(), returned_by: (cloud.user && cloud.user.email) || ""}).eq("id", checkoutId).then(function(r){
+    cloud.sb.from("eq_asset_checkouts").update({returned_at: new Date().toISOString(), returned_by: (cloud.user && cloud.user.email) || ""}).eq("id", checkoutId).is("returned_at", null).select("id").then(function(r){
       returnBtn.disabled = false;
       if (r.error){ assetsMsg("Couldn't mark returned: " + r.error.message, "bad"); return null; }
+      if (!r.data || !r.data.length){
+        // someone else got there first: show what is true now, and send no "it came back" email
+        var staleOnAudit = !cloudEl("assetAuditBackdrop").hidden;
+        Promise.resolve(staleOnAudit ? loadAssetAudit() : loadAssets()).then(function(){
+          var staleMsg = "That one was already returned, or moved to another job, a moment ago. The list is up to date now.";
+          if (staleOnAudit) assetAuditMsg(staleMsg, "bad"); else assetsMsg(staleMsg, "bad");
+        });
+        return null;
+      }
       // Let the warehouse know what came back. The return itself is already
       // saved, so an email failure is reported but doesn't undo anything.
       return invokeFn("send-assets-returned", {checkoutIds: [checkoutId]}).then(function(res){
@@ -10535,7 +11119,8 @@
         '<td>' + cellText(a.model || "") + '</td>' +
         '<td class="asset-audit-desc">' + cellText(a.description || "") + '</td>' +
         '<td><span class="asset-status-badge ' + statusClass + '">' + statusText + '</span></td>' +
-        '<td>' + (consumable ? sentCell : (out ? escHtml(jobName) + (checkout.poc_name ? '<div class="asset-audit-poc">Received by ' + escHtml(checkout.poc_name) + '</div>' : '') : "")) + '</td>' +
+        '<td>' + (consumable ? sentCell : (out ? escHtml(jobName) + (checkout.poc_name ? '<div class="asset-audit-poc">Received by ' + escHtml(checkout.poc_name) + '</div>' : '') +
+          (checkout.job_id ? '<div class="asset-audit-move"><button type="button" class="asset-transfer-btn" data-audit-transfer="' + a.id + '" title="Move it straight to another job, in the records">Transfer</button></div>' : '') : "")) + '</td>' +
         '<td class="asset-audit-actions">' +
           (out ? '<button type="button" class="asset-return-btn" data-asset-return="' + checkout.id + '">Mark returned</button>' : '') +
           '<button type="button" class="asset-audit-edit" data-audit-edit="' + a.id + '">Edit</button>' +
@@ -10615,7 +11200,7 @@
   // Column widths, set by dragging the edge of a column header (double-click the
   // edge to go back to the default). Remembered on this device.
   var ASSET_AUDIT_KEYS = ASSET_AUDIT_COLS.map(function(c){ return c.key; }).concat("actions");
-  var ASSET_AUDIT_DEFAULT_W = {label: 240, category: 120, barcode: 150, make: 120, model: 150, description: 260, status: 130, job: 180, actions: 250};
+  var ASSET_AUDIT_DEFAULT_W = {label: 230, category: 120, barcode: 150, make: 120, model: 150, description: 210, status: 130, job: 180, actions: 310};
   var ASSET_AUDIT_WIDTHS_KEY = "eqdb.assetAuditWidths";
   function assetAuditSavedWidths(){
     try { return JSON.parse(localStorage.getItem(ASSET_AUDIT_WIDTHS_KEY) || "{}") || {}; } catch (e) { return {}; }
@@ -10919,14 +11504,16 @@
     } else {
       list.innerHTML = records.map(function(c){
         var jobName = c.job_id ? (auditJobNameById[c.job_id] || "Unknown job") : "Unknown job";
+        var movedOn = /Transferred to /.test(c.notes || "");
         var statusLine = c.returned_at
-          ? "Returned " + when(c.returned_at) + (c.returned_by ? " by " + escHtml(c.returned_by) : "")
+          ? (movedOn ? "Left this job " : "Returned ") + when(c.returned_at) + (c.returned_by ? " by " + escHtml(c.returned_by) : "")
           : "Still out";
         return '<div class="asset-history-row">' +
           '<div class="ahr-job">' + escHtml(jobName) + '</div>' +
           '<div class="ahr-line">Out ' + escHtml(when(c.checked_out_at)) + (c.checked_out_by ? " by " + escHtml(c.checked_out_by) : "") + '</div>' +
           (c.poc_name ? '<div class="ahr-line">Received by POC ' + escHtml(c.poc_name) + '</div>' : '') +
           '<div class="ahr-line">' + statusLine + '</div>' +
+          (c.notes ? '<div class="ahr-line ahr-note">' + escHtml(c.notes) + '</div>' : '') +
         '</div>';
       }).join("");
     }
@@ -11199,8 +11786,13 @@
       if (!open){ showScanResult("bad", name + " is already in the shop.", []); return; }
       var returnedAt = new Date().toISOString();
       var returnedBy = (cloud.user && cloud.user.email) || "";
-      cloud.sb.from("eq_asset_checkouts").update({returned_at: returnedAt, returned_by: returnedBy}).eq("id", open.id).then(function(r){
+      cloud.sb.from("eq_asset_checkouts").update({returned_at: returnedAt, returned_by: returnedBy}).eq("id", open.id).is("returned_at", null).select("id").then(function(r){
         if (r.error){ showScanResult("bad", "Couldn't mark returned: " + escHtml(r.error.message), []); return; }
+        if (!r.data || !r.data.length){
+          showScanResult("bad", name + " was already returned, or moved to another job, a moment ago. Scan it again.", []);
+          loadAssetAudit();
+          return;
+        }
         open.returned_at = returnedAt;
         showScanResult("ok", name + " is back in the shop.", []);
         loadAssetAudit();
@@ -11686,7 +12278,7 @@
     return Promise.all([
       fetchAllRows(function(){ return cloud.sb.from("eq_asset_checkouts").select("*").is("returned_at", null).order("id", {ascending: true}); }),
       cloud.sb.from("eq_deliveries").select("*").eq("status", "assigned"),
-      cloud.sb.from("eq_jobs").select("id,name,meta").eq("deleted", false)
+      cloud.sb.from("eq_jobs").select("*").eq("deleted", false)
     ]).then(function(res){
       var failed = res.filter(function(r){ return r && r.error; })[0];
       if (failed) throw failed.error;
@@ -11695,7 +12287,11 @@
       return (ids.length ? fetchRowsByIds("eq_assets", "*", ids, 80) : Promise.resolve([])).then(function(assets){
         var assetsById = {};
         assets.forEach(function(a){ assetsById[a.id] = a; });
-        pickupData = {checkouts: checkouts, assetsById: assetsById, jobs: res[2].data || [], openPickups: (res[1].data || []).filter(isPickup)};
+        // deliveries on the schedule that nobody has signed anything for yet: what is on them hasn't
+        // reached the site (once either slip is signed - equipment or asset - the load has arrived)
+        var unsigned = {};
+        (res[1].data || []).forEach(function(d){ if (!isPickup(d) && !d.asset_signed_at && !d.signed_at) unsigned[d.id] = true; });
+        pickupData = {checkouts: checkouts, assetsById: assetsById, jobs: res[2].data || [], openPickups: (res[1].data || []).filter(isPickup), unsignedDeliveries: unsigned};
         return pickupData;
       });
     });
@@ -11717,27 +12313,34 @@
     });
   }
 
-  // The job box: every job that has something out, by name. A job asked for by
-  // name (the one that is open) is listed even with nothing out, so the window
-  // can say so instead of quietly showing a different job.
+  // The job box: every job, by name - the ones with assets out first, then
+  // the rest (a pick-up can be for things that aren't in the asset pool).
   function renderPickupJobs(wantJobId){
     var sel = cloudEl("pickupJobSelect");
     var counts = {};
     pickupData.checkouts.forEach(function(c){
       if (!isConsumable(pickupData.assetsById[c.asset_id])) counts[c.job_id] = (counts[c.job_id] || 0) + 1;
     });
-    var jobs = pickupData.jobs.filter(function(j){ return counts[j.id] || j.id === wantJobId; });
+    // an archived job is only listed while it still has something out (or is the one asked for)
+    var jobs = pickupData.jobs.filter(function(j){ return counts[j.id] || j.id === wantJobId || !j.archived; });
     jobs.sort(function(a, b){ return pickupJobLabel(a).localeCompare(pickupJobLabel(b), undefined, {numeric: true, sensitivity: "base"}); });
     if (!jobs.length){
-      sel.innerHTML = '<option value="">Nothing is deployed</option>';
+      sel.innerHTML = '<option value="">No jobs yet</option>';
       renderPickupLines();
       return;
     }
-    var preselect = wantJobId || (jobs.length === 1 ? jobs[0].id : "");
-    sel.innerHTML = (preselect ? '' : '<option value="">Pick a job...</option>') + jobs.map(function(j){
+    var withOut = jobs.filter(function(j){ return counts[j.id]; }), rest = jobs.filter(function(j){ return !counts[j.id]; });
+    // Only a job that was asked for (the open job's own button) starts selected.
+    // From the dashboard the job is always picked by hand: every job is on the
+    // list now, so a guess could quietly be the wrong one.
+    var preselect = wantJobId || "";
+    var option = function(j){
       var n = counts[j.id] || 0;
-      return '<option value="' + j.id + '"' + (j.id === preselect ? " selected" : "") + '>' + escHtml(pickupJobLabel(j)) + ' (' + n + ' out)</option>';
-    }).join("");
+      return '<option value="' + j.id + '"' + (j.id === preselect ? " selected" : "") + '>' + escHtml(pickupJobLabel(j)) + (n ? ' (' + n + ' out)' : '') + '</option>';
+    };
+    sel.innerHTML = (preselect ? '' : '<option value="">Pick a job...</option>') +
+      (withOut.length ? '<optgroup label="With assets out">' + withOut.map(option).join("") + '</optgroup>' : '') +
+      (rest.length ? '<optgroup label="' + (withOut.length ? "Other jobs" : "Jobs") + '">' + rest.map(option).join("") + '</optgroup>' : '');
     renderPickupLines();
     prefillPickupPoc(sel.value);
   }
@@ -11761,18 +12364,17 @@
     var job = pickupData && pickupData.jobs.filter(function(j){ return j.id === jobId; })[0];
     if (!job){
       list.innerHTML = ""; head.hidden = true;
-      var anyOut = !!(pickupData && pickupData.checkouts.some(function(c){ return !isConsumable(pickupData.assetsById[c.asset_id]); }));
-      info.textContent = anyOut ? "Pick the job to collect from." : "No assets are out with any job right now, so there is nothing to pick up.";
+      info.textContent = "Pick the job to collect from.";
       return;
     }
     var address = String((job.meta && job.meta.address) || "").trim();
     var lines = pickupLinesFor(jobId);
+    info.textContent = address ? "Pick up from: " + address : "This job has no address yet - add one in the job's details so the driver knows where to go.";
     if (!lines.length){
       list.innerHTML = ""; head.hidden = true;
-      info.textContent = "Nothing from the asset pool is out with this job, so there is nothing to pick up. (Consumables stay with the job.)";
+      info.textContent += " Nothing from the asset pool is out with this job - list what to pick up under Other items.";
       return;
     }
-    info.textContent = address ? "Pick up from: " + address : "This job has no address yet - add one in the job's details so the driver knows where to go.";
     list.innerHTML = lines.map(function(l){
       var c = l.checkout, taken = !!l.pickup;
       var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
@@ -11804,6 +12406,51 @@
     }, function(){});
   }
 
+  // ---- other items on a pick-up: not from the asset pool, typed in by the warehouse ----
+  // Kept in the pick-up's own "items" list as {id, custom: true, description,
+  // totalQty}. Nothing about stock changes for them. The driver ticks them off
+  // on the slip like the assets; those ticks are saved in picked_item_ids
+  // (add-asset-transfers-and-pickup-items.sql adds that column).
+  var PICKUP_ITEMS_NEEDS_SQL = "Other items on a pick-up need add-asset-transfers-and-pickup-items.sql to be run in the Supabase SQL editor first - step 2 in this build's read-me.";
+  function pickupCustomItems(d){
+    return ((d && d.items) || []).filter(function(it){ return it && it.custom; });
+  }
+  // everything on a pick-up: its assets and its typed-in lines
+  function pickupLineCount(d){ return ((d && d.asset_ids) || []).length + pickupCustomItems(d).length; }
+  function pickupCustomQty(it){ var q = Math.floor(Number(it && it.totalQty)); return q > 0 ? q : 1; }
+  function pickupCustomRowHtml(){
+    return '<div class="pu-custom-row" data-item-id="' + cloudUuid() + '">' +
+      '<input type="number" class="pu-c-qty" min="1" step="1" value="1" inputmode="numeric" title="How many" aria-label="How many">' +
+      '<input type="text" class="pu-c-desc" maxlength="200" autocomplete="off" placeholder="What to pick up - road cases, a ladder, leftover cable..." aria-label="What to pick up">' +
+      '<button type="button" class="pu-c-del" title="Remove this line" aria-label="Remove this line">&times;</button></div>';
+  }
+  // what is typed in the window right now; lines with nothing written are left out
+  function pickupCustomFromForm(){
+    return Array.prototype.slice.call(cloudEl("pickupCustomList").querySelectorAll(".pu-custom-row")).map(function(row){
+      var desc = row.querySelector(".pu-c-desc").value.trim();
+      if (!desc) return null;
+      // deviceType carries the same text: it is the one field the previous build of the page shows
+      // for a line, so a tablet that hasn't picked up this build yet still says what the line is
+      return {id: row.getAttribute("data-item-id"), custom: true, description: desc, deviceType: desc, totalQty: pickupCustomQty({totalQty: row.querySelector(".pu-c-qty").value})};
+    }).filter(Boolean);
+  }
+  // a typed-in line, as a line of the paper slip
+  function pickupCustomSlipLine(it){
+    return {name: String(it.description || ""), description: "", category: "Other item", barcode: "", since: "", qty: pickupCustomQty(it)};
+  }
+  var pickupCustomAddBtnEl = cloudEl("pickupCustomAddBtn");
+  if (pickupCustomAddBtnEl) pickupCustomAddBtnEl.addEventListener("click", function(){
+    var list = cloudEl("pickupCustomList");
+    list.insertAdjacentHTML("beforeend", pickupCustomRowHtml());
+    var box = list.lastElementChild.querySelector(".pu-c-desc");
+    if (box) box.focus();
+  });
+  var pickupCustomListEl = cloudEl("pickupCustomList");
+  if (pickupCustomListEl) pickupCustomListEl.addEventListener("click", function(ev){
+    var del = ev.target.closest && ev.target.closest(".pu-c-del");
+    if (del && del.parentNode && del.parentNode.parentNode) del.parentNode.parentNode.removeChild(del.parentNode);
+  });
+
   function openPickupModal(jobId){
     if (cloud.role && cloud.role !== "staff"){ showSnackbar("Only full-access staff can create a pick-up."); return; }
     pickupSavedId = null;
@@ -11820,6 +12467,7 @@
     cloudEl("pickupJobSelect").innerHTML = '<option value="">Loading...</option>';
     cloudEl("pickupJobInfo").textContent = "";
     cloudEl("pickupAssetList").innerHTML = "";
+    cloudEl("pickupCustomList").innerHTML = "";
     cloudEl("pickupListHead").hidden = true;
     cloudEl("pickupAssignBtn").disabled = false;
     pickupMsg("Loading what is out...");
@@ -11892,16 +12540,16 @@
       doc.text(noteLines, margin, tableStartY + 14);
       tableStartY += 14 + noteLines.length * 13 + 10;
     }
-    var boxCol = 4;
+    var boxCol = 5;
     doc.autoTable({
-      head: [["Asset", "Category", "BarCode", "Out since", "Picked up"]],
+      head: [["Qty", "Item", "Category", "BarCode", "Out since", "Picked up"]],
       body: info.lines.map(function(l){
-        return [l.name + (l.description ? "\n" + l.description : ""), l.category || "", l.barcode || "", l.since || "", ""];
+        return [String(l.qty || 1), l.name + (l.description ? "\n" + l.description : ""), l.category || "", l.barcode || "", l.since || "", ""];
       }),
       startY: tableStartY,
       margin: {left: margin, right: margin},
       styles: {fontSize: 9, cellPadding: 5, lineWidth: 0.5, lineColor: [90, 98, 107], overflow: "linebreak", valign: "middle"},
-      columnStyles: {0: {cellWidth: "auto"}, 1: {cellWidth: 110}, 2: {cellWidth: 100}, 3: {cellWidth: 110}, 4: {cellWidth: 62, halign: "center"}},
+      columnStyles: {0: {cellWidth: 38, halign: "center"}, 1: {cellWidth: "auto"}, 2: {cellWidth: 110}, 3: {cellWidth: 100}, 4: {cellWidth: 110}, 5: {cellWidth: 62, halign: "center"}},
       headStyles: {fillColor: NAVY, textColor: 255, fontStyle: "bold"},
       alternateRowStyles: {fillColor: [242, 244, 247]},
       theme: "grid",
@@ -11964,7 +12612,7 @@
     var driverId = cloudEl("pickupDriverSelect").value;
     var driver = driversCache.filter(function(d){ return d.id === driverId; })[0];
     return {
-      jobId: jobId, job: job || null, ids: pickupPickedIds(), driverId: driverId, driverEmail: driver ? driver.email : "",
+      jobId: jobId, job: job || null, ids: pickupPickedIds(), custom: pickupCustomFromForm(), driverId: driverId, driverEmail: driver ? driver.email : "",
       van: cloudEl("pickupVanSelect").value || "", date: cloudEl("pickupDate").value || null, time: cloudEl("pickupTime").value || "",
       lengthMin: parseInt(cloudEl("pickupLength").value, 10) || DELIVERY_LENGTH_MIN,
       pocName: cloudEl("pickupPocName").value.trim(), pocPhone: cloudEl("pickupPocPhone").value.trim(), pocEmail: cloudEl("pickupPocEmail").value.trim(),
@@ -11982,7 +12630,7 @@
   function exportPickupSlipFor(deliveryId, btn){
     var d = jdDeliveriesCache.filter(function(x){ return x.id === deliveryId; })[0];
     if (!d) return;
-    var ids = d.asset_ids || [];
+    var ids = d.asset_ids || [], custom = pickupCustomItems(d);
     if (btn) btn.disabled = true;
     Promise.all([
       ids.length ? fetchRowsByIds("eq_assets", "*", ids, 80) : Promise.resolve([]),
@@ -11996,7 +12644,7 @@
         var a = res[0].filter(function(x){ return x.id === id; })[0];
         var c = res[1].filter(function(x){ return x.asset_id === id && x.job_id === d.job_id; })[0];
         return pickupSlipLine(a, id, c);
-      });
+      }).concat(custom.map(pickupCustomSlipLine));
       exportPickupSlip(pickupSlipInfo(d.eq_jobs || {}, pickupWhenText(d), d.van || "", driver ? driver.email : "", d.poc_name, d.poc_phone, d.driver_notes || "", lines));
     }).catch(function(e){
       if (btn) btn.disabled = false;
@@ -12015,6 +12663,7 @@
   if (pickupJobSelectEl) pickupJobSelectEl.addEventListener("change", function(){
     // a different job has a different contact
     ["pickupPocName", "pickupPocPhone", "pickupPocEmail"].forEach(function(id){ cloudEl(id).value = ""; });
+    if (pickupSavedId) cloudEl("pickupCustomList").innerHTML = "";
     pickupSavedId = null;
     cloudEl("pickupAssignBtn").disabled = false;
     pickupMsg("");
@@ -12037,11 +12686,12 @@
     // once it is saved its lines can no longer be ticked, so the saved pick-up's own list is used
     var saved = pickupSavedId && pickupData ? pickupData.openPickups.filter(function(p){ return p.id === pickupSavedId; })[0] : null;
     var ids = saved ? (saved.asset_ids || []) : f.ids;
-    if (!ids.length){ pickupMsg("Nothing is ticked - tick what should be on the slip.", "bad"); return; }
+    var custom = saved ? pickupCustomItems(saved) : f.custom;
+    if (!ids.length && !custom.length){ pickupMsg("Nothing to put on the slip yet - tick an asset, or add a line under Other items.", "bad"); return; }
     var lines = ids.map(function(id){
       var c = pickupData.checkouts.filter(function(x){ return x.asset_id === id && x.job_id === f.jobId; })[0];
       return pickupSlipLine(pickupData.assetsById[id], id, c);
-    });
+    }).concat(custom.map(pickupCustomSlipLine));
     var when = [f.date ? driverFormatDate(f.date) : "", f.time ? deliveryTimeRange({scheduled_time: f.time, duration_min: f.lengthMin}) : ""].filter(Boolean).join(" ");
     exportPickupSlip(pickupSlipInfo(f.job, when, f.van, f.driverEmail, f.pocName, f.pocPhone, f.notes, lines));
   });
@@ -12050,7 +12700,7 @@
     if (pickupSavedId){ pickupMsg("This pick-up is already saved. Close this window and click Create pick-up slip to make another one.", "bad"); return; }
     var f = pickupFormValues();
     if (!f.jobId || !f.job){ pickupMsg("Pick the job to collect from first.", "bad"); return; }
-    if (!f.ids.length){ pickupMsg("Nothing is ticked - tick what the driver should bring back.", "bad"); return; }
+    if (!f.ids.length && !f.custom.length){ pickupMsg("Nothing to pick up yet - tick an asset, or add a line under Other items.", "bad"); return; }
     if (!f.driverId){ pickupMsg("Pick a driver first.", "bad"); return; }
     var pickupId = cloudUuid();
     pickupAssignBtnEl.disabled = true;
@@ -12087,11 +12737,28 @@
         dupErr.plain = true;
         throw dupErr;
       }
+      if (!f.ids.length) return null;
+      return cloud.sb.from("eq_asset_checkouts").select("asset_id").eq("job_id", f.jobId).is("returned_at", null);
+    }).then(function(cr){
+      if (cr){
+        if (cr.error) throw cr.error;
+        var stillOut = {};
+        (cr.data || []).forEach(function(c){ stillOut[c.asset_id] = true; });
+        var gone = f.ids.filter(function(id){ return !stillOut[id]; });
+        if (gone.length){
+          var goneErr = new Error("No longer out with this job (returned, or moved to another job, a moment ago): " + gone.map(function(id){ return pickupAssetName(pickupData.assetsById[id], id); }).join(", ") + ". Close this window and open it again to see what is left.");
+          goneErr.plain = true;
+          throw goneErr;
+        }
+      }
       var record = {
-        id: pickupId, job_id: f.jobId, driver_id: f.driverId, kind: "pickup", items: [], asset_ids: f.ids, asset_qty: {},
+        id: pickupId, job_id: f.jobId, driver_id: f.driverId, kind: "pickup", items: f.custom, asset_ids: f.ids, asset_qty: {},
         poc_name: f.pocName, poc_phone: f.pocPhone, poc_email: f.pocEmail, van: f.van, scheduled_date: f.date, scheduled_time: f.time,
         driver_notes: f.notes, status: "assigned", updated_by: cloud.clientId
       };
+      // where the driver's ticks for the typed-in lines go; naming it here means a
+      // database without it says so now, not on site when the slip is being signed
+      if (f.custom.length) record.picked_item_ids = null;
       if (deliveryLengthColumnMissing) return cloud.sb.from("eq_deliveries").insert(record);
       return cloud.sb.from("eq_deliveries").insert(Object.assign({duration_min: f.lengthMin}, record)).then(function(ins){
         if (ins.error && /duration_min/.test(String(ins.error.message || ""))){
@@ -12104,8 +12771,9 @@
       if (r.error) throw r.error;
       pickupSavedId = pickupId;
       var when = [f.date ? formatDeliveryDate(f.date) : "", f.time ? formatDeliveryTime(f.time) : ""].filter(Boolean).join(" at ");
-      pickupMsg("Pick-up of " + f.ids.length + " asset" + (f.ids.length === 1 ? "" : "s") + " assigned to " + (f.driverEmail || "the driver") + (f.van ? " in " + f.van : "") +
-        (when ? " for " + when : "") + ". Saved - it is on their list now. The assets go back into stock when the driver submits the signed slip.", "good");
+      var total = f.ids.length + f.custom.length;
+      pickupMsg("Pick-up of " + total + " item" + (total === 1 ? "" : "s") + " assigned to " + (f.driverEmail || "the driver") + (f.van ? " in " + f.van : "") +
+        (when ? " for " + when : "") + ". Saved - it is on their list now." + (f.ids.length ? " The assets go back into stock when the driver submits the signed slip." : ""), "good");
       // the lines now show as scheduled; the form stays as it was saved
       loadPickupData().then(function(){ if (!cloudEl("pickupBackdrop").hidden) renderPickupLines(); }, function(){});
       if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
@@ -12114,6 +12782,7 @@
       pickupAssignBtnEl.disabled = false;
       var text = String((e && e.message) || e);
       pickupMsg(e && e.plain ? text
+        : /\bpicked_item_ids\b/.test(text) ? PICKUP_ITEMS_NEEDS_SQL
         : /\b(kind|picked_asset_ids|driver_notes)\b/.test(text) ? PICKUP_NEEDS_SQL
         : isNetworkProblem(e) ? "You're offline — this needs an internet connection."
         : "Couldn't assign: " + text, "bad");
@@ -12128,27 +12797,239 @@
   });
 
   // ---- the driver's pick-up slip: a tick for each asset actually collected ----
-  function pickupItemsTableHtml(ids){
-    var n = (ids || []).length;
-    var rows = (ids || []).map(function(id){
+  function pickupItemsTableHtml(d){
+    var ids = (d && d.asset_ids) || [], custom = pickupCustomItems(d);
+    var n = ids.length + custom.length;
+    var rows = ids.map(function(id){
       var a = assetsCache.filter(function(x){ return x.id === id; })[0];
       var name = a ? '<span class="ds-item-name">' + escHtml(pickupAssetName(a, id)) + '</span>' +
         (a.description ? '<span class="ds-item-sub">' + escHtml(a.description) + '</span>' : '') : "Asset not found";
       return '<tr><td class="ds-pick"><input type="checkbox" class="ds-pick-chk" data-pick-id="' + escHtml(id) + '" checked aria-label="Picked up"></td>' +
         '<td>' + name + '</td><td>' + escHtml(a ? a.category : "") + (a && a.barcode ? '<span class="ds-item-sub">' + escHtml(a.barcode) + '</span>' : '') + '</td></tr>';
+    }).join("") + custom.map(function(it){
+      // typed in by the warehouse: ticked the same way, but kept apart from the assets when saved
+      return '<tr><td class="ds-pick"><input type="checkbox" class="ds-pick-chk" data-pick-item="' + escHtml(it.id) + '" checked aria-label="Picked up"></td>' +
+        '<td><span class="ds-item-name">' + escHtml(it.description) + '</span></td><td>' + (pickupCustomQty(it) > 1 ? "Qty " + pickupCustomQty(it) : "") + '</td></tr>';
     }).join("");
-    return '<thead><tr><th class="ds-pick">Picked up</th><th>Asset</th><th>Category</th></tr></thead><tbody>' + rows + '</tbody>' +
+    return '<thead><tr><th class="ds-pick">Picked up</th><th>Item</th><th>' + (custom.length ? "Details" : "Category") + '</th></tr></thead><tbody>' + rows + '</tbody>' +
       '<tfoot><tr><td class="ds-pick" id="pickupTickCount">' + n + '</td><td colspan="2">of ' + n + ' picked up</td></tr></tfoot>';
   }
   function pickupTickedOnSlip(){
-    return Array.prototype.slice.call(cloudEl("deliverySignAssetsTable").querySelectorAll(".ds-pick-chk"))
+    return Array.prototype.slice.call(cloudEl("deliverySignAssetsTable").querySelectorAll(".ds-pick-chk[data-pick-id]"))
       .filter(function(c){ return c.checked; }).map(function(c){ return c.getAttribute("data-pick-id"); });
+  }
+  // the typed-in lines that are ticked
+  function pickupItemsTickedOnSlip(){
+    return Array.prototype.slice.call(cloudEl("deliverySignAssetsTable").querySelectorAll(".ds-pick-chk[data-pick-item]"))
+      .filter(function(c){ return c.checked; }).map(function(c){ return c.getAttribute("data-pick-item"); });
   }
   document.addEventListener("change", function(ev){
     if (!ev.target.classList || !ev.target.classList.contains("ds-pick-chk")) return;
     var count = cloudEl("pickupTickCount");
-    if (count) count.textContent = String(pickupTickedOnSlip().length);
+    if (count) count.textContent = String(pickupTickedOnSlip().length + pickupItemsTickedOnSlip().length);
     clearDeliverySignWarning();
+  });
+
+  // ---------- transfer assets between jobs (full-access staff) ----------
+  // An asset that is out with one job goes straight to another without coming
+  // back to the warehouse. The database does it in one step (the function
+  // eq_transfer_assets, add-asset-transfers-and-pickup-items.sql): the "out
+  // with job A" entry is closed and an "out with job B" entry opened, each
+  // with a note naming the other job. Only the records change - no driver.
+  // The window reads the same "what is out" list as the pick-up window.
+  var TRANSFER_NEEDS_SQL = "Transfers need add-asset-transfers-and-pickup-items.sql to be run in the Supabase SQL editor first - step 2 in this build's read-me.";
+  var assetTransferWant = null;   // {jobId, assetId}: the one asset the window was opened for, if any
+
+  function assetTransferMsg(text, kind){
+    var m = cloudEl("assetTransferMsg");
+    m.textContent = text || "";
+    m.className = "assign-driver-msg" + (kind ? " " + kind : "");
+  }
+  function assetTransferBoxes(){
+    return Array.prototype.slice.call(cloudEl("assetTransferList").querySelectorAll("input[data-at-asset]"));
+  }
+  function assetTransferPicked(){
+    return assetTransferBoxes().filter(function(c){ return c.checked && !c.disabled; }).map(function(c){ return c.getAttribute("data-at-asset"); });
+  }
+  function updateAssetTransferCount(){
+    var boxes = assetTransferBoxes();
+    var free = boxes.filter(function(c){ return !c.disabled; });
+    var ticked = free.filter(function(c){ return c.checked; }).length;
+    cloudEl("assetTransferCount").textContent = ticked + " of " + free.length + " ticked to transfer" +
+      (boxes.length > free.length ? " (" + (boxes.length - free.length) + " can't be transferred right now)" : "");
+    var allBtn = cloudEl("assetTransferTickAllBtn");
+    allBtn.hidden = !free.length;
+    allBtn.textContent = free.length && ticked === free.length ? "Untick all" : "Tick all";
+  }
+  function renderAssetTransferLines(){
+    var jobId = cloudEl("assetTransferFrom").value;
+    var list = cloudEl("assetTransferList"), head = cloudEl("assetTransferListHead");
+    var lines = pickupLinesFor(jobId);
+    if (!lines.length){ list.innerHTML = ""; head.hidden = true; return; }
+    // opened for one asset: only that one starts ticked
+    var only = assetTransferWant && assetTransferWant.jobId === jobId ? assetTransferWant.assetId : null;
+    list.innerHTML = lines.map(function(l){
+      var c = l.checkout;
+      // not on site yet: it is on a delivery nobody has signed for
+      var onTheWay = !!(c.delivery_id && pickupData.unsignedDeliveries && pickupData.unsignedDeliveries[c.delivery_id]);
+      var taken = !!l.pickup || onTheWay;
+      var since = formatWhen(c.checked_out_at).replace(/^Updated\s+/, "");
+      var facts = [l.asset && l.asset.category, l.asset && l.asset.barcode, "out since " + since, c.poc_name ? "handed to " + c.poc_name : ""].filter(Boolean).join(" · ");
+      var when = l.pickup ? pickupWhenText(l.pickup) : "";
+      return '<label class="pu-row' + (taken ? " pu-taken" : "") + '">' +
+        '<input type="checkbox" data-at-asset="' + escHtml(c.asset_id) + '"' + (taken ? " disabled" : (only && c.asset_id === only ? " checked" : "")) + '>' +
+        '<span class="pu-row-text"><span class="pu-name">' + escHtml(pickupAssetName(l.asset, c.asset_id)) + '</span>' +
+          (l.asset && l.asset.description ? '<span class="pu-sub">' + escHtml(l.asset.description) + '</span>' : '') +
+          '<span class="pu-sub">' + escHtml(facts) + '</span>' +
+          (onTheWay ? '<span class="pu-sub pu-already">On a delivery that hasn\'t been signed for yet - change or cancel that delivery instead</span>'
+            : l.pickup ? '<span class="pu-sub pu-already">A pick-up is scheduled for it' + (when ? " (" + escHtml(when) + ")" : "") + ' - cancel that pick-up first to transfer it</span>' : '') +
+        '</span></label>';
+    }).join("");
+    head.hidden = false;
+    updateAssetTransferCount();
+  }
+  // the job to move them to: any job but the one they are leaving
+  function renderAssetTransferTo(){
+    var sel = cloudEl("assetTransferTo"), from = cloudEl("assetTransferFrom").value, keep = sel.value;
+    var jobs = pickupData.jobs.filter(function(j){ return j.id !== from && (!j.archived || j.id === keep); });
+    jobs.sort(function(a, b){ return pickupJobLabel(a).localeCompare(pickupJobLabel(b), undefined, {numeric: true, sensitivity: "base"}); });
+    sel.innerHTML = '<option value="">' + (jobs.length ? "Pick a job..." : "No other job") + '</option>' + jobs.map(function(j){
+      return '<option value="' + j.id + '"' + (j.id === keep ? " selected" : "") + '>' + escHtml(pickupJobLabel(j)) + '</option>';
+    }).join("");
+  }
+  // What is out, as the pick-up window reads it - plus any job that still has
+  // assets out but has since been deleted (the pick-up window's own list leaves
+  // those out). An asset stranded on a deleted job is exactly one that needs
+  // moving to the right job.
+  function loadTransferData(){
+    return loadPickupData().then(function(){
+      var have = {};
+      pickupData.jobs.forEach(function(j){ have[j.id] = true; });
+      var missing = Array.from(new Set(pickupData.checkouts.map(function(c){ return c.job_id; }).filter(function(id){ return id && !have[id]; })));
+      pickupData.goneJobs = [];
+      if (!missing.length) return pickupData;
+      return fetchRowsByIds("eq_jobs", "*", missing, 80).then(function(list){ pickupData.goneJobs = list || []; return pickupData; }, function(){ return pickupData; });
+    });
+  }
+  function assetTransferFromJobs(){ return pickupData.jobs.concat(pickupData.goneJobs || []); }
+  function assetTransferJobLabel(j){
+    return pickupJobLabel(j) + ((pickupData.goneJobs || []).indexOf(j) !== -1 ? " (deleted job)" : "");
+  }
+  // the job they are leaving: only jobs that have something out
+  function renderAssetTransferJobs(wantJobId){
+    var sel = cloudEl("assetTransferFrom");
+    var counts = {};
+    pickupData.checkouts.forEach(function(c){
+      if (!isConsumable(pickupData.assetsById[c.asset_id])) counts[c.job_id] = (counts[c.job_id] || 0) + 1;
+    });
+    var jobs = assetTransferFromJobs().filter(function(j){ return counts[j.id]; });
+    jobs.sort(function(a, b){ return pickupJobLabel(a).localeCompare(pickupJobLabel(b), undefined, {numeric: true, sensitivity: "base"}); });
+    if (!jobs.length){
+      sel.innerHTML = '<option value="">Nothing is deployed</option>';
+    } else {
+      // only a job that is really on the list can start selected
+      var preselect = wantJobId && jobs.some(function(j){ return j.id === wantJobId; }) ? wantJobId : (jobs.length === 1 ? jobs[0].id : "");
+      sel.innerHTML = (preselect ? '' : '<option value="">Pick a job...</option>') + jobs.map(function(j){
+        return '<option value="' + j.id + '"' + (j.id === preselect ? " selected" : "") + '>' + escHtml(assetTransferJobLabel(j)) + ' (' + counts[j.id] + ' out)</option>';
+      }).join("");
+    }
+    renderAssetTransferTo();
+    renderAssetTransferLines();
+  }
+  function openAssetTransferModal(jobId, assetId){
+    if (cloud.role && cloud.role !== "staff"){ showSnackbar("Only full-access staff can transfer assets."); return; }
+    assetTransferWant = jobId ? {jobId: jobId, assetId: assetId || null} : null;
+    cloudEl("assetTransferBackdrop").hidden = false;
+    cloudEl("assetTransferFrom").innerHTML = '<option value="">Loading...</option>';
+    cloudEl("assetTransferTo").innerHTML = '<option value="">Loading...</option>';
+    cloudEl("assetTransferList").innerHTML = "";
+    cloudEl("assetTransferListHead").hidden = true;
+    cloudEl("assetTransferPoc").value = "";
+    cloudEl("assetTransferNote").value = "";
+    cloudEl("assetTransferGoBtn").disabled = false;
+    assetTransferMsg("Loading what is out...");
+    loadTransferData().then(function(){
+      renderAssetTransferJobs(jobId || "");
+      assetTransferMsg(pickupData.checkouts.some(function(c){ return !isConsumable(pickupData.assetsById[c.asset_id]); }) ? "" : "No assets are out with any job right now, so there is nothing to transfer.");
+    }).catch(function(e){
+      cloudEl("assetTransferFrom").innerHTML = '<option value="">Couldn\'t load</option>';
+      cloudEl("assetTransferTo").innerHTML = '<option value="">Couldn\'t load</option>';
+      assetTransferMsg(isNetworkProblem(e) ? "You're offline - this needs an internet connection." : "Couldn't load: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+  function closeAssetTransferModal(){ cloudEl("assetTransferBackdrop").hidden = true; }
+  function doAssetTransfer(){
+    if (!pickupData) return;
+    var btn = cloudEl("assetTransferGoBtn");
+    var from = cloudEl("assetTransferFrom").value, to = cloudEl("assetTransferTo").value, ids = assetTransferPicked();
+    var fromJob = assetTransferFromJobs().filter(function(j){ return j.id === from; })[0];
+    var toJob = pickupData.jobs.filter(function(j){ return j.id === to; })[0];
+    if (!fromJob){ assetTransferMsg("Pick the job the assets are leaving first.", "bad"); return; }
+    if (!ids.length){ assetTransferMsg("Nothing is ticked - tick the assets to transfer.", "bad"); return; }
+    if (!toJob){ assetTransferMsg("Pick the job they are going to.", "bad"); return; }
+    var n = ids.length, toLabel = pickupJobLabel(toJob);
+    if (!confirm("Transfer " + n + " asset" + (n === 1 ? "" : "s") + "\n\nfrom:  " + assetTransferJobLabel(fromJob) + "\nto:      " + toLabel +
+      "\n\n" + (n === 1 ? "It" : "They") + " will show as out with the new job from now on. Nobody is sent to move anything - this only changes the records.")) return;
+    btn.disabled = true;
+    assetTransferMsg("Transferring...");
+    Promise.resolve().then(function(){
+      return cloud.sb.rpc("eq_transfer_assets", {p_asset_ids: ids, p_from: from, p_to: to, p_poc: cloudEl("assetTransferPoc").value.trim(), p_note: cloudEl("assetTransferNote").value.trim()});
+    }).then(function(r){
+      if (r.error) throw r.error;
+      var rows = r.data || [];
+      var moved = rows.filter(function(x){ return x.moved; }), left = rows.filter(function(x){ return !x.moved; });
+      var names = pickupData.assetsById;
+      var text = moved.length ? "Transferred " + moved.length + " asset" + (moved.length === 1 ? "" : "s") + " to " + toLabel + "." : "Nothing was transferred.";
+      if (left.length) text += " Not moved: " + left.map(function(x){ return pickupAssetName(names[x.asset_id], x.asset_id) + " - " + x.reason; }).join(" ");
+      assetTransferWant = null;
+      // show what is left with the job, and bring whatever is open underneath up to date
+      return loadTransferData().then(null, function(){}).then(function(){
+        btn.disabled = false;
+        if (!cloudEl("assetTransferBackdrop").hidden){ renderAssetTransferJobs(from); cloudEl("assetTransferTo").value = to; }
+        assetTransferMsg(text, moved.length && !left.length ? "good" : "bad");
+        if (!cloudEl("pickupBackdrop").hidden) renderPickupLines();
+        if (!cloudEl("jobsDashboardBackdrop").hidden) loadJobsDashboard(true);
+        if (!cloudEl("assetAuditBackdrop").hidden) loadAssetAudit();
+      });
+    }).catch(function(e){
+      btn.disabled = false;
+      var text = String((e && e.message) || e);
+      assetTransferMsg(/eq_transfer_assets/.test(text) && /could not find|does not exist|schema cache/i.test(text) ? TRANSFER_NEEDS_SQL
+        : isNetworkProblem(e) ? "You're offline - this needs an internet connection."
+        : "Couldn't transfer: " + text, "bad");
+    });
+  }
+  var assetTransferCloseBtnEl = cloudEl("assetTransferCloseBtn");
+  if (assetTransferCloseBtnEl) assetTransferCloseBtnEl.addEventListener("click", closeAssetTransferModal);
+  var assetTransferBackdropEl = cloudEl("assetTransferBackdrop");
+  if (assetTransferBackdropEl) assetTransferBackdropEl.addEventListener("click", function(ev){ if (ev.target === assetTransferBackdropEl) closeAssetTransferModal(); });
+  var assetTransferFromEl = cloudEl("assetTransferFrom");
+  if (assetTransferFromEl) assetTransferFromEl.addEventListener("change", function(){
+    assetTransferWant = null;
+    assetTransferMsg("");
+    renderAssetTransferTo();
+    renderAssetTransferLines();
+  });
+  var assetTransferListEl = cloudEl("assetTransferList");
+  if (assetTransferListEl) assetTransferListEl.addEventListener("change", updateAssetTransferCount);
+  var assetTransferTickAllBtnEl = cloudEl("assetTransferTickAllBtn");
+  if (assetTransferTickAllBtnEl) assetTransferTickAllBtnEl.addEventListener("click", function(){
+    var free = assetTransferBoxes().filter(function(c){ return !c.disabled; });
+    var all = free.length && free.every(function(c){ return c.checked; });
+    free.forEach(function(c){ c.checked = !all; });
+    updateAssetTransferCount();
+  });
+  var assetTransferGoBtnEl = cloudEl("assetTransferGoBtn");
+  if (assetTransferGoBtnEl) assetTransferGoBtnEl.addEventListener("click", doAssetTransfer);
+  // from the dashboard's Deployed assets list, or a line on the Assets page
+  document.addEventListener("click", function(ev){
+    if (!ev.target.closest) return;
+    if (ev.target.closest("[data-jd-transfer]")){ openAssetTransferModal(""); return; }
+    var rowBtn = ev.target.closest("[data-audit-transfer]");
+    if (!rowBtn) return;
+    var assetId = rowBtn.getAttribute("data-audit-transfer");
+    var checkout = auditOpenCheckoutFor(assetId);
+    openAssetTransferModal((checkout && checkout.job_id) || "", assetId);
   });
 
   // ---------- driver dashboard (role=driver) ----------
@@ -12305,8 +13186,9 @@
         '<div class="driver-address">' + (address ? escHtml(address) : "No address on this job") + '</div>' +
         '<div class="driver-card-stats">' +
           (d.van ? '<span><b>' + escHtml(d.van) + '</b></span>' : '') +
-          (itemCount || !assetCount ? '<span><b>' + itemCount + '</b> item' + (itemCount === 1 ? "" : "s") + '</span>' : '') +
-          (assetCount ? '<span><b>' + assetCount + '</b> asset' + (assetCount === 1 ? "" : "s") + (pickup ? " to pick up" : "") + '</span>' : '') +
+          (pickup ? '<span><b>' + pickupLineCount(d) + '</b> item' + (pickupLineCount(d) === 1 ? "" : "s") + ' to pick up</span>'
+            : (itemCount || !assetCount ? '<span><b>' + itemCount + '</b> item' + (itemCount === 1 ? "" : "s") + '</span>' : '') +
+              (assetCount ? '<span><b>' + assetCount + '</b> asset' + (assetCount === 1 ? "" : "s") + '</span>' : '')) +
           (d.poc_name ? '<span>Contact: <b>' + escHtml(d.poc_name) + '</b>' + (d.poc_phone ? " · " + escHtml(d.poc_phone) : "") + '</span>' : '') +
         '</div>' +
         (halfSigned ? '<span class="driver-status-badge">Delivery slip signed - the asset slip still needs a signature</span>' : '') +
@@ -12485,27 +13367,29 @@
 
     cloudEl("deliverySignItemsTable").innerHTML = deliveryItemsTableHtml(delivery.items);
     // assets only: there is no equipment slip to sign, just the asset slip
-    var hasItems = (delivery.items || []).length > 0;
+    // (a pick-up's own lines are on its pick-up slip below, not here)
+    var hasItems = !pickup && (delivery.items || []).length > 0;
     cloudEl("deliverySignEquipSection").hidden = !hasItems;
     var equipSigned = !!delivery.signed_at || !hasItems;
     cloudEl("deliverySignEquipDone").hidden = !equipSigned;
     cloudEl("deliverySignEquipFields").hidden = equipSigned;
     cloudEl("deliverySignerName").value = "";
 
-    var hasAssets = delivery.asset_ids && delivery.asset_ids.length > 0;
+    // a pick-up of typed-in lines only still has its slip to tick and sign
+    var hasAssets = !!(delivery.asset_ids && delivery.asset_ids.length > 0) || (pickup && pickupCustomItems(delivery).length > 0);
     cloudEl("assetSlipSection").hidden = !hasAssets;
     var assetSigned = hasAssets && !!delivery.asset_signed_at;
     if (hasAssets){
       cloudEl("deliverySignAssetsTable").innerHTML = assetItemsTableHtml(delivery.asset_ids, delivery.asset_qty);
       // consumables are used up on the job; only the rest is on loan
-      var consumablesOnSlip = delivery.asset_ids.filter(function(id){ return isConsumable(assetsCache.filter(function(x){ return x.id === id; })[0]); }).length;
-      cloudEl("assetSlipNote").textContent = consumablesOnSlip === delivery.asset_ids.length ? "These are consumables - they stay with the job."
+      var consumablesOnSlip = (delivery.asset_ids || []).filter(function(id){ return isConsumable(assetsCache.filter(function(x){ return x.id === id; })[0]); }).length;
+      cloudEl("assetSlipNote").textContent = consumablesOnSlip === (delivery.asset_ids || []).length ? "These are consumables - they stay with the job."
         : consumablesOnSlip ? "Assets are on loan and come back to the warehouse. The lines marked Consumable stay with the job."
         : "These are on loan - they'll be checked back into the house pool when returned.";
       // A pick-up: the same section, as a list to tick off what is actually taken.
       if (pickup){
-        cloudEl("deliverySignAssetsTable").innerHTML = pickupItemsTableHtml(delivery.asset_ids);
-        cloudEl("assetSlipNote").textContent = "Tick each item you are taking back. Leave unticked anything that isn't there - it stays on this job, still shown as deployed.";
+        cloudEl("deliverySignAssetsTable").innerHTML = pickupItemsTableHtml(delivery);
+        cloudEl("assetSlipNote").textContent = "Tick each item you are taking back. Leave unticked anything that isn't there - the office is told it wasn't picked up.";
       }
       cloudEl("assetSlipHeading").textContent = pickup ? "Pick-up Slip" : "Asset Slip";
       cloudEl("assetSignerLabel").textContent = pickup ? "Released by - print name" : "Received by - print name";
@@ -12601,18 +13485,21 @@
     if (!currentAssetPad || currentAssetPad.isEmpty()){ deliverySignMsg(isPickup(currentDelivery) ? "Sign in the box first." : "Sign in the asset box first.", "bad"); return; }
     var patch = {asset_signed_by: name, asset_signature_data: currentAssetPad.toDataUrl(), asset_signed_at: new Date().toISOString(), updated_by: cloud.clientId};
     if (currentDelivery.signed_at || !(currentDelivery.items || []).length) patch.status = "delivered";
-    var pickupSign = isPickup(currentDelivery), pickedNow = [];
+    var pickupSign = isPickup(currentDelivery), pickedNow = [], pickedTotal = 0;
     if (pickupSign){
       pickedNow = pickupTickedOnSlip();
-      var onSlip = (currentDelivery.asset_ids || []).length;
-      if (!pickedNow.length){
+      var pickedItems = pickupItemsTickedOnSlip();
+      var onSlip = pickupLineCount(currentDelivery);
+      pickedTotal = pickedNow.length + pickedItems.length;
+      if (!pickedTotal){
         deliverySignMsg("Nothing is ticked as picked up. Tick what you are taking back - or call the office if nothing can be picked up.", "bad");
         return;
       }
-      if (pickedNow.length < onSlip && !confirm((onSlip - pickedNow.length) + " of the " + onSlip + " items " + (onSlip - pickedNow.length === 1 ? "is" : "are") +
-        " not ticked.\n\nAnything not ticked stays on this job as still deployed, and the office is told. Submit the slip like this?")) return;
-      // the database puts what was ticked back into stock the moment this is saved
+      if (pickedTotal < onSlip && !confirm((onSlip - pickedTotal) + " of the " + onSlip + " items " + (onSlip - pickedTotal === 1 ? "is" : "are") +
+        " not ticked.\n\nAnything not ticked is recorded as not picked up (an asset stays on this job, still shown as deployed), and the office is told. Submit the slip like this?")) return;
+      // the database puts the assets that were ticked back into stock the moment this is saved
       patch.picked_asset_ids = pickedNow;
+      if (pickupCustomItems(currentDelivery).length) patch.picked_item_ids = pickedItems;
       patch.status = "delivered";
     }
     assetSignSubmitBtnEl.disabled = true;
@@ -12634,7 +13521,7 @@
           deliverySignMsg("Signed, but the asset slip email didn't send: " + emailErr + ". Let the warehouse know this was signed.", "bad");
           return;
         }
-        deliverySignMsg(pickupSign ? "Signed - " + pickedNow.length + " item" + (pickedNow.length === 1 ? "" : "s") + " picked up. Slip emailed. Thank you!" : "Signed. Slip emailed. Thank you!", "good");
+        deliverySignMsg(pickupSign ? "Signed - " + pickedTotal + " item" + (pickedTotal === 1 ? "" : "s") + " picked up. Slip emailed. Thank you!" : "Signed. Slip emailed. Thank you!", "good");
         if (patch.status === "delivered") setTimeout(closeDeliverySignModal, 1200);
       });
     }).catch(function(e){
