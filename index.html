@@ -721,7 +721,10 @@
   /* Assets: staff always, PLUS an unlocked ("all jobs") tech can VIEW the
      house pool - any viewer, and any LOCKED account (tech or viewer),
      never need it. */
-  body.role-viewer #assetsBtn, body.locked-job #assetsBtn{display:none !important;}
+  body.role-viewer #assetsBtn, body.locked-job #assetsBtn, body.some-jobs #assetsBtn{display:none !important;}
+  /* a PC on a job it was only put on to look at: nothing can be requested
+     there (the database refuses it), so the buttons aren't offered */
+  body.job-look-only #deliveryRequestBtn, body.job-look-only #assetAuditRequestBtn{display:none !important;}
   /* tech sees the list but can't add assets or mark one returned - those
      are staff-only actions */
   body.role-tech #assetsNewForm, body.role-tech .asset-return-btn, body.role-tech .asset-transfer-btn{display:none !important;}
@@ -756,57 +759,221 @@
   .delivery-request-msg.bad{color:var(--danger);font-weight:600;}
   .delivery-request-msg.good{color:var(--success);font-weight:600;}
 
-  /* =================== manage users modal =================== */
+  /* =================== manage users window =================== */
   .modal-backdrop#manageUsersBackdrop[hidden]{display:none;}
-  #manageUsersBackdrop .modal-panel{width:800px;overflow:auto;}
-  .mu-list{max-height:400px;overflow:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;flex:none;}
-  .mu-new{flex:none;}
-  /* Fixed column tracks (not content-sized) so every row's role/job/action
-     columns land in the same place regardless of email length or whether
-     that row even has a job select - the previous flex-wrap layout let a
-     long email push the job select onto its own line on SOME rows but not
-     others, which is what actually made the list look disorganized. */
-  .mu-row{
-    display:grid;grid-template-columns:minmax(150px,1.4fr) 148px 150px 68px 96px;
-    align-items:center;gap:8px;padding:9px 10px;border-bottom:1px solid var(--border);font-size:13px;
+  /* Wide enough for the Jobs view (a column per person), and never taller
+     than the screen: the lists scroll inside the window, the tabs at the top
+     and the Save bar at the bottom stay where they are. */
+  #manageUsersBackdrop{--mx-dirty:#ffe59a;--mx-tint:#e6eef9;--mx-off:#eef0f3;--mu-changed:#fff7dc;}
+  @media (prefers-color-scheme: dark){
+    #manageUsersBackdrop{--mx-dirty:#6b5410;--mx-tint:#22303f;--mx-off:#1f252d;--mu-changed:#2f2a17;}
   }
-  .mu-row:last-child{border-bottom:none;}
-  .mu-email{min-width:0;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .mu-master-badge{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:99px;background:var(--accent);color:#fff;vertical-align:middle;}
-  .mu-row select{font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);width:100%;}
-  .mu-row button{padding:6px 11px;font-size:12.5px;white-space:nowrap;}
-  .mu-row .mu-save{visibility:hidden;}
-  .mu-row.mu-dirty .mu-save{visibility:visible;}
-  /* hidden (role doesn't need a job) keeps its grid cell reserved via
-     visibility, not display:none - that's what keeps the Save/Delete
-     buttons lined up with every other row's instead of sliding left */
-  .mu-job-hidden{visibility:hidden;pointer-events:none;}
-  /* each user's second line: mobile number under the email, password under the rest */
-  .mu-phone{grid-column:1 / 2;min-width:0;width:100%;font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
-  .mu-pw{grid-column:2 / -1;display:flex;align-items:center;gap:8px;min-width:0;}
-  .mu-pw-form{display:flex;align-items:center;gap:8px;flex:1 1 auto;min-width:0;}
-  .mu-pw-form[hidden], .mu-pw-open[hidden]{display:none;}
-  .mu-pw-input{flex:1 1 140px;min-width:0;font:inherit;font-size:12.5px;padding:6px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);}
-  /* each user's third line: what the same login is in the Install Tracker
-     (it keeps its own list of account types). For PC-FE and FE Viewer this
-     is where its project is picked. */
-  .mu-it-line{grid-column:1 / -1;display:flex;align-items:center;gap:8px;min-width:0;font-size:12px;color:var(--ink-muted);}
-  .mu-it-line .mu-it-label{flex:none;font-weight:600;}
-  .mu-it-line .mu-it-now{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .mu-it-line .mu-it-now.mu-it-full{color:var(--ink);}
-  .mu-row .mu-it-line select.mu-it{width:auto;min-width:0;max-width:320px;flex:0 1 320px;}
+  #manageUsersBackdrop .modal-panel{width:min(1240px, 96vw);max-width:96vw;max-height:92vh;padding:14px 16px;gap:8px;overflow:hidden;}
+  #manageUsersBackdrop .modal-head{flex:none;gap:12px;justify-content:flex-start;}
+  #manageUsersBackdrop .modal-head h2{flex:none;margin:0;}
+  .mu-tabs{display:inline-flex;flex:none;border:1px solid var(--border);border-radius:8px;overflow:hidden;}
+  .mu-tabs[hidden]{display:none;}
+  .mu-tabs button{border:none;border-radius:0;min-height:0;padding:6px 18px;font-size:13px;font-weight:600;}
+  .mu-tabs button + button{border-left:1px solid var(--border);}
+  .mu-tabs button.active, .mu-tabs button.active:hover{background:var(--accent);color:var(--accent-ink);}
+  .mu-head-note{flex:1 1 auto;min-width:0;font-size:12px;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mu-health{flex:none;max-height:22vh;overflow:auto;border:1px solid var(--danger);border-radius:8px;padding:8px 10px;font-size:12.5px;font-weight:600;color:var(--danger);}
+  .mu-health[hidden]{display:none;}
+  .mu-health ul{margin:4px 0 0 18px;padding:0;font-weight:400;}
+  .mu-setup{flex:none;border:1px solid var(--border);border-radius:8px;background:var(--surface-alt);padding:10px 12px;font-size:13px;font-weight:600;}
+  .mu-setup[hidden]{display:none;}
+  .mu-view{display:flex;flex-direction:column;gap:8px;flex:1 1 auto;min-height:0;overflow:auto;}
+  .mu-view[hidden]{display:none;}
+  .mu-legend{flex:none;margin:0;font-size:12px;line-height:1.4;color:var(--ink-muted);}
+  .mu-legend[hidden]{display:none;}
+  #manageUsersBackdrop.mu-busy .mu-view{pointer-events:none;opacity:.6;}
   .mu-note{font-size:13px;color:var(--ink-muted);padding:12px 10px;}
-  .mu-msg{font-size:13px;color:var(--ink-muted);min-height:18px;margin-bottom:6px;}
+  .mu-note[hidden]{display:none;}
+  .mu-foot{flex:none;display:flex;align-items:center;gap:12px;min-height:30px;}
+  .mu-msg{flex:1 1 auto;min-width:0;font-size:13px;color:var(--ink-muted);}
   .mu-msg.bad{color:var(--danger);font-weight:600;}
   .mu-msg.good{color:var(--success);font-weight:600;}
-  .mu-new{border-top:1px solid var(--border);padding-top:12px;margin-top:4px;}
-  .mu-new h3{margin:0 0 10px;font-size:14px;}
-  .mu-new-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px;margin-bottom:12px;}
-  .mu-new-fields label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-muted);}
-  /* 16px, same reasoning as .delivery-fields input above */
-  .mu-new-fields input, .mu-new-fields select{font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);}
-  .mu-new-fields label.mu-new-job{display:none;}
-  .mu-new-fields label.mu-new-job.show{display:flex;}
+  .mu-savebar{flex:none;display:flex;align-items:center;gap:8px;}
+  .mu-savebar[hidden]{display:none;}
+  .mu-savebar-note{font-size:12px;color:var(--ink-muted);}
+  .mu-savebar button{padding:7px 14px;font-size:13px;}
+
+  /* ----- People: one line per login ----- */
+  .mu-list{flex:1 1 auto;min-height:110px;overflow:auto;border:1px solid var(--border);border-radius:8px;}
+  /* Fixed tracks, so every line's boxes sit under their heading whatever the
+     length of the e-mail address. A window too narrow for them slides
+     sideways instead of squeezing the boxes. */
+  .mu-p-grid{display:grid;grid-template-columns:minmax(190px,1.3fr) 258px 160px 160px minmax(150px,1fr) 76px 60px;align-items:center;gap:8px;padding:4px 10px;min-width:1120px;}
+  .mu-p-head{position:sticky;top:0;z-index:2;align-items:start;background:var(--surface-alt);border-bottom:1px solid var(--border);padding-top:7px;padding-bottom:6px;row-gap:2px;
+    font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);}
+  .mu-p-head .mu-p-mailnote{grid-column:5 / -1;font-weight:400;text-transform:none;letter-spacing:0;line-height:1.35;}
+  .mu-row{border-bottom:1px solid var(--border);font-size:13px;}
+  .mu-row:last-child{border-bottom:none;}
+  .mu-row.mu-changed{background:var(--mu-changed);}
+  .mu-row.mu-failed{box-shadow:inset 4px 0 0 var(--danger);}
+  .mu-row.mu-flash{outline:2px solid var(--accent);outline-offset:-2px;}
+  .mu-email{min-width:0;font-weight:600;line-height:1.25;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mu-email .mu-sub{display:block;font-size:11.5px;font-weight:400;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;}
+  .mu-email .mu-sub:empty{display:none;}
+  .mu-master-badge, .mu-you-badge{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:2px 6px;border-radius:99px;background:var(--accent);color:#fff;vertical-align:middle;}
+  .mu-you-badge{background:var(--surface-alt);color:var(--ink-muted);border:1px solid var(--border);}
+  .mu-f{display:block;min-width:0;}
+  .mu-lab{display:none;}
+  .mu-row select, .mu-more input, .mu-pw-input{font:inherit;font-size:12.5px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface);color:var(--ink);min-width:0;}
+  .mu-row select{width:100%;}
+  .mu-row select:disabled{opacity:.6;}
+  .mu-row button{padding:5px 10px;font-size:12.5px;white-space:nowrap;min-height:0;}
+  .mu-mail{display:flex;align-items:center;gap:8px;min-width:0;}
+  .mu-mail input{flex:none;width:16px;height:16px;margin:0;}
+  .mu-mail-note{min-width:0;font-size:11.5px;line-height:1.25;color:var(--ink-muted);}
+  .mu-jobs-cell{min-width:0;}
+  .mu-row .mu-jobs-link{padding:2px 0;border:none;background:transparent;color:var(--accent);font-weight:600;text-decoration:underline;}
+  .mu-row .mu-jobs-link:hover{background:transparent;filter:brightness(.9);}
+  .mu-jobs-none{color:var(--ink-muted);}
+  .mu-row-err{padding:0 10px 6px 14px;font-size:12.5px;font-weight:600;color:var(--danger);}
+  .mu-row-err[hidden]{display:none;}
+  /* a login's second line: name, mobile number, a new password, delete */
+  .mu-more{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;padding:2px 10px 9px;}
+  .mu-more[hidden]{display:none;}
+  .mu-more label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-muted);}
+  .mu-more input{width:210px;}
+  .mu-pw{display:flex;align-items:center;gap:8px;min-width:0;}
+  .mu-pw-form{display:flex;align-items:center;gap:8px;min-width:0;}
+  .mu-pw-form[hidden], .mu-pw-open[hidden]{display:none;}
+  .mu-pw-input{width:250px;}
+  /* (the list while the database isn't ready: who there is, password, delete) */
+  .mu-ro-grid{display:grid;grid-template-columns:minmax(180px,1.4fr) 150px minmax(200px,2fr) 110px;align-items:center;gap:8px;padding:7px 10px;}
+  .mu-ro-kind{color:var(--ink-muted);}
+  .mu-new{flex:none;}
+  .mu-new[hidden]{display:none;}
+  .mu-new-form{margin-top:8px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;}
+  .mu-new-form[hidden]{display:none;}
+  .mu-new-fields{display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:8px 12px;width:100%;}
+  .mu-new-fields label{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:600;color:var(--ink-muted);min-width:0;}
+  .mu-new-fields input:not([type="checkbox"]), .mu-new-fields select{font:inherit;font-size:14px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);min-width:0;}
+  .mu-new-mail-box{display:flex;align-items:center;gap:8px;font-weight:400;min-height:32px;}
+
+  /* ----- Jobs: a row per job, a column per person -----
+     A real table in a box that scrolls both ways, with the names and the job
+     column staying in view. The item table's own rules (and the ones that turn
+     every table into cards on a phone) are all switched off here by name. */
+  .mx-tools{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;font-size:12.5px;}
+  .mx-tools input[type="search"]{font:inherit;font-size:13px;padding:6px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--ink);width:230px;}
+  .mx-opt{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;}
+  .mx-key{display:flex;flex-wrap:wrap;align-items:center;gap:3px 12px;font-size:11.5px;color:var(--ink-muted);}
+  .mx-key span{display:inline-flex;align-items:center;gap:5px;}
+  .mx-k{display:inline-block;flex:none;width:13px;height:13px;border-radius:50%;box-sizing:border-box;}
+  .mx-k-part{background:var(--accent);}
+  .mx-k-look{border:2.5px solid var(--accent);}
+  .mx-k-empty{border:1px solid var(--border);border-radius:3px;}
+  .mx-k-half{border:2.5px solid var(--accent);background:linear-gradient(90deg, var(--accent) 50%, transparent 50%);}
+  .mx-k-full{border-radius:3px;background:var(--mx-tint);border:1px solid var(--border);}
+  .mx-k-dirty{border-radius:3px;background:var(--mx-dirty);border:1px solid var(--border);}
+  .mx-scroll{flex:1 1 auto;min-height:140px;overflow:auto;border:1px solid var(--border);border-radius:8px;-webkit-overflow-scrolling:touch;}
+  .mx-foot{flex:none;font-size:11.5px;color:var(--ink-muted);}
+  .mx-foot:empty{display:none;}
+  table.mx-table{display:table;border-collapse:separate;border-spacing:0;width:max-content;min-width:0;}
+  .mx-table thead{display:table-header-group;}
+  .mx-table tbody{display:table-row-group;gap:0;}
+  .mx-table thead th{position:sticky;top:0;z-index:3;padding:0;vertical-align:bottom;text-align:center;background:var(--surface-alt);color:var(--ink);
+    font-size:12px;font-weight:600;text-transform:none;letter-spacing:0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);}
+  .mx-table thead th.mx-corner{left:0;z-index:5;width:320px;min-width:320px;max-width:320px;padding:6px 10px;text-align:left;color:var(--ink-muted);}
+  .mx-table thead th.mx-corner small{display:block;font-size:11px;font-weight:400;}
+  .mx-table thead th.mx-person{width:30px;min-width:30px;max-width:30px;}
+  .mx-table thead th.mx-full{background:var(--mx-tint);}
+  .mx-table thead th.mx-lit{box-shadow:inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent), inset 0 2px 0 var(--accent);}
+  .mx-table thead th.mx-err{background:var(--danger);color:var(--danger-ink);}
+  .mx-table thead th.mx-err .mx-lv{color:var(--danger-ink);}
+  .mx-table .mx-person-btn{display:flex;align-items:flex-end;justify-content:center;width:30px;height:100px;min-height:0;padding:4px 0 2px;margin:0;border:none;border-radius:0;background:transparent;color:inherit;}
+  .mx-table .mx-person-btn:hover{background:transparent;text-decoration:underline;}
+  /* the name reads upwards, like the spine of a book */
+  .mx-name{writing-mode:vertical-rl;transform:rotate(180deg);max-height:92px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;font-weight:600;line-height:1.2;}
+  .mx-lv{display:block;padding:1px 0 4px;font:600 9.5px/1.2 ui-monospace,"IBM Plex Mono",Menlo,Consolas,monospace;letter-spacing:.3px;color:var(--ink-muted);white-space:nowrap;}
+  .mx-table tbody tr.mx-row{display:table-row !important;padding:0;border:none;border-radius:0;box-shadow:none;background:var(--surface) !important;}
+  .mx-table tbody th.mx-job{position:sticky;left:0;z-index:2;width:320px;min-width:320px;max-width:320px;padding:2px 10px;text-align:left;font-weight:400;vertical-align:middle;
+    background:var(--surface);border-bottom:1px solid var(--border);border-right:1px solid var(--border);}
+  .mx-table tbody tr.mx-row:hover th.mx-job{background:var(--surface-alt);}
+  .mx-table tbody tr.mx-arch th.mx-job .mx-jname{color:var(--ink-muted);font-style:italic;}
+  .mx-jline{display:flex;align-items:baseline;gap:6px;min-width:0;line-height:1.25;}
+  .mx-jname{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px;font-weight:600;}
+  .mx-jnum{flex:none;font-size:11.5px;color:var(--ink-muted);white-space:nowrap;}
+  .mx-tags{flex:none;display:inline-flex;gap:3px;margin-left:auto;}
+  .mx-tags i{font-style:normal;font-size:9.5px;font-weight:700;letter-spacing:.03em;padding:1px 4px;border-radius:4px;border:1px solid var(--border);color:var(--ink-muted);background:var(--surface-alt);}
+  .mx-alone{display:block;font-size:10.5px;line-height:1.2;color:var(--ink-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mx-table tbody td.mx-c{display:table-cell !important;position:static;width:30px;min-width:30px;max-width:30px;height:28px;padding:0 !important;text-align:center;vertical-align:middle;cursor:pointer;
+    background:transparent !important;border:none !important;border-bottom:1px solid var(--border) !important;border-right:1px solid var(--border) !important;}
+  .mx-table tbody td.mx-c::before{display:none;}
+  .mx-table tbody td.mx-c.mx-full{background:var(--mx-tint) !important;}
+  .mx-table tbody td.mx-c.mx-off{background:var(--mx-off) !important;cursor:default;}
+  .mx-table tbody td.mx-c.mx-dirty{background:var(--mx-dirty) !important;}
+  .mx-table tbody td.mx-c.mx-lit{box-shadow:inset 2px 0 0 var(--accent), inset -2px 0 0 var(--accent);}
+  .mx-table tbody td.mx-c:hover{filter:brightness(.95);}
+  .mx-table .mx-cell{display:block;position:relative;width:29px;height:27px;min-height:0;margin:0 auto;padding:0;border:none;border-radius:0;background:transparent;cursor:pointer;}
+  .mx-table .mx-cell:hover{background:transparent;}
+  .mx-table .mx-cell:focus-visible{outline:2px solid var(--focus);outline-offset:-2px;}
+  .mx-table .mx-cell:disabled{opacity:1;cursor:default;}
+  .mx-table .mx-cell::after{content:"";position:absolute;left:50%;top:50%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;box-sizing:border-box;}
+  .mx-table .mx-cell.mx-part::after{background:var(--accent);}
+  .mx-table .mx-cell.mx-look::after{border:2.5px solid var(--accent);}
+  .mx-table .mx-cell.mx-half::after{border:2.5px solid var(--accent);background:linear-gradient(90deg, var(--accent) 50%, transparent 50%);}
+
+  /* a finger needs a bigger cell than a mouse */
+  @media (hover:none) and (pointer:coarse){
+    .mx-table thead th.mx-person, .mx-table tbody td.mx-c{width:38px;min-width:38px;max-width:38px;}
+    .mx-table .mx-person-btn{width:38px;}
+    .mx-table tbody td.mx-c{height:36px;}
+    .mx-table .mx-cell{width:37px;height:35px;}
+    .mu-tabs button{padding:9px 18px;}
+    .mu-row button, .mu-savebar button{min-height:36px;}
+  }
+  /* phones and upright tablets: each login becomes a card with its boxes
+     named; the Jobs table keeps its shape and slides under the finger */
+  @media (max-width:820px){
+    #manageUsersBackdrop .modal-panel{padding:12px 12px calc(12px + env(safe-area-inset-bottom));}
+    #manageUsersBackdrop .modal-head{flex-wrap:wrap;}
+    .mu-head-note{display:none;}
+    #muPeopleView .mu-list{flex:none;overflow:visible;}
+    .mu-p-grid{grid-template-columns:1fr 1fr;min-width:0;gap:8px 10px;padding:10px;}
+    .mu-p-head{position:static;display:block;text-transform:none;letter-spacing:0;}
+    .mu-p-head > span{display:none;}
+    .mu-p-head > .mu-p-mailnote{display:block;}
+    .mu-p-grid .mu-email, .mu-p-grid .mu-mail{grid-column:1 / -1;}
+    .mu-lab{display:block;margin-bottom:2px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);}
+    .mu-mail{flex-wrap:wrap;}
+    .mu-mail .mu-lab{margin:0;}
+    .mu-ro-grid{grid-template-columns:1fr;}
+    .mu-more label{flex:1 1 100%;}
+    .mu-more input, .mu-pw-input{flex:1 1 auto;width:auto;}
+    .mu-pw, .mu-pw-form{flex-wrap:wrap;}
+    .mu-foot{flex-wrap:wrap;}
+    .mx-tools input[type="search"]{width:100%;}
+    .mx-table thead th.mx-corner, .mx-table tbody th.mx-job{width:180px;min-width:180px;max-width:180px;}
+    .mx-jline{flex-wrap:wrap;}
+    .mx-jname{white-space:normal;}
+  }
+  /* a tablet on its side, a small laptop window: the seven fixed tracks need
+     about 1240px of window. Below that the Job e-mails tick moves to a second
+     line of each login (with its name), so Jobs and More stay in view. */
+  @media (min-width:821px) and (max-width:1239px){
+    .mu-p-grid{min-width:0;grid-template-columns:minmax(130px,1.3fr) minmax(150px,258px) minmax(108px,160px) minmax(108px,160px) 66px 56px;}
+    .mu-p-grid .mu-mail{grid-column:1 / -1;grid-row:2;}
+    .mu-mail .mu-lab{display:inline;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-muted);}
+    .mu-p-head > span:nth-child(5){display:none;}
+    .mu-p-head .mu-p-mailnote{grid-column:1 / -1;}
+  }
+  /* a phone on its side, a short laptop window: there is no room for the
+     legend, the tools and the grid at once, so the grid is given the whole
+     height of the view (the legend and tools slide away above it) and its
+     head is made lower. 92vh - 110px / 100vh - 116px = what is left of the
+     window after the title line and the Save bar. */
+  @media (max-height:520px){
+    .mx-scroll{min-height:calc(92vh - 110px);}
+    .mx-table .mx-person-btn{height:72px;}
+    .mx-name{max-height:66px;}
+  }
+  @media (max-height:520px) and (max-width:820px){
+    .mx-scroll{min-height:calc(100vh - 116px);}
+  }
 
   /* phones and portrait tablets: same breakpoint the base app uses to
      switch its own forms to one column - these two newer forms (added
@@ -816,7 +983,6 @@
   @media (max-width:820px){
     .delivery-fields{grid-template-columns:1fr;}
     .mu-new-fields{grid-template-columns:1fr;}
-    .mu-new-fields label.mu-new-job.show{display:flex;} /* keep the show/hide toggle working at 1 column too */
   }
 
   /* =================== pending deliveries (staff only) =================== */
@@ -1303,7 +1469,7 @@
     <div class="title">
       <div class="badge">AU</div>
       <div>
-        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 29 - October 9, 2026">Build 29</span></h1>
+        <h1>Equipment Database <span class="version-tag" title="Version 60 - Mobile: touch-friendly layout + barcode/QR scanner">Mobile</span><span class="version-tag" id="buildTag" title="Build 30 - October 9, 2026">Build 30</span></h1>
         <div class="sub" id="subhead">AV / IT staging &amp; deployment tracker</div>
       </div>
     </div>
@@ -1573,45 +1739,70 @@
 </div>
 
 <div class="modal-backdrop" id="manageUsersBackdrop" hidden="">
-  <div class="modal-panel packing-slip-modal-panel" role="dialog" aria-modal="true" aria-labelledby="manageUsersTitle">
+  <div class="modal-panel mu-panel" role="dialog" aria-modal="true" aria-labelledby="manageUsersTitle">
     <div class="modal-head">
       <h2 id="manageUsersTitle">Manage users</h2>
+      <div class="mu-tabs" id="muTabs" hidden="">
+        <button type="button" id="muTabPeople" class="active">People</button>
+        <button type="button" id="muTabJobs">Jobs</button>
+      </div>
+      <span class="mu-head-note">Admins only. One login opens the Database, the Install Tracker and the Field Engineering Tracker - this is where each login is given what it may do in each, and the jobs it is on.</span>
       <button class="icon-btn" id="manageUsersCloseBtn" title="Close" aria-label="Close" type="button">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"></path></svg>
       </button>
     </div>
-    <p class="modal-sub">Admins only. A new login can sign in right away with the password you set below. To give someone a new password, press <b>Change password</b> on their line. The same login also opens the Install Tracker and the Field Engineering Tracker - each line says what it is in the Install Tracker.</p>
+    <div class="mu-health" id="muHealth" role="alert" hidden=""></div>
+    <div class="mu-setup" id="muSetup" hidden=""></div>
 
-    <div class="mu-list" id="muList"></div>
-    <div class="mu-msg" id="muMsg" aria-live="polite"></div>
-
-    <div class="mu-new" id="muNewBox">
-      <h3>Add a user</h3>
-      <div class="mu-new-fields">
-        <label>Email<input type="email" id="muNewEmail" autocomplete="off"></label>
-        <label>Password<input type="text" id="muNewPassword" autocomplete="off" placeholder="at least 6 characters"></label>
-        <label>Name (optional)<input type="text" id="muNewName" autocomplete="off"></label>
-        <label>Mobile # (optional)<input type="tel" id="muNewPhone" autocomplete="off" placeholder="for texting a driver their schedule"></label>
-        <label>Role
-          <select id="muNewRole">
-            <option value="admin">Admin (full access + manage users)</option>
-            <option value="staff" selected="">Staff (full access)</option>
-            <option value="warehouse">Warehouse (full access)</option>
-            <option value="viewer-locked">Viewer - one job</option>
-            <option value="viewer-any">Viewer - all jobs</option>
-            <option value="tech-locked">PC - one job (delivery requests)</option>
-            <option value="tech-any">PC - all jobs (delivery requests)</option>
-            <option value="pcfe">PC-FE (a PC who also fills in Field Engineering)</option>
-            <option value="fe">FE (fills in Field Engineering)</option>
-            <option value="feviewer">FE Viewer (looks at Field Engineering, changes nothing)</option>
-            <option value="driver">Driver</option>
-            <option value="dashboard">Dashboard view (read-only, full screen)</option>
-          </select>
-        </label>
-        <label class="mu-new-job" id="muNewJobWrap">Job<select id="muNewJob"></select></label>
-        <label class="mu-new-job" id="muNewItWrap">In the Install Tracker<select id="muNewIt"></select></label>
+    <div class="mu-view" id="muPeopleView" hidden="">
+      <p class="mu-legend" id="muPeopleLegend">Viewer = looks. Participant = Database: requests deliveries; Install Tracker: changes statuses, cable checks and notes; Field Eng.: fills in device details. Full access = everything in that app. "Own jobs" = the jobs ticked for them in the Jobs view.</p>
+      <div class="mu-list" id="muList"></div>
+      <div class="mu-new" id="muNewBox" hidden="">
+        <button type="button" id="muNewToggle">Add a login</button>
+        <div class="mu-new-form" id="muNewForm" hidden="">
+          <div class="mu-new-fields">
+            <label>E-mail<input type="email" id="muNewEmail" autocomplete="off"></label>
+            <label>Password<input type="text" id="muNewPassword" autocomplete="off" placeholder="at least 6 characters"></label>
+            <label>Name (optional)<input type="text" id="muNewName" autocomplete="off" maxlength="80"></label>
+            <label>Mobile # (optional)<input type="tel" id="muNewPhone" autocomplete="off" maxlength="40" placeholder="for texting a driver their schedule"></label>
+            <label>Database<select id="muNewDb"></select></label>
+            <label>Install Tracker<select id="muNewIt"></select></label>
+            <label>Field Eng.<select id="muNewFe"></select></label>
+            <label class="mu-new-mail"><span>Job e-mails</span><span class="mu-new-mail-box"><input type="checkbox" id="muNewMail" checked=""> gets the e-mails of the jobs they are ticked on</span></label>
+          </div>
+          <p class="mu-legend">The new login can sign in right away with this password. At least one of the three apps has to be picked. Tick the jobs they are on afterwards, in the Jobs view.</p>
+          <button class="primary" id="muCreateBtn" type="button">Create login</button>
+        </div>
       </div>
-      <button class="primary" id="muCreateBtn" type="button">Create user</button>
+    </div>
+
+    <div class="mu-view" id="muJobsView" hidden="">
+      <p class="mu-legend">A tick puts the person on the job: they see it in the apps they have, and get its e-mails if Job e-mails is on. 'All jobs' people see everything anyway - for them a tick only chooses e-mails. A ring still lowers a Participant to look only on that job. The same job number in the Database (Project Number) and the Install Tracker (Job info &gt; Job number) makes one line.</p>
+      <div class="mx-tools">
+        <input type="search" id="mxSearch" placeholder="Find a job: name or number" autocomplete="off" aria-label="Find a job by name or number">
+        <label class="mx-opt"><input type="checkbox" id="mxArchived"> Show archived</label>
+        <label class="mx-opt"><input type="checkbox" id="mxUnlinked"> Only lines not linked across apps</label>
+        <span class="mx-key" aria-hidden="true">
+          <span>Click a cell:</span>
+          <span><i class="mx-k mx-k-part"></i>takes part</span>
+          <span><i class="mx-k mx-k-look"></i>looks only</span>
+          <span><i class="mx-k mx-k-empty"></i>not on the job</span>
+          <span><i class="mx-k mx-k-half"></i>differs between the two apps - click to make it the same</span>
+          <span><i class="mx-k mx-k-full"></i>sees every job anyway: a tick only chooses e-mails (a ring still lowers a Participant to look only)</span>
+          <span><i class="mx-k mx-k-dirty"></i>changed, not saved yet</span>
+        </span>
+      </div>
+      <div class="mx-scroll" id="mxScroll" tabindex="-1"><table class="mx-table" id="mxTable"></table><div class="mu-note" id="mxEmpty" hidden=""></div></div>
+      <div class="mx-foot" id="mxFoot"></div>
+    </div>
+
+    <div class="mu-foot">
+      <div class="mu-msg" id="muMsg" aria-live="polite"></div>
+      <div class="mu-savebar" id="muSaveBar" hidden="">
+        <span class="mu-savebar-note">Nothing is saved until you press Save changes.</span>
+        <button type="button" id="muDiscardBtn">Discard</button>
+        <button type="button" class="primary" id="muSaveBtn">Save changes (0)</button>
+      </div>
     </div>
   </div>
 </div>
@@ -6233,13 +6424,15 @@
   var cloud = {
     on: false, sb: null, user: null, jobId: null, jobName: "", channel: null,
     leaving: false,           // true once the sign-in is going or gone and the page is about to reload: nothing more is read or sent
+    who: null,                // what the database says this login is in each app (see whoClean) - null on a database from before the job matrix, or when it couldn't be asked
+    whoMode: "",              // "new" the database has just answered | "kept" its last answer, kept on this device | "old" it has no such question | "unknown"
     synced: new Map(),        // row id -> {json, pos, ts}: what the server last confirmed
     metaBase: {},             // job details the server last confirmed
     maxPos: 0, live: false, pushing: false, pushAgain: false, pulling: false, pullAgain: false,
     pushTimer: null, retryTimer: null, applyTimer: null, localPayload: null,
     clientId: "c" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36)
   };
-  var CK = {user: "eqdb.cloud.user", lastJob: "eqdb.cloud.lastJob", cache: "eqdb.cloud.cache.", prefs: "eqdb.prefs.v1", profile: "eqdb.cloud.profile"};
+  var CK = {user: "eqdb.cloud.user", lastJob: "eqdb.cloud.lastJob", cache: "eqdb.cloud.cache.", prefs: "eqdb.prefs.v1", profile: "eqdb.cloud.profile", who: "eqdb.cloud.whoami"};
   var SUPABASE_CDN = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js";
   var supabaseLibPromise = null;
 
@@ -6663,12 +6856,20 @@
     closeChannel();
     var id = cloud.jobId;
     cloud.jobId = null;
-    if (id) lsDel(CK.cache + id);
+    applyJobLook();
+    // For a login that isn't full access "not there" can also mean "not this
+    // login's" - and the copy on this device may hold someone else's changes
+    // that haven't been sent yet. Such a copy is left for the next full-access
+    // sign-in on this device, which sends them (see unsentJobCopies). Every
+    // other copy is cleared, as before.
+    var keepCopy = !!id && cloud.role !== "staff" && (!!cloud.who || cloud.whoMode === "unknown")
+      && unsentJobCopies().some(function(c){ return c.id === id; });
+    if (id && !keepCopy) lsDel(CK.cache + id);
     lsDel(CK.lastJob);
     rows.clear(); order = []; meta = {}; selectedIds.clear(); returnIds.clear(); cloud.synced = new Map(); cloud.metaBase = {};
     buildMetaGrid(); updateSubhead(); renderRows();
     cloudStatus("bad", "No job open");
-    showJobs("That job was deleted. Pick another one.");
+    showJobs(cloud.who && cloud.role !== "staff" ? "That job is no longer open to this login (it was deleted, or this login was taken off it)." : "That job was deleted. Pick another one.");
   }
 
   function closeChannel(){
@@ -6710,6 +6911,7 @@
     clearTimeout(cloud.pushTimer);
     cloud.jobId = job.id;
     cloud.jobName = job.name || "";
+    applyJobLook();   // a PC who only looks at this job isn't offered Request Delivery on it
     cloud.pulling = false; cloud.pullAgain = false; cloud.pushing = false; cloud.pushAgain = false;
     lsSet(CK.lastJob, job.id);
     rows.clear(); order = []; selectedIds.clear(); returnIds.clear(); meta = {};
@@ -6730,7 +6932,7 @@
     return pullAll();
   }
 
-  var SW_CACHE = "equipment-db-v29";   // the same name as CACHE in sw.js
+  var SW_CACHE = "equipment-db-v30";   // the same name as CACHE in sw.js
   // ---------- a fresh sign-in every day ----------
   // Everyone except a Dashboard login is signed out once the date has changed
   // since they signed in, and the page then reloads - so every screen starts
@@ -6752,7 +6954,7 @@
   //        beforeSignOut() -> called just before the sign-in is taken away}
   function makeDayRule(app){
     var DAY = "mkapps.signInDay", ACTIVE = "mkapps.lastActive", OUT = "mkapps.dayOut", SEEN = "mkapps.buildSeen." + app.name;
-    var ENDING = "mkapps.dayEnding", HOLD = "mkapps.dayHold.";
+    var ENDING = "mkapps.dayEnding", HOLD = "mkapps.dayHold.", BUSY = "mkapps.dayBusy.";
     var QUIET_MS = 3 * 60000, TICK_MS = 30000, BUILD_MS = 10 * 60000, BUILD_AGAIN_MS = 45 * 60000, MAX_TRIES = 5;
     var WAKE_MS = 2 * 60000;        // for this long after the new day is first seen, "nobody was working then" still decides it
     var BUSY_MS = 30 * 60000;       // an open window holds the sign-out back only while it was touched this recently
@@ -6761,6 +6963,7 @@
     var leaving = false;   // ...and the sign-in is going or gone: nothing more to do here but reload
     var tries = 0, lastTry = 0, exempt = null, lastTouch = 0, lastBuild = Date.now(), verifying = false;
     var noticedAt = 0, wasQuiet = false;
+    var ownTouch = 0;      // when THIS page was last touched (the shared "last active" mark is about all of them)
     var me = Math.random().toString(36).slice(2, 10);
     function get(k){ try{ return window.localStorage.getItem(k); }catch(e){ return null; } }
     function set(k, v){ try{ window.localStorage.setItem(k, v); }catch(e){} }
@@ -6787,6 +6990,32 @@
     function quiet(){
       return navigator.onLine !== false && Date.now() - lastActive() >= QUIET_MS;
     }
+    // A window is open on this page with something half filled in (a slip being
+    // signed, a form), and it was touched not long ago. The sign-out waits for
+    // it - on this page and, through a mark the other pages can see, on all of
+    // them: one sign-in covers every page, so any of them could end the day.
+    function busyHere(){
+      try{ return !!(app.busy && app.busy()) && Date.now() - ownTouch < BUSY_MS; }catch(e){ return false; }
+    }
+    function markBusy(){
+      var k = BUSY + me, v = busyHere() ? String(ownTouch) : null;
+      if (v === null){ if (get(k) !== null) del(k); }
+      else if (get(k) !== v) set(k, v);
+    }
+    // (a mark says when that page's window was last touched; it goes when the
+    // window is closed or the page is, and counts for nothing once it is old)
+    function othersBusy(){
+      var now = Date.now(), any = false;
+      try{
+        for (var i = window.localStorage.length - 1; i >= 0; i--){
+          var k = window.localStorage.key(i);
+          if (!k || k.indexOf(BUSY) !== 0 || k === BUSY + me) continue;
+          var age = now - (Number(get(k)) || 0);
+          if (age < BUSY_MS) any = true; else del(k);
+        }
+      }catch(e){}
+      return any;
+    }
     // A page is about to carry on with this sign-in (fresh = the password was
     // just typed). False = it is from an earlier day: don't carry on, call
     // endAtStart() and show the sign-in form.
@@ -6798,7 +7027,8 @@
         if (fresh) del(OUT);
         return true;
       }
-      return st.d === today() || !!st.x || !quiet();
+      // (someone is in the middle of a form on another page: carry on for now, the day ends when they are done)
+      return st.d === today() || !!st.x || !quiet() || othersBusy();
     }
     // Ends the sign-in on this device. Signing out needs the server to answer;
     // if it doesn't, what the browser keeps of the sign-in is removed anyway.
@@ -6835,12 +7065,19 @@
       leaving = true; ending = true;
       reload();
     }
+    // A page starting up with yesterday's sign-in ends it here. Gives true when
+    // the sign-in is gone (show the sign-in form), false when the site can't be
+    // reached just now: then nothing is signed out - carry on with the sign-in,
+    // and the day ends at the first look once the site answers again.
     function endAtStart(){
       ending = true; leaving = true;
-      set(OUT, today());
-      // (the stamp stays until the sign-in is really gone, so another page that
-      // is starting up at the same moment still sees it as yesterday's)
-      return signOutHere().then(function(){ del(DAY); ending = false; leaving = false; });
+      return reachable().then(function(ok){
+        if (!ok){ ending = false; leaving = false; return false; }
+        set(OUT, today());
+        // (the stamp stays until the sign-in is really gone, so another page that
+        // is starting up at the same moment still sees it as yesterday's)
+        return signOutHere().then(function(){ del(DAY); ending = false; leaving = false; return true; });
+      });
     }
     // send what this page hasn't saved yet - and don't wait on it for ever
     function flushOwn(){
@@ -6878,6 +7115,7 @@
     // ...and the other side of that: another page is about to end the day.
     function helpOut(){
       if (ending || leaving || !app.signedIn()) return;
+      markBusy();   // a window opened here since that page last looked: it sees the mark and waits
       set(HOLD + me, String(Date.now()));
       var done = function(){ del(HOLD + me); };
       try{ Promise.resolve(app.flush()).then(done, done); }catch(e){ done(); }
@@ -6913,6 +7151,8 @@
           var now = stamp();
           if (!now){ leave(); return; }
           if (now.d === today() || now.x){ ending = false; return; }
+          // someone opened a window (here or on another page) while this was getting ready: not now
+          if (busyHere() || othersBusy()){ ending = false; del(ENDING); return; }
           leaving = true;
           try{ if (app.beforeSignOut) app.beforeSignOut(); }catch(e){}
           set(OUT, today());
@@ -6967,6 +7207,7 @@
     }
     function check(){
       if (ending || !app.signedIn()) return;
+      markBusy();
       var st = stamp();
       if (!st){ verify(); return; }
       if (exempt === null ? st.x : exempt){
@@ -6985,8 +7226,8 @@
       // minutes; after that, or if someone was working across midnight, it
       // waits for a pause in the work.
       if (!(wasQuiet && now - noticedAt <= WAKE_MS) && now - lastActive() < QUIET_MS) return;
-      // a window is open on this page and was touched not long ago (a form half filled in, a slip being signed)
-      try{ if (app.busy && app.busy() && now - lastActive() < BUSY_MS) return; }catch(e){}
+      // a window is open, on this page or another, and was touched not long ago (a form half filled in, a slip being signed)
+      if (busyHere() || othersBusy()) return;
       if (now - lastTry < TICK_MS) return;   // one go per look, however often the screen is touched
       lastTry = now;
       end();
@@ -7017,6 +7258,7 @@
     }
     function touch(){
       var now = Date.now();
+      ownTouch = now;
       if (now - lastTouch < 15000) return;
       // the day's first touch is judged on what came before it
       check();
@@ -7030,7 +7272,7 @@
       window.addEventListener("focus", check);
       window.addEventListener("online", check);
       window.addEventListener("pageshow", check);
-      window.addEventListener("pagehide", function(){ del(HOLD + me); });
+      window.addEventListener("pagehide", function(){ del(HOLD + me); del(BUSY + me); });
       window.addEventListener("storage", function(ev){ if (ev && ev.key === ENDING && ev.newValue) helpOut(); });
       ["pointerdown", "keydown", "input"].forEach(function(t){ document.addEventListener(t, touch, true); });
     }
@@ -7127,6 +7369,8 @@
     }catch(e){}
     return names;
   }
+  // (Only on a database from before the job matrix - since then the answer to
+  // ax_whoami says it, see rolesResumeNew.)
   // The Install Tracker keeps its own list of who is what: a login that is a
   // Dashboard there is left signed in by the daily sign-out, like one here.
   // role = this login's type here, or null when it couldn't be read.
@@ -7211,9 +7455,18 @@
     var pattern = "%" + safe + "%";
     var cols = ["barcode", "serialNumber", "manufacturer", "model", "macAddress", "deviceType", "notes"];
     var orExpr = cols.map(function(c){ return "data->>" + c + ".ilike." + pattern; }).join(",");
-    return cloud.sb.from("eq_rows").select("id,job_id,data,eq_jobs(id,name,deleted)").eq("deleted", false).or(orExpr).limit(50).then(function(r){
+    var findQuery = cloud.sb.from("eq_rows").select("id,job_id,data,eq_jobs(id,name,deleted)").eq("deleted", false).or(orExpr);
+    // A login the database hands more jobs than it has here: the 50 found must
+    // be 50 of ITS jobs, or the ones it may see can all be cut off.
+    if (dbShowsMore()){
+      var mine = cloud.who.jobs.filter(function(t){ return t.s === "db"; }).map(function(t){ return t.j; });
+      // (on no Database job at all: nothing to look through, so nothing is asked)
+      if (!mine.length){ drawFindResults([], term); return Promise.resolve(); }
+      findQuery = findQuery.in("job_id", mine);
+    }
+    return findQuery.limit(50).then(function(r){
       if (r.error){ jobMsg("Couldn't search: " + r.error.message, true); return; }
-      var rows = (r.data || []).filter(function(x){ return x.eq_jobs && !x.eq_jobs.deleted; });
+      var rows = (r.data || []).filter(function(x){ return x.eq_jobs && !x.eq_jobs.deleted && seesJobHere(x.job_id); });
       drawFindResults(rows, term);
     }).catch(function(e){
       jobMsg(isNetworkProblem(e) ? "You're offline — this needs an internet connection." : "Couldn't search: " + (e && e.message ? e.message : e), true);
@@ -7267,7 +7520,7 @@
     list.textContent = "Loading...";
     return cloud.sb.from("eq_jobs").select("*").eq("deleted", false).order("updated_at", {ascending: false}).then(function(r){
       if (r.error) throw r.error;
-      var jobs = r.data || [];
+      var jobs = onlyMyJobs(r.data || []);
       jobsCanArchive = !jobs.length || ("archived" in jobs[0]);
       drawJobs(jobs.filter(function(j){ return !!j.archived === showArchivedJobs; }));
     }).catch(function(){
@@ -7277,6 +7530,9 @@
         for (var i = 0; i < localStorage.length; i++){
           var k = localStorage.key(i);
           if (k && k.indexOf(CK.cache) === 0){
+            // this device may hold copies of jobs other people opened on it: a
+            // viewer / PC who doesn't see every job is only shown its own
+            if (cloud.who && (cloud.who.db === "viewer" || cloud.who.db === "participant") && !whoSees(cloud.who, "db", k.slice(CK.cache.length))) continue;
             var c = JSON.parse(localStorage.getItem(k));
             jobs.push({id: k.slice(CK.cache.length), name: c.name || "Saved job", meta: c.meta, updated_at: c.savedAt});
           }
@@ -7438,6 +7694,8 @@
           return;
         }
         cloudEl("cloudPass").value = "";
+        // (a login the database turned away just before left its own words beside the dot)
+        if (cloud.who) cloudStatus("busy", "Signing in...");
         if (r.data.session) day.accept(r.data.session, true);
         return afterSignIn(r.data.user);
       }).catch(function(e){
@@ -7527,7 +7785,14 @@
         // yesterday's sign-in: it ends here, before anything is shown
         if (!day.accept(session)){
           cloudEl("cloudLoginBtn").disabled = true;   // not until the old sign-in is fully gone
-          return day.endAtStart().then(function(){ cloud.starting = false; cloudEl("cloudLoginBtn").disabled = false; showLogin(day.note()); cloudStatus("bad", "Signed out"); });
+          return day.endAtStart().then(function(gone){
+            cloud.starting = false; cloudEl("cloudLoginBtn").disabled = false;
+            // The site can't be reached just now, so nothing was signed out: carry
+            // on with the stored sign-in, as on any other start. The day ends at
+            // the first look once the site answers again.
+            if (gone === false) return afterSignIn(session.user);
+            showLogin(day.note()); cloudStatus("bad", "Signed out");
+          });
         }
         cloud.starting = false;
         return afterSignIn(session.user);
@@ -7540,6 +7805,8 @@
         // job picker (not a job) is what opens — same as any other start
         cloud.user = saved;
         cloudEl("cloudUser").textContent = saved.email || "";
+        // what this login may do can't be asked now: go by the last answer kept on this device
+        if (!whoOfflineStart(saved.id)) return;
         cloudEl("cloudLogin").hidden = true;
         return showJobs("You're offline — pick a job saved on this device.");
       }
@@ -7564,12 +7831,16 @@
   // Jobs button/picker makes no sense then, since there's nothing else to
   // switch to). A viewer with no job assigned is NOT locked - they behave
   // like staff for navigation (pick any job) but read-only once inside one.
-  function applyRoleUi(role, locked){
-    document.body.classList.remove("role-viewer", "role-tech", "role-driver", "role-dashboard", "locked-job", "kind-admin", "kind-warehouse", "no-user-admin");
+  // `some` = true for a viewer / PC who is on several jobs but not all of them:
+  // the same navigation as "all jobs" (the lists only hold its own jobs), but
+  // without the Assets pool, as for a login tied to one job.
+  function applyRoleUi(role, locked, some){
+    document.body.classList.remove("role-viewer", "role-tech", "role-driver", "role-dashboard", "locked-job", "some-jobs", "job-look-only", "kind-admin", "kind-warehouse", "no-user-admin");
     cloud.staffKind = ""; cloud.isAdmin = false;
     if (role === "viewer" || role === "tech"){
       document.body.classList.add("role-" + role);
       if (locked) document.body.classList.add("locked-job");
+      else if (some) document.body.classList.add("some-jobs");
       persist = function(){}; // this account can never write eq_jobs/eq_rows - RLS would reject it anyway
     } else if (role === "driver"){
       document.body.classList.add("role-driver");
@@ -7581,11 +7852,12 @@
       persist = realPersist;
     }
     var banner = cloudEl("roleBanner");
-    if (banner){
-      banner.textContent = role === "viewer" ? (locked ? "Viewer — read only" : "Viewer — read only (all jobs)")
-        : role === "tech" ? ((cloud.feKind === "pc_fe" ? "PC-FE" : "PC") + (locked ? " — request deliveries only" : " — request deliveries only (all jobs)"))
-        : "";
-    }
+    var scope = locked ? "" : some ? " (your jobs)" : " (all jobs)";
+    cloud.roleBannerText = role === "viewer" ? "Viewer — read only" + scope
+      : role === "tech" ? (cloud.feKind === "pc_fe" ? "PC-FE" : "PC") + " — request deliveries only" + scope
+      : "";
+    if (banner) banner.textContent = cloud.roleBannerText;
+    applyJobLook();
   }
 
   // Admin / Warehouse. Both are full-access staff as far as the database is
@@ -7634,12 +7906,322 @@
   // through to the normal picker instead of erroring.
   function openUrlJobOrElse(fallback){
     return cloud.sb.from("eq_jobs").select("id,name,meta").eq("id", urlJobId).maybeSingle().then(function(jr){
-      if (jr.error || !jr.data) return fallback();
+      if (jr.error || !jr.data || !seesJobHere(jr.data.id)) return fallback();
       return openJob(jr.data);
     }).catch(fallback);
   }
 
+  // ---------- what this login is, in each app ----------
+  // Since add-job-matrix.sql the database answers one question for the login
+  // that asks it - ax_whoami():
+  //   {v: 1,
+  //    db: "none" | "viewer" | "participant" | "staff" | "driver" | "dashboard",   ("participant" is a PC)
+  //    db_kind: "admin" | "warehouse" | "",
+  //    it: "none" | "viewer" | "participant" | "staff" | "dashboard",       (Install Tracker)
+  //    fe: "none" | "viewer" | "participant" | "staff",                     (Field Engineering)
+  //    db_all, it_all, fe_all: true = sees EVERY job in that app,
+  //    job_emails: true / false,
+  //    jobs: [{s: "db" | "it" | "fe", j: job id, l: "viewer" | "participant"}]}   the jobs it was put on
+  // The database enforces all of it. The page goes by the answer so that it
+  // never shows a button the database is going to refuse.
+  //
+  // A database where that file hasn't been run doesn't know the question
+  // ("function not found"). The page then works exactly as the build before
+  // this one did - rolesResumeOld, further down, is that build's code,
+  // untouched. The database is asked again every time the page starts with a
+  // sign-in, so the page changes over by itself once the file has been run.
+  var WHO_DB = ["none", "viewer", "participant", "staff", "driver", "dashboard"];
+  var WHO_IT = ["none", "viewer", "participant", "staff", "dashboard"];
+  var WHO_FE = ["none", "viewer", "participant", "staff"];
+  var WHO_WAIT_MS = 12000;   // a connection that never answers counts as "couldn't ask"
+  var WHO_NO_DATABASE = "This login doesn't have the Equipment Database. Use the apps it has, or sign in here with a different login.";
+  var WHO_NO_JOB = "No job is assigned to this login yet - ask the office.";
+  var WHO_NOT_KNOWN = "Couldn't check what this login may do, so it is read-only for now. Reload the page when you have a connection.";
+
+  // The answer, tidied. Anything missing or not understood counts as the least
+  // (no app, not every job, look only). null when it isn't an answer at all.
+  function whoClean(a){
+    if (Array.isArray(a)) a = a[0];
+    if (!a || typeof a !== "object" || typeof a.db !== "string") return null;
+    var word = function(v, list){ return list.indexOf(v) !== -1 ? v : "none"; };
+    var who = {
+      v: Number(a.v) || 1,
+      db: word(a.db, WHO_DB), db_kind: "",
+      it: word(a.it, WHO_IT), fe: word(a.fe, WHO_FE),
+      db_all: a.db_all === true, it_all: a.it_all === true, fe_all: a.fe_all === true,
+      job_emails: a.job_emails === true,
+      jobs: []
+    };
+    if (who.db === "staff" && (a.db_kind === "admin" || a.db_kind === "warehouse")) who.db_kind = a.db_kind;
+    (Array.isArray(a.jobs) ? a.jobs : []).forEach(function(t){
+      if (!t || (t.s !== "db" && t.s !== "it" && t.s !== "fe") || !t.j) return;
+      who.jobs.push({s: t.s, j: String(t.j).toLowerCase(), l: t.l === "participant" ? "participant" : "viewer"});
+    });
+    return who;
+  }
+  // Is this the reply of a database that has never heard of the question?
+  // (It says so with the code PGRST202, or "not found", or by naming it.)
+  function whoNotThere(r){
+    var e = r && r.error;
+    if (!e) return false;
+    return e.code === "PGRST202" || r.status === 404 || /ax_whoami/i.test(String(e.message || ""));
+  }
+  // What this device kept from the last time the database could be asked, for
+  // this same login: {who: the answer} or {old: true} (it had no such
+  // question then) - or null.
+  function whoKept(keptText, userId){
+    var kept = null;
+    try{ kept = JSON.parse(keptText || "null"); }catch(e){}
+    if (!kept || typeof kept !== "object" || !userId || kept.id !== userId) return null;
+    var who = whoClean(kept.who);
+    if (who) return {who: who};
+    return kept.old ? {old: true} : null;
+  }
+  // What to go by, from the database's reply (r) and what this device kept:
+  //   {mode: "new", who}   the database answered
+  //   {mode: "old"}        it has no such question: work as the build before this one did
+  //   {mode: "kept", who}  it couldn't be asked (offline, a time-out): the answer kept from last time
+  //   {mode: "old", remembered: true}   couldn't be asked, and last time it had no such question
+  //   {mode: "unknown"}    couldn't be asked and nothing is kept: read-only - never full access on a guess
+  function whoDecide(r, keptText, userId){
+    if (r && !r.error){
+      var who = whoClean(r.data);
+      if (who) return {mode: "new", who: who};
+    } else if (whoNotThere(r)){
+      return {mode: "old"};
+    }
+    var kept = whoKept(keptText, userId);
+    if (kept && kept.who) return {mode: "kept", who: kept.who};
+    if (kept && kept.old) return {mode: "old", remembered: true};
+    return {mode: "unknown"};
+  }
+  // The line this login has for a job: "participant", "viewer", or "" (none).
+  function whoLine(who, source, jobId){
+    var id = String(jobId || "").toLowerCase(), found = "";
+    ((who && who.jobs) || []).forEach(function(t){ if (t.s === source && t.j === id) found = t.l; });
+    return found;
+  }
+  // May this login open the job at all, as far as that app goes?
+  function whoSees(who, source, jobId){
+    if (!who || !who[source] || who[source] === "none") return false;
+    return who[source + "_all"] === true || who[source] === "staff" || whoLine(who, source, jobId) !== "";
+  }
+  // Does this login TAKE PART on the job (rather than only look at it)?
+  //   full access in that app: always;
+  //   a participant: on a job it can open, unless its line there says "look";
+  //   a viewer (or a driver, a dashboard, no app): never.
+  function whoTakesPart(who, source, jobId){
+    if (!who) return false;
+    var level = who[source];
+    if (level === "staff") return true;
+    if (level !== "participant") return false;
+    return whoSees(who, source, jobId) && whoLine(who, source, jobId) !== "viewer";
+  }
+  // The one question the rest of the page asks about a job.
+  function takesPart(source, jobId){ return whoTakesPart(cloud.who, source, jobId); }
+
+  // What the page does with an answer.
+  //   role     the word the rest of this page uses for the login's type
+  //            ("staff", "viewer", "tech" = participant / PC, "driver", "dashboard")
+  //   screen   "turnaway" (no Database: back to the sign-in form) | "driver" | "dashboard" | "staff"
+  //            | "jobs-all" (a viewer / PC who sees every job)
+  //            | "jobs-none" | "jobs-one" (straight into it) | "jobs-some" (only its own jobs)
+  //   locked, some   what applyRoleUi is given
+  //   kind     "admin" | "warehouse" | "" beside full access
+  //   isDashboard    left signed in by the daily sign-out: a Dashboard here OR in the Install Tracker
+  // count = how many jobs the database lets it open; only a viewer / PC who
+  // doesn't see every job needs it (needsCount says so when it wasn't given).
+  function whoPlan(who, count){
+    var role = who.db === "participant" ? "tech" : who.db;
+    var plan = {role: role, screen: "", locked: false, some: false, needsCount: false,
+      kind: who.db === "staff" ? who.db_kind : "", isDashboard: who.db === "dashboard" || who.it === "dashboard"};
+    if (role === "none"){ plan.role = "viewer"; plan.locked = true; plan.screen = "turnaway"; }
+    else if (role === "driver" || role === "dashboard" || role === "staff") plan.screen = role;
+    else if (who.db_all) plan.screen = "jobs-all";
+    else if (typeof count !== "number") plan.needsCount = true;
+    else if (count === 1){ plan.locked = true; plan.screen = "jobs-one"; }
+    else { plan.some = true; plan.screen = count === 0 ? "jobs-none" : "jobs-some"; }
+    return plan;
+  }
+
+  // Field Engineering lets some logins read EVERY Database job (the tracker
+  // shows a job's equipment), so for those the database hands this page more
+  // jobs than the Database level alone would. Here such a login still only
+  // gets the jobs it was put on.
+  function dbShowsMore(){
+    var w = cloud.who;
+    return !!w && (w.db === "viewer" || w.db === "participant") && !w.db_all && w.fe_all;
+  }
+  function seesJobHere(jobId){ return !dbShowsMore() || whoLine(cloud.who, "db", jobId) !== ""; }
+  function onlyMyJobs(jobs){ return dbShowsMore() ? jobs.filter(function(j){ return seesJobHere(j.id); }) : jobs; }
+  // The Dashboard of a viewer / PC who is on some jobs (not all of them): what
+  // is scheduled for, or out with, those jobs - nothing about anyone else's.
+  function onlyOfMyJobs(list, jobs){
+    var w = cloud.who;
+    if (!w || (w.db !== "viewer" && w.db !== "participant") || w.db_all) return list;
+    var mine = {};
+    jobs.forEach(function(j){ mine[j.id] = true; });
+    return list.filter(function(x){ return !!mine[x.job_id]; });
+  }
+  // On the job that is open: a PC asks for deliveries on the jobs it takes
+  // part in. On a job it was put on to look at only, the database refuses the
+  // request - so the button and its form aren't offered there.
+  function jobLooksOnly(){
+    return !!cloud.who && cloud.role === "tech" && !!cloud.jobId && !takesPart("db", cloud.jobId);
+  }
+  function applyJobLook(){
+    var look = jobLooksOnly();
+    document.body.classList.toggle("job-look-only", look);
+    var banner = cloudEl("roleBanner");
+    if (banner && cloud.who && cloud.role === "tech") banner.textContent = look ? "PC — look only on this job" : (cloud.roleBannerText || "");
+  }
+
+  function whoAsk(){
+    return new Promise(function(resolve){
+      var done = false, timer = null;
+      var finish = function(r){
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(r);
+      };
+      timer = setTimeout(function(){ finish({error: {message: "no answer in time"}}); }, WHO_WAIT_MS);
+      try{
+        Promise.resolve(cloud.sb.rpc("ax_whoami")).then(finish, function(e){ finish({error: e || {message: "couldn't ask"}}); });
+      }catch(e){ finish({error: e || {message: "couldn't ask"}}); }
+    });
+  }
+  // Read-only, on whatever this login is allowed to open: the choice when the
+  // database couldn't be asked and nothing is known about this login.
+  function whoLookOnly(){
+    cloud.who = null; cloud.whoMode = "unknown";
+    cloud.role = "viewer"; cloud.feKind = "";
+    applyRoleUi("viewer", false, true);
+    var banner = cloudEl("roleBanner");
+    if (banner) banner.textContent = "Read only — couldn't check this login";
+  }
+  // Signed in: find out what this login is, then open what it should see.
   function rolesResume(){
+    var userId = cloud.user.id;
+    return whoAsk().then(function(r){
+      if (!cloud.user || cloud.user.id !== userId) return;   // someone else has signed in meanwhile
+      var got = whoDecide(r, lsGet(CK.who), userId);
+      // kept beside the kept profile, for a start with no connection
+      if (got.mode === "new") lsSet(CK.who, JSON.stringify({id: userId, who: got.who}));
+      else if (got.mode === "old" && !got.remembered) lsSet(CK.who, JSON.stringify({id: userId, old: 1}));
+      if (got.mode === "old"){
+        cloud.who = null; cloud.whoMode = "old";
+        return rolesResumeOld();
+      }
+      if (got.mode === "unknown"){
+        day.role(null);
+        whoLookOnly();
+        cloudStatus("bad", "Couldn't check this login");
+        return showJobs(WHO_NOT_KNOWN);
+      }
+      return rolesResumeNew(got.who, got.mode === "new");
+    }).catch(function(e){
+      // Whatever went wrong, it never ends on the full-access screen by
+      // default: what the answer said if there was one, else read-only.
+      if (!cloud.user || cloud.user.id !== userId || cloud.whoMode === "old") return;
+      var plan = cloud.who ? whoPlan(cloud.who, 2) : null;
+      if (!plan) whoLookOnly();
+      else if (plan.screen === "staff"){ applyRoleUi("staff"); applyStaffKind({role: "staff", staff_kind: plan.kind}); }
+      else if (plan.screen === "jobs-all" || plan.screen === "jobs-some") applyRoleUi(plan.role, false, plan.some);
+      else return;   // a driver, a dashboard, a login without the Database: their own screens say what went wrong
+      return showJobs(isNetworkProblem(e) ? "You're offline — pick a job saved on this device." : "Couldn't load your jobs: " + (e && e.message ? e.message : e));
+    });
+  }
+  // known = the database has just answered (false: this is the answer kept from last time)
+  function rolesResumeNew(who, known){
+    cloud.who = who; cloud.whoMode = known ? "new" : "kept";
+    cloud.feKind = "";   // (the three older Field Engineering account types are levels now)
+    var plan = whoPlan(who);
+    cloud.role = plan.role;
+    // a Dashboard screen stays signed in over midnight; "couldn't ask" keeps what was known
+    day.role(plan.isDashboard ? true : (known ? false : null));
+    if (!plan.needsCount) return whoGo(plan);
+    // a viewer / PC who doesn't see every job: how many may it open?
+    return cloud.sb.from("eq_jobs").select("id,name,meta").eq("deleted", false).then(function(jr){
+      if (!cloud.user || cloud.who !== who) return;
+      if (jr.error){
+        // couldn't count (no connection): its own jobs, from what is saved on this device
+        applyRoleUi(plan.role, false, true);
+        return showJobs(isNetworkProblem(jr.error) ? "You're offline — pick a job saved on this device." : "Couldn't load your jobs: " + jr.error.message);
+      }
+      var mine = onlyMyJobs(jr.data || []);
+      return whoGo(whoPlan(who, mine.length), mine[0]);
+    });
+  }
+  function whoGo(plan, onlyJob){
+    if (plan.screen === "turnaway"){
+      // Nothing is opened and nothing is loaded. They stay signed in (the
+      // other apps share this sign-in); the form is there for someone else
+      // to sign in with a login that does have the Database.
+      applyRoleUi("viewer", true);
+      cloudStatus("bad", "No Database access with this login");
+      showLogin(WHO_NO_DATABASE);
+      return;
+    }
+    if (plan.screen === "driver"){
+      applyRoleUi("driver");
+      return openDriverDashboard();
+    }
+    if (plan.screen === "dashboard"){
+      applyRoleUi("dashboard");
+      return openDashboardOnlyView();
+    }
+    if (plan.screen === "staff"){
+      applyRoleUi("staff");
+      // (the database has said what kind of full access this is: nobody is an Admin until it says so)
+      applyStaffKind({role: "staff", staff_kind: plan.kind});
+      startSignedSlipSaving();
+      var leftBehind = urlJobId ? null : unsentJobCopies()[0];
+      if (leftBehind){
+        showSnackbar("This job had changes on this device that hadn't reached the database. They are being sent now.");
+        return openJob({id: leftBehind.id, name: leftBehind.jobName});
+      }
+      return urlJobId ? openUrlJobOrElse(openJobsDashboardModal) : openJobsDashboardModal();
+    }
+    applyRoleUi(plan.role, plan.locked, plan.some);
+    if (plan.screen === "jobs-none"){
+      cloudStatus("bad", "No job assigned yet");
+      return showJobs(WHO_NO_JOB);
+    }
+    // exactly one job: straight into it, as a login tied to one job always was
+    if (plan.screen === "jobs-one") return openJob(onlyJob);
+    return urlJobId ? openUrlJobOrElse(openJobsDashboardModal) : openJobsDashboardModal();
+  }
+  // A start with no connection and no sign-in that can be checked: go by what
+  // this login was the last time the database could be asked. True = carry on
+  // to the jobs saved on this device; false = this login has nothing to do
+  // here without a connection, and the sign-in form says so.
+  function whoOfflineStart(userId){
+    var got = whoDecide({error: {message: "offline"}}, lsGet(CK.who), userId);
+    if (got.mode === "old"){ cloud.who = null; cloud.whoMode = "old"; return true; }   // as the build before this one did
+    if (got.mode !== "kept"){ whoLookOnly(); return true; }
+    var plan = whoPlan(got.who, 2);
+    if (plan.screen === "turnaway" || plan.screen === "driver" || plan.screen === "dashboard"){
+      cloud.user = null;
+      showLogin(plan.screen === "turnaway" ? WHO_NO_DATABASE : "You're offline. Sign in again when you have a connection.");
+      cloudStatus("bad", "Offline");
+      return false;
+    }
+    cloud.who = got.who; cloud.whoMode = "kept";
+    cloud.role = plan.role; cloud.feKind = "";
+    if (plan.screen === "staff"){
+      applyRoleUi("staff");
+      applyStaffKind({role: "staff", staff_kind: plan.kind});
+    } else {
+      applyRoleUi(plan.role, false, plan.some);
+    }
+    return true;
+  }
+
+  // The way in on a database where add-job-matrix.sql hasn't been run: the
+  // login's type and its one job come from its own line in eq_profiles, and a
+  // login with no line is full-access staff. Nothing in here has changed.
+  function rolesResumeOld(){
     // "*": the account-type column may not be in the database yet (add-account-types.sql)
     return cloud.sb.from("eq_profiles").select("*").eq("id", cloud.user.id).maybeSingle().then(function(pr){
       // Couldn't be read just now (a network blip as the page reloads): go by
@@ -7921,6 +8503,7 @@
 
   function openDeliveryRequestModal(opts){
     opts = opts || {};
+    if (jobLooksOnly()){ showSnackbar("This login only looks at this job, so it can't ask for a delivery here."); return; }
     var selRows = getSelectedRows();
     if (!selRows.length && !opts.assetsOnly){
       showSnackbar('Select one or more rows in the table first (checkbox in the # column), or use "Request assets" on the Assets page for an equipment-free request.');
@@ -8528,6 +9111,7 @@
   };
 
   function submitDeliveryRequest(slotChecked){
+    if (jobLooksOnly()){ deliveryMsg("This login only looks at this job, so it can't ask for a delivery here.", "bad"); return; }
     var selRows = getSelectedRows();
     var assetIds = Array.from(deliveryAssetPickedIds);
     if (!selRows.length && !assetIds.length){ deliveryMsg("Nothing to request yet. Check at least one item in the table, or click Assets and pick the ones you need.", "bad"); return; }
@@ -8583,7 +9167,9 @@
     invokeFn("send-delivery-request", {jobId: cloud.jobId, contact: contact, date: dateIso, time: time, items: items, assetIds: assetIds, assetQty: buildAssetQtyMap(assetIds), pdfBase64: pdfBase64}).then(function(res){
       btn.disabled = false;
       if (res.error){
-        deliveryMsg("Couldn't submit: " + res.error.message, "bad");
+        deliveryMsg(/row-level security/i.test(res.error.message)
+          ? "Not sent: this login can't ask for a delivery on this job (it only looks at it, or is no longer on it). Ask the office."
+          : "Couldn't submit: " + res.error.message, "bad");
         return;
       }
       var data = res.data || {};
@@ -8624,400 +9210,939 @@
   var deliveryAssetsBtnEl = cloudEl("deliveryAssetsBtn");
   if (deliveryAssetsBtnEl) deliveryAssetsBtnEl.addEventListener("click", function(){ openAssetsModal("request"); });
 
-  // ---------- manage users (staff only) ----------
-  // "Role" in the UI is one of these kinds; the database only knows role +
-  // job_id (+ staff_kind), so viewer-locked/viewer-any are both stored as
-  // role="viewer", told apart by whether job_id is set, and Admin / Warehouse
-  // are both role="staff", told apart by staff_kind.
-  var muJobs = []; // [{id, name}], refreshed each time the list loads
-  var muUsers = [];
-  // false once the list shows the admin-users function is still the old one
-  // (it doesn't know account types, mobile numbers or passwords yet)
-  var muFnCurrent = true;
-  // false when the function is current but add-account-types.sql hasn't been run
-  var muTypesReady = true;
-  var MU_UPDATE_FN = "The admin-users function needs to be updated first - step 3 in this build's read-me.";
-  var MU_RUN_SQL = "Run add-account-types.sql in the Supabase SQL editor first - step 2 in this build's read-me.";
-  // PC-FE / FE / FE Viewer (Field Engineering Tracker). Stored as a PC (PC-FE)
-  // or a Viewer (FE, FE Viewer) plus eq_profiles.fe_kind; the admin-users
-  // function also sets what the login is in the Install Tracker.
-  var muItProjects = [];   // [{id, name}] the Install Tracker's projects
-  var muItReady = false;   // the function could read the Install Tracker's user table
-  var muFeFnCurrent = true;  // false = the admin-users function is from before these types
-  var muFeReady = true;      // false = add-fe-account-types.sql hasn't been run
-  var MU_UPDATE_FE_FN = "PC-FE, FE and FE Viewer need the updated admin-users function first - step 3 in this build's read-me.";
-  var MU_RUN_FE_SQL = "Run add-fe-account-types.sql in the Supabase SQL editor first - step 2 in this build's read-me.";
-  function muKindIsFe(kind){ return kind === "pcfe" || kind === "fe" || kind === "feviewer"; }
-  // a job can be picked for these, or left on "All jobs"
-  function muKindShowsJob(kind){ return muKindNeedsJob(kind) || muKindIsFe(kind); }
-  // does this kind pick an Install Tracker project? "" no / "optional" (PC-FE) / "required" (FE Viewer)
-  function muKindItProject(kind){ return kind === "pcfe" ? "optional" : kind === "feviewer" ? "required" : ""; }
-  function muItProjectName(id){
-    var p = muItProjects.filter(function(x){ return x.id === id; })[0];
-    return p ? (p.name || "Untitled project") : "a project that is no longer listed";
-  }
-  // what a login is in the Install Tracker right now, in that app's own words
-  function muItNowText(u){
-    if (u.itRole === "viewer") return u.itProjectId ? "Viewer - one project (" + muItProjectName(u.itProjectId) + ")" : "PC - all projects";
-    if (u.itRole === "pc") return "PC - one project (" + muItProjectName(u.itProjectId) + ")";
-    if (u.itRole === "dashboard") return "Dashboard (view-only)";
-    return "Staff (full access)";
-  }
-  function muItOptionsHtml(selectedId, required){
-    return '<option value="">' + (required ? "Pick the project they may look at..." : "PC - all projects") + '</option>' + muItProjects.map(function(p){
-      return '<option value="' + p.id + '"' + (p.id === selectedId ? " selected" : "") + '>' + (required ? "Viewer of: " : "PC on one project: ") + escHtml(p.name || "Untitled project") + '</option>';
-    }).join("");
-  }
-  // the third line of a user's row, for the kind showing in its Role box
-  function muItLineInner(u, kind){
-    if (!muItReady) return "";
-    var need = muKindItProject(kind);
-    var label = '<span class="mu-it-label">Install Tracker:</span>';
-    if (need){
-      // offer what they have now when it is the same sort of thing, else start unpicked
-      var fits = need === "required" ? (u.itRole === "viewer" && u.itProjectId) : (u.itRole === "pc" && u.itProjectId);
-      return label + '<select class="mu-it" title="What this login is in the Install Tracker">' + muItOptionsHtml(fits ? u.itProjectId : "", need === "required") + '</select>';
-    }
-    if (kind === "fe") return label + '<span class="mu-it-now mu-it-full">Staff (full access) - an FE works there like a tech</span>';
-    var full = !u.itRole || u.itRole === "staff";
-    return label + '<span class="mu-it-now' + (full ? " mu-it-full" : "") + '" title="Changed in the Install Tracker\'s own Manage users">' + escHtml(muItNowText(u)) + '</span>';
-  }
+  // ---------- manage users (Admins only) ----------
+  // One window for all three apps (the Install Tracker no longer has its own).
+  // Two views share one set of not-yet-saved changes:
+  //   People - a line per login: what it is in the Database, in the Install
+  //            Tracker and in Field Engineering, and whether it gets job e-mails;
+  //   Jobs   - a row per job and a column per person: in each cell, whether
+  //            that person takes part on the job, only looks, or isn't on it.
+  // Nothing is saved on a click. Save changes sends only what changed; each
+  // login is saved whole or not at all, and one that couldn't be saved keeps
+  // its edits and says why.
+  // The admin-users function does the saving and has the last word: an Admin
+  // can't change what their own login may do, and nobody can change the master
+  // account's. The page keeps those controls switched off so nobody is offered
+  // something that will be refused.
+  var muUsers = [];      // the logins, as the function lists them (levels and job ticks as last saved)
+  var muLines = [];      // one per real job: {name, number, archived, db, it, fe, alone}
+  var muHealth = [];     // what the database says is not as this build expects
+  var muPend = {};       // user id -> {set, phone, name, ticks: {"db|<job id>": "participant" | "viewer" | null}, error}
+  var muState = "";      // "" (not loaded) | "old-fn" | "not-admin" | "not-ready" | "ready"
+  var muView = "people";
+  var muLit = "";        // the login whose column is lit in the Jobs view
+  var muMoreOpen = {};   // user ids whose second line (mobile, password, delete) is open
+  var muBusy = false;    // a save is on its way: nothing is edited meanwhile
+  var muOpened = 0;      // counts openings of the window, so an answer that comes back after it was closed is left alone
+  var MU_PASTE_FN = "Paste the new admin-users function into Supabase (step 2 in this build's read-me), then reopen this window.";
+  var MU_RUN_MATRIX_SQL = "Run add-job-matrix.sql in the Supabase SQL editor first (step 1 in this build's read-me).";
+  var MU_PICK_AN_APP = "Pick at least one app for this login (or delete the login).";
 
-  function muKind(u){
-    if (u.isMaster || (u.role === "staff" && u.staffKind === "admin")) return "admin";
-    if (u.role === "staff" && u.staffKind === "warehouse") return "warehouse";
-    if (u.role === "tech" && u.feKind === "pc_fe") return "pcfe";
-    if (u.role === "viewer" && u.feKind === "fe") return "fe";
-    if (u.role === "viewer" && u.feKind === "fe_viewer") return "feviewer";
-    if (u.role === "viewer") return u.jobId ? "viewer-locked" : "viewer-any";
-    if (u.role === "tech") return u.jobId ? "tech-locked" : "tech-any";
-    if (u.role === "driver") return "driver";
-    if (u.role === "dashboard") return "dashboard";
-    return "staff";
+  // What each box in the People view offers, and what it stands for in the
+  // nine fields the function saves. "Own jobs" = the jobs ticked for the
+  // login in the Jobs view; "all jobs" = every job in that app.
+  var MU_DB_CHOICES = [
+    ["none", "- not used", {appDb: false, role: "viewer", staffKind: "", dbAll: false}],
+    ["viewer-own", "Viewer - own jobs", {appDb: true, role: "viewer", staffKind: "", dbAll: false}],
+    ["viewer-all", "Viewer - all jobs", {appDb: true, role: "viewer", staffKind: "", dbAll: true}],
+    ["tech-own", "Participant (PC) - own jobs", {appDb: true, role: "tech", staffKind: "", dbAll: false}],
+    ["tech-all", "Participant (PC) - all jobs", {appDb: true, role: "tech", staffKind: "", dbAll: true}],
+    ["staff", "Full access - Staff", {appDb: true, role: "staff", staffKind: "", dbAll: false}],
+    ["warehouse", "Full access - Warehouse", {appDb: true, role: "staff", staffKind: "warehouse", dbAll: false}],
+    ["admin", "Full access - Admin (manages users)", {appDb: true, role: "staff", staffKind: "admin", dbAll: false}],
+    ["driver", "Driver", {appDb: true, role: "driver", staffKind: "", dbAll: false}],
+    ["dashboard", "Dashboard screen", {appDb: true, role: "dashboard", staffKind: "", dbAll: false}]
+  ];
+  var MU_IT_CHOICES = [
+    ["none", "- not used", {itRole: "none", itAll: false}],
+    ["viewer-own", "Viewer - own jobs", {itRole: "viewer", itAll: false}],
+    ["viewer-all", "Viewer - all jobs", {itRole: "viewer", itAll: true}],
+    ["participant-own", "Participant - own jobs", {itRole: "participant", itAll: false}],
+    ["participant-all", "Participant - all jobs", {itRole: "participant", itAll: true}],
+    ["staff", "Full access", {itRole: "staff", itAll: false}],
+    ["dashboard", "Dashboard screen", {itRole: "dashboard", itAll: false}]
+  ];
+  var MU_FE_CHOICES = [
+    ["none", "- not used", {feRole: "none", feAll: false}],
+    ["viewer-own", "Viewer - own jobs", {feRole: "viewer", feAll: false}],
+    ["viewer-all", "Viewer - all jobs", {feRole: "viewer", feAll: true}],
+    ["participant-own", "Participant - own jobs", {feRole: "participant", feAll: false}],
+    ["participant-all", "Participant - all jobs", {feRole: "participant", feAll: true}],
+    ["staff", "Full access", {feRole: "staff", feAll: false}]
+  ];
+  var MU_LEVEL_KEYS = ["appDb", "role", "staffKind", "dbAll", "itRole", "itAll", "feRole", "feAll", "jobEmails"];
+
+  function muOwn(o, k){ return Object.prototype.hasOwnProperty.call(o, k); }
+  // The nine level fields, tidied the way the function stores them: "no
+  // Database" is always a viewer with the app off, Admin / Warehouse only go
+  // with full access, an "all jobs" switch only counts beside a viewer or
+  // participant level. So two sets that mean the same compare as equal.
+  function muTidyLevels(l){
+    l = l || {};
+    var appDb = l.appDb !== false;
+    var role = appDb ? String(l.role || "viewer") : "viewer";
+    var itRole = String(l.itRole || "none"), feRole = String(l.feRole || "none");
+    return {
+      appDb: appDb, role: role,
+      staffKind: appDb && role === "staff" && (l.staffKind === "admin" || l.staffKind === "warehouse") ? l.staffKind : "",
+      dbAll: appDb && (role === "viewer" || role === "tech") && l.dbAll === true,
+      itRole: itRole, itAll: (itRole === "viewer" || itRole === "participant") && l.itAll === true,
+      feRole: feRole, feAll: (feRole === "viewer" || feRole === "participant") && l.feAll === true,
+      jobEmails: l.jobEmails !== false
+    };
   }
-  function muKindNeedsJob(kind){ return kind === "viewer-locked" || kind === "tech-locked"; }
-  function muRoleAndJob(kind, jobId, itProjectId){
-    if (kind === "pcfe") return {role: "tech", jobId: jobId || null, staffKind: "", feKind: "pc_fe", itProjectId: itProjectId || null};
-    if (kind === "fe") return {role: "viewer", jobId: jobId || null, staffKind: "", feKind: "fe", itProjectId: null};
-    if (kind === "feviewer") return {role: "viewer", jobId: jobId || null, staffKind: "", feKind: "fe_viewer", itProjectId: itProjectId || null};
-    if (kind === "viewer-locked") return {role: "viewer", jobId: jobId || null, staffKind: ""};
-    if (kind === "viewer-any") return {role: "viewer", jobId: null, staffKind: ""};
-    if (kind === "tech-locked") return {role: "tech", jobId: jobId || null, staffKind: ""};
-    if (kind === "tech-any") return {role: "tech", jobId: null, staffKind: ""};
-    if (kind === "driver") return {role: "driver", jobId: null, staffKind: ""};
-    if (kind === "dashboard") return {role: "dashboard", jobId: null, staffKind: ""};
-    if (kind === "admin") return {role: "staff", jobId: null, staffKind: "admin"};
-    if (kind === "warehouse") return {role: "staff", jobId: null, staffKind: "warehouse"};
-    return {role: "staff", jobId: null, staffKind: ""};
+  function muSameLevels(a, b){
+    a = muTidyLevels(a); b = muTidyLevels(b);
+    return MU_LEVEL_KEYS.every(function(k){ return a[k] === b[k]; });
   }
-  // why this save can't go through yet, or "" when it can
-  function muNotReadyReason(rj, phone){
-    if (rj.feKind){
-      if (!muFnCurrent) return MU_UPDATE_FN;
-      if (!muFeFnCurrent) return MU_UPDATE_FE_FN;
-      if (!muFeReady) return MU_RUN_FE_SQL;
-    }
-    if (!rj.staffKind && !phone) return "";
-    if (!muFnCurrent) return MU_UPDATE_FN;
-    if (!muTypesReady) return MU_RUN_SQL;
+  // which choice of each box a set of levels shows as
+  function muDbChoice(l){
+    l = muTidyLevels(l);
+    if (!l.appDb) return "none";
+    if (l.role === "staff") return l.staffKind || "staff";
+    if (l.role === "driver" || l.role === "dashboard") return l.role;
+    return (l.role === "tech" ? "tech" : "viewer") + (l.dbAll ? "-all" : "-own");
+  }
+  function muItChoice(l){
+    l = muTidyLevels(l);
+    if (l.itRole === "viewer" || l.itRole === "participant") return l.itRole + (l.itAll ? "-all" : "-own");
+    return l.itRole === "staff" || l.itRole === "dashboard" ? l.itRole : "none";
+  }
+  function muFeChoice(l){
+    l = muTidyLevels(l);
+    if (l.feRole === "viewer" || l.feRole === "participant") return l.feRole + (l.feAll ? "-all" : "-own");
+    return l.feRole === "staff" ? "staff" : "none";
+  }
+  // the fields a choice stands for (a copy), or null for a value that isn't on the list
+  function muChoiceSet(list, value){
+    var hit = list.filter(function(c){ return c[0] === value; })[0];
+    return hit ? Object.assign({}, hit[2]) : null;
+  }
+  function muChoiceLabel(list, value){
+    var hit = list.filter(function(c){ return c[0] === value; })[0];
+    return hit ? hit[1] : "";
+  }
+  // What the job ticks mean for a login with these levels.
+  //   db / it / fe   which halves of a job line it can use: the Database job
+  //                  with the Database or Field Engineering (the tracker shows
+  //                  Database jobs), the Install Tracker project with the Install
+  //                  Tracker or Field Engineering, a tracker-made job with Field Engineering
+  //   column    it gets a column in the Jobs view: everyone except a login
+  //             that is only a Driver, or has no app at all
+  //   canPart   it can take part somewhere (participant or full access in some
+  //             app); if not, a cell only goes between empty and "look"
+  //   jobApps   how many of its apps go by jobs at all (a Driver's doesn't)
+  //   everyJob  it sees every job in each of those anyway: a tick then only chooses e-mails
+  //             (and a "look" tick still lowers a participant to look only on that job)
+  //   mailDb / mailIt   a tick on that half can bring it job e-mails
+  function muUses(l){
+    l = muTidyLevels(l);
+    var dbTicks = l.appDb && (l.role === "staff" || l.role === "tech" || l.role === "viewer");
+    var itTicks = l.itRole === "staff" || l.itRole === "participant" || l.itRole === "viewer";
+    var fe = l.feRole !== "none";
+    var apps = [], wide = [];
+    if (l.appDb && l.role !== "driver"){ apps.push("db"); if (l.role === "staff" || l.role === "dashboard" || l.dbAll) wide.push("db"); }
+    if (l.itRole !== "none"){ apps.push("it"); if (l.itRole === "staff" || l.itRole === "dashboard" || l.itAll) wide.push("it"); }
+    if (fe){ apps.push("fe"); if (l.feRole === "staff" || l.feAll) wide.push("fe"); }
+    return {
+      db: dbTicks || fe, it: itTicks || fe, fe: fe,
+      column: apps.length > 0,
+      canPart: (l.appDb && (l.role === "staff" || l.role === "tech")) || l.itRole === "staff" || l.itRole === "participant" || l.feRole === "staff" || l.feRole === "participant",
+      jobApps: apps.length, everyJob: apps.length > 0 && wide.length === apps.length,
+      mailDb: dbTicks, mailIt: itTicks
+    };
+  }
+  // the three letters under a name in the Jobs view: Database / Install Tracker / Field Eng.
+  function muLetters(l){
+    l = muTidyLevels(l);
+    var one = function(w){ return w === "viewer" ? "V" : w === "tech" || w === "participant" ? "P" : w === "staff" ? "F" : w === "driver" || w === "dashboard" ? "D" : "-"; };
+    return one(l.appDb ? l.role : "none") + one(l.itRole) + one(l.feRole);
+  }
+  function muLevelsInWords(l){
+    return "Database: " + muChoiceLabel(MU_DB_CHOICES, muDbChoice(l)) + " · Install Tracker: " + muChoiceLabel(MU_IT_CHOICES, muItChoice(l)) +
+      " · Field Eng.: " + muChoiceLabel(MU_FE_CHOICES, muFeChoice(l));
+  }
+  // the halves of a job line this login can use: [{s, j}]
+  function muCellParts(line, uses){
+    var parts = [];
+    if (line.db && uses.db) parts.push({s: "db", j: line.db.id});
+    if (line.it && uses.it) parts.push({s: "it", j: line.it.id});
+    if (line.fe && uses.fe) parts.push({s: "fe", j: line.fe.id});
+    return parts;
+  }
+  // What a cell shows, from the level of each of its halves ("participant",
+  // "viewer" or null): "part" (takes part) | "look" | "empty" | "half" (the
+  // halves differ) | "off" (nothing on this line is for this login).
+  function muCellState(levels){
+    if (!levels.length) return "off";
+    var first = levels[0] || null;
+    for (var i = 1; i < levels.length; i++){ if ((levels[i] || null) !== first) return "half"; }
+    return first === "participant" ? "part" : first === "viewer" ? "look" : "empty";
+  }
+  // What a click makes of it: empty -> take part -> look -> empty, and for a
+  // login that can only look anywhere: empty -> look -> empty. A cell whose
+  // halves differ is first made the same on both (that is how a project made
+  // later, with the same job number, gets picked up).
+  function muCellNext(levels, canPart){
+    var state = muCellState(levels);
+    if (state === "half") return canPart && levels.indexOf("participant") !== -1 ? "participant" : "viewer";
+    if (state === "empty") return canPart ? "participant" : "viewer";
+    if (state === "part") return "viewer";
+    return null;
+  }
+  function muTickKey(s, j){ return s + "|" + String(j).toLowerCase(); }
+  // user.ticks [{s, j, l}] -> {"db|<id>": level}
+  function muTickMap(ticks){
+    var m = {};
+    (ticks || []).forEach(function(t){ if (t && t.s && t.j && (t.l === "participant" || t.l === "viewer")) m[muTickKey(t.s, t.j)] = t.l; });
+    return m;
+  }
+  function muBaseTick(u, s, j){
+    var k = muTickKey(s, j);
+    return u.tickMap && muOwn(u.tickMap, k) ? u.tickMap[k] : null;
+  }
+  // What Save sends: only the logins with something changed, and of each only
+  // what changed - all nine level fields when any of them did (the function
+  // takes them together), the name or mobile number if edited, and the job
+  // ticks that differ from what is saved (l: null takes a tick off).
+  function muBuildChanges(users, pend){
+    var out = [];
+    users.forEach(function(u){
+      var p = pend[u.id];
+      if (!p) return;
+      var ch = {userId: u.id}, any = false;
+      if (p.set && !muSameLevels(p.set, u.levels)){ ch.set = muTidyLevels(p.set); any = true; }
+      if (typeof p.name === "string" && p.name !== String(u.displayName || "")){ ch.displayName = p.name; any = true; }
+      if (typeof p.phone === "string" && p.phone !== String(u.phone || "")){ ch.phone = p.phone; any = true; }
+      var ticks = [];
+      Object.keys(p.ticks || {}).forEach(function(k){
+        var cut = k.indexOf("|"), s = k.slice(0, cut), j = k.slice(cut + 1), l = p.ticks[k] || null;
+        if (l !== muBaseTick(u, s, j)) ticks.push({s: s, j: j, l: l});
+      });
+      if (ticks.length){ ch.ticks = ticks; any = true; }
+      if (any) out.push(ch);
+    });
+    return out;
+  }
+  // a login's saved state, brought up to date with a change the function has just accepted
+  function muApplySaved(u, ch){
+    if (ch.set) u.levels = muTidyLevels(ch.set);
+    if (typeof ch.displayName === "string") u.displayName = ch.displayName;
+    if (typeof ch.phone === "string") u.phone = ch.phone;
+    u.tickMap = u.tickMap || {};
+    (ch.ticks || []).forEach(function(t){
+      var k = muTickKey(t.s, t.j);
+      if (t.l) u.tickMap[k] = t.l; else delete u.tickMap[k];
+    });
+  }
+  // why this login's change can't be sent as it is, or ""
+  function muLocalProblem(ch){
+    if (ch.set && !ch.set.appDb && ch.set.itRole === "none" && ch.set.feRole === "none") return MU_PICK_AN_APP;
     return "";
   }
-  // allJobs: this kind may be left on every job, so the first choice says so
-  function muJobOptionsHtml(selectedId, allJobs){
-    return '<option value="">' + (allJobs ? "All jobs" : "Pick a job...") + '</option>' + muJobs.map(function(j){
-      return '<option value="' + j.id + '"' + (j.id === selectedId ? " selected" : "") + '>' + escHtml(j.name || "Untitled job") + '</option>';
-    }).join("");
+  // The function's answer to a save, per login: {saved: [user ids], failed: {user id: why}}.
+  // A login the answer doesn't mention was not saved.
+  function muReadResults(sent, data){
+    var out = {saved: [], failed: {}}, seen = {};
+    ((data && Array.isArray(data.results)) ? data.results : []).forEach(function(r){
+      if (!r || !r.userId) return;
+      seen[r.userId] = true;
+      if (r.ok) out.saved.push(r.userId); else out.failed[r.userId] = String(r.error || "Not saved.");
+    });
+    sent.forEach(function(ch){ if (!seen[ch.userId]) out.failed[ch.userId] = String((data && data.error) || "Not saved - no answer for this login."); });
+    return out;
+  }
+  // should this job line be listed? f = {q: lower-case search text, archived: show archived, unlinked: only lines not linked across apps}
+  function muLineShown(line, f){
+    if (line.archived && !f.archived) return false;
+    if (f.unlinked && ((line.db && line.it) || line.fe)) return false;
+    if (f.q){
+      var hay = [line.name, line.number, line.db && line.db.name, line.it && line.it.name, line.fe && line.fe.name].join(" ").toLowerCase();
+      if (hay.indexOf(f.q) === -1) return false;
+    }
+    return true;
   }
 
+  // ----- the not-yet-saved changes -----
+  function muUserById(id){ return muUsers.filter(function(u){ return u.id === id; })[0] || null; }
+  function muPendFor(id){
+    if (!muPend[id]) muPend[id] = {set: null, ticks: {}, error: ""};
+    return muPend[id];
+  }
+  // drops an entry that no longer holds a change
+  function muPendTidy(id){
+    var p = muPend[id];
+    if (p && !p.set && typeof p.phone !== "string" && typeof p.name !== "string" && !Object.keys(p.ticks).length) delete muPend[id];
+  }
+  function muLevelsNow(u){
+    var p = muPend[u.id];
+    return muTidyLevels(p && p.set ? p.set : u.levels);
+  }
+  function muTickNow(u, s, j){
+    var p = muPend[u.id], k = muTickKey(s, j);
+    return p && muOwn(p.ticks, k) ? (p.ticks[k] || null) : muBaseTick(u, s, j);
+  }
+  function muSetTick(u, s, j, level){
+    var p = muPendFor(u.id), k = muTickKey(s, j);
+    if ((level || null) === muBaseTick(u, s, j)) delete p.ticks[k]; else p.ticks[k] = level || null;
+    p.error = "";
+    muPendTidy(u.id);
+  }
+  // patch = some of the nine fields; the others stay as they are now
+  function muChangeLevels(u, patch){
+    var now = muLevelsNow(u), next = {};
+    MU_LEVEL_KEYS.forEach(function(k){ next[k] = muOwn(patch, k) ? patch[k] : now[k]; });
+    var p = muPendFor(u.id);
+    // (what was saved when this login's boxes were first touched: Save checks it is still so)
+    if (!p.set) p.from = u.levels;
+    p.set = muSameLevels(next, u.levels) ? null : muTidyLevels(next);
+    p.error = "";
+    muPendTidy(u.id);
+  }
+  function muSetText(u, field, value){
+    var p = muPendFor(u.id), saved = String((field === "phone" ? u.phone : u.displayName) || "");
+    if (value === saved) delete p[field]; else p[field] = value;
+    p.error = "";
+    muPendTidy(u.id);
+  }
+  // After the list has been read again: what was pending and is now saved, or
+  // is about a login or a job that has gone, is no longer a change.
+  function muPendReconcile(){
+    var known = {};
+    muLines.forEach(function(line){ ["db", "it", "fe"].forEach(function(s){ if (line[s]) known[muTickKey(s, line[s].id)] = true; }); });
+    Object.keys(muPend).forEach(function(id){
+      var u = muUserById(id), p = muPend[id], jobGone = false;
+      if (!u){ delete muPend[id]; return; }
+      Object.keys(p.ticks).forEach(function(k){
+        var cut = k.indexOf("|");
+        if (!known[k]) jobGone = true;
+        if (!known[k] || (p.ticks[k] || null) === muBaseTick(u, k.slice(0, cut), k.slice(cut + 1))) delete p.ticks[k];
+      });
+      if (p.set && muSameLevels(p.set, u.levels)) p.set = null;
+      if (p.phone === String(u.phone || "")) delete p.phone;
+      if (p.name === String(u.displayName || "")) delete p.name;
+      // (a login that was refused because of a job that has gone: say what is left to do)
+      if (jobGone && p.error) p.error += " That job is off the list now - press Save changes again to save the rest.";
+      muPendTidy(id);
+    });
+  }
+  // which job lines hold a changed tick of this login
+  function muChangedLines(u){
+    var p = muPend[u.id], hit = {};
+    if (!p) return hit;
+    muLines.forEach(function(line, i){
+      ["db", "it", "fe"].forEach(function(s){
+        if (line[s] && muOwn(p.ticks, muTickKey(s, line[s].id))) hit[i] = true;
+      });
+    });
+    return hit;
+  }
+  // how many things are waiting to be saved: each box, tick or number changed in People, each cell changed in Jobs
+  function muPendCount(){
+    var n = 0;
+    muUsers.forEach(function(u){
+      var p = muPend[u.id];
+      if (!p) return;
+      if (p.set){
+        var a = muTidyLevels(p.set), b = muTidyLevels(u.levels);
+        if (muDbChoice(a) !== muDbChoice(b)) n++;
+        if (muItChoice(a) !== muItChoice(b)) n++;
+        if (muFeChoice(a) !== muFeChoice(b)) n++;
+        if (a.jobEmails !== b.jobEmails) n++;
+      }
+      if (typeof p.phone === "string") n++;
+      if (typeof p.name === "string") n++;
+      n += Object.keys(muChangedLines(u)).length;
+    });
+    return n;
+  }
+  // how many job lines this login is on (as it stands now, saved or not), counting only what it can use
+  function muJobCount(u, uses){
+    var n = 0;
+    muLines.forEach(function(line){
+      if (muCellParts(line, uses).some(function(p){ return !!muTickNow(u, p.s, p.j); })) n++;
+    });
+    return n;
+  }
+  // is it on any job whose e-mails it would get?
+  function muHasMailJob(u, uses){
+    return muLines.some(function(line){
+      return (uses.mailDb && line.db && !!muTickNow(u, "db", line.db.id)) || (uses.mailIt && line.it && !!muTickNow(u, "it", line.it.id));
+    });
+  }
+  // what stands beside a login's Job e-mails tick: why, with the tick on, no e-mail would come - or,
+  // with the tick off, that it is on jobs whose e-mail it is not getting - or ""
+  function muMailNote(u, l, uses){
+    if (!l.jobEmails) return muHasMailJob(u, uses) ? "on jobs, but gets none of their e-mail" : "";
+    if (!uses.mailDb && !uses.mailIt) return "no job e-mail goes to this kind of login";
+    return muHasMailJob(u, uses) ? "" : "no jobs ticked yet - gets no job e-mail";
+  }
+
+  // ----- drawing -----
   function muMsg(text, kind){
     var m = cloudEl("muMsg");
     m.textContent = text || "";
     m.className = "mu-msg" + (kind ? " " + kind : "");
   }
-
-  function renderMuList(){
-    var list = cloudEl("muList");
-    list.innerHTML = muUsers.map(function(u){
-      var kind = muKind(u);
-      var jobShown = muKindShowsJob(kind);
-      var isSelf = !!(cloud.user && u.id === cloud.user.id);
-      var itLine = muItReady ? '<div class="mu-it-line">' + muItLineInner(u, kind) + '</div>' : '';
-      // Second line of every user: their mobile number, and a way to give them
-      // a new password. The master account's password is only its own to change.
-      var secondLine =
-        '<input type="tel" class="mu-phone" value="' + escHtml(u.phone || "") + '" placeholder="Mobile #" autocomplete="off" title="Mobile number - used to text a driver their schedule">' +
-        '<div class="mu-pw">' + (u.isMaster && !isSelf ? '' :
-          '<button type="button" class="mu-pw-open">Change password</button>' +
-          '<span class="mu-pw-form" hidden>' +
-            '<input type="text" class="mu-pw-input" placeholder="New password (at least 6 characters)" autocomplete="off" autocapitalize="off" spellcheck="false">' +
-            '<button type="button" class="mu-pw-save primary">Set password</button>' +
-            '<button type="button" class="mu-pw-cancel">Cancel</button>' +
-          '</span>') +
-        '</div>';
-      // The master account is always an Admin: nothing about what it can do can
-      // be changed, by anyone, so its type is shown but not offered (the real
-      // enforcement is server-side in admin-users either way). There's no
-      // Delete for it either.
-      if (u.isMaster){
-        return (
-          '<div class="mu-row" data-id="' + u.id + '">' +
-            '<span class="mu-email">' + escHtml(u.email) +
-              ' <span class="mu-master-badge" title="The master account - can\'t be deleted or have its account type changed, by anyone.">Master</span>' +
-            '</span>' +
-            '<select class="mu-role" disabled><option value="admin" selected>Admin</option></select>' +
-            '<select class="mu-job mu-job-hidden"></select>' +
-            '<button type="button" class="mu-save primary">Save</button>' +
-            '<span></span>' +
-            secondLine +
-            itLine +
-          '</div>'
-        );
-      }
-      return (
-        '<div class="mu-row" data-id="' + u.id + '">' +
-          '<span class="mu-email">' + escHtml(u.email) + '</span>' +
-          '<select class="mu-role">' +
-            '<option value="admin"' + (kind === "admin" ? " selected" : "") + '>Admin</option>' +
-            '<option value="staff"' + (kind === "staff" ? " selected" : "") + '>Staff (full access)</option>' +
-            '<option value="warehouse"' + (kind === "warehouse" ? " selected" : "") + '>Warehouse</option>' +
-            '<option value="viewer-locked"' + (kind === "viewer-locked" ? " selected" : "") + '>Viewer - one job</option>' +
-            '<option value="viewer-any"' + (kind === "viewer-any" ? " selected" : "") + '>Viewer - all jobs</option>' +
-            '<option value="tech-locked"' + (kind === "tech-locked" ? " selected" : "") + '>PC - one job</option>' +
-            '<option value="tech-any"' + (kind === "tech-any" ? " selected" : "") + '>PC - all jobs</option>' +
-            '<option value="pcfe"' + (kind === "pcfe" ? " selected" : "") + '>PC-FE</option>' +
-            '<option value="fe"' + (kind === "fe" ? " selected" : "") + '>FE</option>' +
-            '<option value="feviewer"' + (kind === "feviewer" ? " selected" : "") + '>FE Viewer</option>' +
-            '<option value="driver"' + (kind === "driver" ? " selected" : "") + '>Driver</option>' +
-            '<option value="dashboard"' + (kind === "dashboard" ? " selected" : "") + '>Dashboard view</option>' +
-          '</select>' +
-          '<select class="mu-job' + (jobShown ? "" : " mu-job-hidden") + '">' + muJobOptionsHtml(u.jobId, muKindIsFe(kind)) + '</select>' +
-          '<button type="button" class="mu-save primary">Save</button>' +
-          '<button type="button" class="mu-delete">Delete login</button>' +
-          secondLine +
-          itLine +
-        '</div>'
-      );
-    }).join("") || '<div class="mu-note">No users yet.</div>';
+  function muOptionsHtml(list, value){
+    return list.map(function(c){ return '<option value="' + c[0] + '"' + (c[0] === value ? " selected" : "") + '>' + escHtml(c[1]) + '</option>'; }).join("");
   }
-
-  function muFindRowEls(rowEl){
-    return {
-      id: rowEl.getAttribute("data-id"),
-      roleSel: rowEl.querySelector(".mu-role"),
-      jobSel: rowEl.querySelector(".mu-job"),
-      itSel: rowEl.querySelector(".mu-it"),
-      phoneEl: rowEl.querySelector(".mu-phone"),
-      saveBtn: rowEl.querySelector(".mu-save"),
+  function muIsSelf(u){ return !!(cloud.user && u.id === cloud.user.id); }
+  function muShortName(u){
+    var n = String(u.displayName || "").trim();
+    return n || String(u.email || "").split("@")[0] || "(no name)";
+  }
+  // Change password, as a line of its own. The master account's password is only its own to change.
+  function muPwHtml(u){
+    return '<div class="mu-pw">' + (u.isMaster && !muIsSelf(u) ? '' :
+      '<button type="button" class="mu-pw-open">Change password</button>' +
+      '<span class="mu-pw-form" hidden>' +
+        '<input type="text" class="mu-pw-input" placeholder="New password (at least 6 characters)" autocomplete="off" autocapitalize="off" spellcheck="false">' +
+        '<button type="button" class="mu-pw-save primary">Set password</button>' +
+        '<button type="button" class="mu-pw-cancel">Cancel</button>' +
+      '</span>') +
+    '</div>';
+  }
+  function muBadgesHtml(u){
+    return (u.isMaster ? ' <span class="mu-master-badge" title="The master account - it can\'t be deleted, and what it may do can\'t be changed, by anyone.">Master</span>' : '') +
+      (muIsSelf(u) ? ' <span class="mu-you-badge" title="The login you are signed in with">You</span>' : '');
+  }
+  // the parts of a People line that follow the pending changes
+  function muJobsCellText(u, uses){
+    if (!uses.jobApps) return "";
+    if (uses.everyJob) return "every job";
+    var n = muJobCount(u, uses);
+    return n + (n === 1 ? " job" : " jobs");
+  }
+  function muRowProblem(u){
+    var p = muPend[u.id];
+    if (p && p.error) return p.error;
+    var l = muLevelsNow(u);
+    if (p && p.set && !l.appDb && l.itRole === "none" && l.feRole === "none") return MU_PICK_AN_APP;
+    // (once Admin is picked for it: the other two boxes go out in that same save and are fixed again
+    // afterwards, for everyone - so while one of them still reads "not used", say so before the save)
+    if (u.isMaster && !muIsSelf(u) && muDbChoice(u.levels) !== "admin" && muDbChoice(l) === "admin" && (l.itRole === "none" || l.feRole === "none"))
+      return "Before you press Save changes: the master account's " + (l.itRole !== "none" ? "Field Eng. box still says" : l.feRole !== "none" ? "Install Tracker box still says" : "Install Tracker and Field Eng. boxes still say") +
+        " \"- not used\". Set them as they should be first - once this is saved, nobody can change them from here.";
+    // (the master's line was lowered or is missing: say what the one change is that will be taken)
+    if (u.isMaster && !muIsSelf(u) && muDbChoice(u.levels) !== "admin")
+      return muDbChoice(l) === "admin" ? "" : "The master account's line is missing or was lowered. Set its Database box to \"Full access - Admin\" (and the other two as they should be), then press Save changes - that is the one change that will be taken.";
+    return "";
+  }
+  function muPeopleRowHtml(u){
+    var l = muLevelsNow(u), uses = muUses(l), p = muPend[u.id] || {};
+    var self = muIsSelf(u), fixed = u.isMaster || self;
+    var fixedWhy = u.isMaster ? "The master account - what it may do can't be changed, by anyone."
+      : "This is the login you are signed in with. Ask another Admin to change what it may do.";
+    // The one change the function takes on the master account: when its line is
+    // missing or no longer a Database Admin's, another Admin may put it back -
+    // "Full access - Admin" in the Database, with whatever the other two boxes
+    // say in that same save (afterwards they are fixed again, for everyone).
+    var masterDown = u.isMaster && !self && muDbChoice(u.levels) !== "admin";
+    if (masterDown){ fixed = false; }
+    var lock = fixed ? ' disabled title="' + escHtml(fixedWhy) + '"' : '';
+    var dbList = masterDown ? MU_DB_CHOICES.filter(function(c){ return c[0] === "admin" || c[0] === muDbChoice(u.levels); }) : MU_DB_CHOICES;
+    var jobsText = muJobsCellText(u, uses), problem = muRowProblem(u);
+    var mailNote = muMailNote(u, l, uses);
+    var name = typeof p.name === "string" ? p.name : String(u.displayName || "");
+    var phone = typeof p.phone === "string" ? p.phone : String(u.phone || "");
+    var open = !!muMoreOpen[u.id];
+    return '<div class="mu-row' + (muPend[u.id] ? " mu-changed" : "") + (problem ? " mu-failed" : "") + '" data-id="' + escHtml(u.id) + '">' +
+      '<div class="mu-p-grid">' +
+        '<span class="mu-email" title="' + escHtml(u.email) + '">' + escHtml(u.email) + muBadgesHtml(u) +
+          '<small class="mu-sub">' + escHtml(name) + (u.hasLine === false ? (name ? " · " : "") + "nothing set for this login yet" : "") + '</small></span>' +
+        '<label class="mu-f"><span class="mu-lab">Database</span><select class="mu-db"' + lock + '>' + muOptionsHtml(dbList, muDbChoice(l)) + '</select></label>' +
+        '<label class="mu-f"><span class="mu-lab">Install Tracker</span><select class="mu-itsel"' + lock + '>' + muOptionsHtml(MU_IT_CHOICES, muItChoice(l)) + '</select></label>' +
+        '<label class="mu-f"><span class="mu-lab">Field Eng.</span><select class="mu-fesel"' + lock + '>' + muOptionsHtml(MU_FE_CHOICES, muFeChoice(l)) + '</select></label>' +
+        '<label class="mu-mail"><input type="checkbox" class="mu-mailchk"' + (l.jobEmails ? " checked" : "") + '><span class="mu-lab">Job e-mails</span><span class="mu-mail-note">' + escHtml(mailNote) + '</span></label>' +
+        '<span class="mu-jobs-cell">' + (jobsText ? '<button type="button" class="mu-jobs-link" title="Show this login\'s column in the Jobs view">' + escHtml(jobsText) + '</button>'
+          : '<span class="mu-jobs-none" title="Nothing to tick: a driver gets its jobs through deliveries, and a login with no app has none">—</span>') + '</span>' +
+        '<button type="button" class="mu-more-btn" aria-expanded="' + (open ? "true" : "false") + '" title="Name, mobile number, password, delete">' + (open ? "Less" : "More") + '</button>' +
+      '</div>' +
+      '<div class="mu-row-err"' + (problem ? '' : ' hidden') + '>' + escHtml(problem) + '</div>' +
+      '<div class="mu-more"' + (open ? '' : ' hidden') + '>' +
+        '<label>Name<input type="text" class="mu-name" value="' + escHtml(name) + '" maxlength="80" autocomplete="off" placeholder="shown above their column in Jobs"></label>' +
+        '<label>Mobile #<input type="tel" class="mu-phone" value="' + escHtml(phone) + '" maxlength="40" autocomplete="off" placeholder="for texting a driver their schedule"></label>' +
+        muPwHtml(u) +
+        (u.isMaster || self ? '' : '<button type="button" class="mu-delete">Delete login</button>') +
+      '</div>' +
+    '</div>';
+  }
+  function muDrawPeople(){
+    cloudEl("muList").innerHTML =
+      '<div class="mu-p-grid mu-p-head">' +
+        '<span>Login</span><span>Database</span><span>Install Tracker</span><span>Field Eng.</span><span>Job e-mails</span><span>Jobs</span><span></span>' +
+        '<span class="mu-p-mailnote">Gets the e-mails of the jobs they are ticked on - nothing else decides who gets job e-mail (the two office inboxes always do).</span>' +
+      '</div>' +
+      (muUsers.map(muPeopleRowHtml).join("") || '<div class="mu-note">No logins yet.</div>');
+  }
+  // one line, after one of its boxes changed (the boxes themselves keep the focus)
+  function muRefreshRow(rowEl, u){
+    var l = muLevelsNow(u), uses = muUses(l), problem = muRowProblem(u);
+    rowEl.classList.toggle("mu-changed", !!muPend[u.id]);
+    rowEl.classList.toggle("mu-failed", !!problem);
+    var err = rowEl.querySelector(".mu-row-err");
+    err.textContent = problem; err.hidden = !problem;
+    rowEl.querySelector(".mu-mail-note").textContent = muMailNote(u, l, uses);
+    var jobsText = muJobsCellText(u, uses), link = rowEl.querySelector(".mu-jobs-link");
+    if (link && jobsText) link.textContent = jobsText;
+    else rowEl.querySelector(".mu-jobs-cell").innerHTML = jobsText ? '<button type="button" class="mu-jobs-link" title="Show this login\'s column in the Jobs view">' + escHtml(jobsText) + '</button>'
+      : '<span class="mu-jobs-none" title="Nothing to tick: a driver gets its jobs through deliveries, and a login with no app has none">—</span>';
+  }
+  // the database isn't ready for the new Manage users: the logins as they are, to look at -
+  // a password can still be changed and a login deleted
+  function muDrawReadOnly(){
+    var words = function(u){
+      if (u.isMaster || (u.role === "staff" && u.staffKind === "admin")) return "Admin";
+      if (u.role === "staff") return u.staffKind === "warehouse" ? "Warehouse" : "Staff (full access)";
+      return u.role === "tech" ? "PC" : u.role === "driver" ? "Driver" : u.role === "dashboard" ? "Dashboard view" : "Viewer";
     };
+    cloudEl("muList").innerHTML = muUsers.map(function(u){
+      return '<div class="mu-row" data-id="' + escHtml(u.id) + '"><div class="mu-ro-grid">' +
+        '<span class="mu-email" title="' + escHtml(u.email) + '">' + escHtml(u.email) + muBadgesHtml(u) + '</span>' +
+        '<span class="mu-ro-kind">' + escHtml(words(u)) + '</span>' +
+        muPwHtml(u) +
+        (u.isMaster || muIsSelf(u) ? '<span></span>' : '<button type="button" class="mu-delete">Delete login</button>') +
+      '</div></div>';
+    }).join("") || '<div class="mu-note">No logins yet.</div>';
   }
 
-  // keepMsg: the list is being reloaded after a change, so the message about
-  // that change ("Saved.") stays instead of being replaced
+  // ----- the Jobs view -----
+  function mxFilters(){
+    return {q: cloudEl("mxSearch").value.trim().toLowerCase(), archived: cloudEl("mxArchived").checked, unlinked: cloudEl("mxUnlinked").checked};
+  }
+  // The level is the ceiling: for a login that can only look in every app, a
+  // stored "takes part" is a "look" - that is what the cell shows and what a
+  // click goes on from.
+  function mxLevels(u, parts, uses){
+    return parts.map(function(p){
+      var l = muTickNow(u, p.s, p.j);
+      return l === "participant" && !uses.canPart ? "viewer" : l;
+    });
+  }
+  var MX_WORDS = {part: "takes part", look: "looks only", empty: "not on this job", half: "set differently in the two apps"};
+  // one cell: its look, and what it says when pointed at
+  function mxCellInfo(u, line, uses){
+    var parts = muCellParts(line, uses);
+    var levels = mxLevels(u, parts, uses);
+    var state = muCellState(levels);
+    var p = muPend[u.id], dirty = !!p && parts.some(function(x){ return muOwn(p.ticks, muTickKey(x.s, x.j)); });
+    var who = muShortName(u), title;
+    if (state === "off") title = who + " has no app that uses this line.";
+    else {
+      var next = muCellNext(levels, uses.canPart);
+      title = who + " - " + line.name + ": " + MX_WORDS[state] + ". Click: " + (next === "participant" ? "takes part" : next === "viewer" ? "looks only" : "off this job") + "." +
+        (uses.everyJob ? " (Sees every job anyway - a tick only chooses e-mails." + (uses.canPart ? " A ring still lowers a Participant to look only on this job." : "") + ")" : "");
+    }
+    return {state: state, dirty: dirty, title: title};
+  }
+  function mxCellHtml(u, line, lineIndex, uses){
+    var c = mxCellInfo(u, line, uses);
+    return '<td class="mx-c' + (uses.everyJob ? " mx-full" : "") + (u.id === muLit ? " mx-lit" : "") + (c.dirty ? " mx-dirty" : "") + (c.state === "off" ? " mx-off" : "") +
+      '" data-u="' + escHtml(u.id) + '" data-l="' + lineIndex + '">' +
+      '<button type="button" class="mx-cell mx-' + c.state + '"' + (c.state === "off" ? " disabled" : "") + ' title="' + escHtml(c.title) + '" aria-label="' + escHtml(c.title) + '"></button></td>';
+  }
+  function mxJobHtml(line){
+    var both = line.db && line.it;
+    var names = [line.db ? "Database: " + line.db.name : "", line.it ? "Install Tracker: " + line.it.name : "", line.fe ? "Field Eng.: " + line.fe.name : ""].filter(Boolean).join(" · ");
+    var note = line.alone || (both && !!line.db.archived !== !!line.it.archived ? (line.db.archived ? "archived in the Database" : "archived in the Install Tracker") : "") || (line.archived ? "archived" : "");
+    return '<th scope="row" class="mx-job" title="' + escHtml(names) + '">' +
+      '<span class="mx-jline"><span class="mx-jname">' + escHtml(line.name) + '</span>' +
+        (line.number ? '<span class="mx-jnum"># ' + escHtml(line.number) + '</span>' : '') +
+        '<span class="mx-tags">' + (line.db ? '<i>DB</i>' : '') + (line.it ? '<i>IT</i>' : '') + (line.fe ? '<i>FE</i>' : '') + '</span></span>' +
+      (note ? '<span class="mx-alone">' + escHtml(note) + '</span>' : '') + '</th>';
+  }
+  function muDrawJobs(){
+    var cols = [], left = [];
+    muUsers.forEach(function(u){
+      var l = muLevelsNow(u), uses = muUses(l);
+      if (uses.column) cols.push({u: u, l: l, uses: uses}); else left.push(u.email);
+    });
+    var f = mxFilters(), shown = 0;
+    var head = '<thead><tr><th class="mx-corner">Job<small>' + muLines.length + ' line' + (muLines.length === 1 ? "" : "s") + ' · DB / IT / FE = where it exists</small></th>' +
+      cols.map(function(c){
+        var p = muPend[c.u.id];
+        return '<th class="mx-person' + (c.uses.everyJob ? " mx-full" : "") + (c.u.id === muLit ? " mx-lit" : "") + (p && p.error ? " mx-err" : "") + '" data-u="' + escHtml(c.u.id) + '">' +
+          '<button type="button" class="mx-person-btn" title="' + escHtml((p && p.error ? "NOT SAVED: " + p.error + "  -  " : "") + c.u.email + " - " + muLevelsInWords(c.l) + " (click for this login's line in People)") + '">' +
+          '<span class="mx-name">' + escHtml(muShortName(c.u)) + '</span></button>' +
+          '<span class="mx-lv" title="Database / Install Tracker / Field Eng.: V viewer, P participant, F full access, D dashboard or driver, - not used">' + muLetters(c.l) + '</span></th>';
+      }).join("") + '</tr></thead>';
+    var body = muLines.map(function(line, i){
+      if (!muLineShown(line, f)) return "";
+      shown++;
+      return '<tr class="mx-row' + (line.archived ? " mx-arch" : "") + '">' + mxJobHtml(line) + cols.map(function(c){ return mxCellHtml(c.u, line, i, c.uses); }).join("") + '</tr>';
+    }).join("");
+    cloudEl("mxTable").innerHTML = head + '<tbody>' + body + '</tbody>';
+    cloudEl("mxEmpty").hidden = shown > 0 && cols.length > 0;
+    cloudEl("mxEmpty").textContent = !cols.length ? "No login has an app that goes by jobs yet - set that in People first."
+      : !muLines.length ? "There are no jobs yet." : "No job matches - clear the search, or tick Show archived.";
+    cloudEl("mxFoot").textContent = left.length ? "Not shown (" + left.length + "): " + left.slice(0, 6).join(", ") + (left.length > 6 ? ", ..." : "") +
+      " - a login that is only a Driver gets its jobs through deliveries, and a login with no app has nothing to tick." : "";
+  }
+  // brings the lit column into view
+  function mxShowLit(){
+    var box = cloudEl("mxScroll"), th = muLit ? cloudEl("mxTable").querySelector('th.mx-person.mx-lit') : null;
+    if (!th) return;
+    var corner = cloudEl("mxTable").querySelector("th.mx-corner"), fixed = corner ? corner.offsetWidth : 0;
+    box.scrollLeft = Math.max(0, th.offsetLeft - fixed - (box.clientWidth - fixed - th.offsetWidth) / 2);
+  }
+  function mxClick(td){
+    var u = muUserById(td.getAttribute("data-u")), i = Number(td.getAttribute("data-l")), line = muLines[i];
+    if (muBusy || !u || !line) return;
+    var uses = muUses(muLevelsNow(u)), parts = muCellParts(line, uses);
+    if (!parts.length) return;
+    var next = muCellNext(mxLevels(u, parts, uses), uses.canPart);
+    // a line that is one job in two apps is ticked in both at once
+    parts.forEach(function(p){ muSetTick(u, p.s, p.j, next); });
+    var c = mxCellInfo(u, line, uses), btn = td.querySelector(".mx-cell");
+    td.classList.toggle("mx-dirty", c.dirty);
+    btn.className = "mx-cell mx-" + c.state;
+    btn.title = c.title; btn.setAttribute("aria-label", c.title);
+    var th = cloudEl("mxTable").querySelector('th.mx-person[data-u="' + u.id.replace(/["\\]/g, "\\$&") + '"]');
+    if (th) th.classList.remove("mx-err");
+    muDrawBar();
+  }
+
+  // ----- the window as a whole -----
+  function muDrawBar(){
+    var n = muPendCount(), bar = cloudEl("muSaveBar");
+    bar.hidden = muState !== "ready" || !n;
+    cloudEl("muSaveBtn").textContent = "Save changes (" + n + ")";
+    cloudEl("muSaveBtn").disabled = muBusy;
+    cloudEl("muDiscardBtn").disabled = muBusy;
+    cloudEl("manageUsersBackdrop").classList.toggle("mu-busy", muBusy);
+  }
+  function muDraw(){
+    var ready = muState === "ready";
+    cloudEl("muTabs").hidden = !ready;
+    cloudEl("muTabPeople").classList.toggle("active", muView === "people");
+    cloudEl("muTabJobs").classList.toggle("active", muView === "jobs");
+    var health = cloudEl("muHealth");
+    health.hidden = !(ready && muHealth.length);
+    if (!health.hidden){
+      // (what is wrong decides what to do about it: an older rule or helper is put right by running the file
+      // again; a rule this build does not know is not; the rest say themselves what to do)
+      var muOlder = muHealth.some(function(h){ return /older version|is missing/.test(h); });
+      var muUnknown = muHealth.some(function(h){ return /should not be there/.test(h); });
+      health.innerHTML = "Not everything is as this build expects - until it is put right, some logins may see more or less than this window says:" +
+        '<ul>' + muHealth.map(function(h){ return '<li>' + escHtml(h) + '</li>'; }).join("") + '</ul>' +
+        (muOlder ? '<div>An older SQL file was run after add-job-matrix.sql. Run add-job-matrix.sql again in the Supabase SQL editor - that puts the older rules and helpers right.</div>' : "") +
+        (muUnknown ? '<div>A rule this build does not know is on a table it guards. Running the file again does not remove it - send this list to Claude.</div>' : "");
+    }
+    var setup = cloudEl("muSetup");
+    setup.hidden = ready || !muState;
+    setup.textContent = muState === "old-fn" ? MU_PASTE_FN
+      : muState === "not-admin" ? "Only an Admin can manage users. Ask an Admin to make a change, or to make this login an Admin."
+      : muState === "not-ready" ? MU_RUN_MATRIX_SQL + " Until then the logins are listed below to look at; a password can still be changed and a login deleted." : "";
+    var listShown = ready || muState === "not-ready";
+    cloudEl("muPeopleView").hidden = !(listShown && (muView === "people" || !ready));
+    cloudEl("muJobsView").hidden = !(ready && muView === "jobs");
+    cloudEl("muPeopleLegend").hidden = !ready;
+    cloudEl("muNewBox").hidden = !ready;
+    if (ready && muView === "jobs") muDrawJobs();
+    else if (ready) muDrawPeople();
+    else if (listShown) muDrawReadOnly();
+    muDrawBar();
+  }
+  function muShowView(view){
+    muView = view;
+    muDraw();
+    if (view === "jobs") mxShowLit();
+  }
+  // what the function listed
+  function muTake(data){
+    muUsers = Array.isArray(data.users) ? data.users : [];
+    muLines = Array.isArray(data.lines) ? data.lines : [];
+    muHealth = Array.isArray(data.health) ? data.health.map(String) : [];
+    // (a function from before this build doesn't say "matrix": it can't save what this window sends)
+    muState = data.matrix !== 1 ? "old-fn" : data.callerIsAdmin === false ? "not-admin" : data.matrixReady !== true ? "not-ready" : "ready";
+    muUsers.forEach(function(u){
+      u.levels = muTidyLevels(u.levels || {appDb: false, jobEmails: false});
+      u.tickMap = muTickMap(u.ticks);
+    });
+    if (muState === "ready") muPendReconcile(); else muPend = {};
+    if (muState === "not-admin") document.body.classList.add("no-user-admin");
+  }
+  // keepMsg: the list is being read again after a change, so the message about
+  // that change stays instead of being replaced
   function loadMuList(keepMsg){
     if (!keepMsg) muMsg("Loading...");
     return invokeFn("admin-users", {action: "list"}).then(function(res){
       if (res.error){ muMsg("Couldn't load: " + res.error.message, "bad"); return; }
       var data = res.data || {};
       if (data.error){ muMsg("Couldn't load: " + data.error, "bad"); return; }
-      muUsers = data.users || [];
-      muJobs = data.jobs || [];
-      // an admin-users function from before this build doesn't say either of these
-      muFnCurrent = typeof data.accountTypesReady === "boolean";
-      muTypesReady = data.accountTypesReady !== false;
-      // ...and one from before Build 27 doesn't say these
-      muFeFnCurrent = typeof data.feTypesReady === "boolean";
-      muFeReady = data.feTypesReady !== false;
-      muItProjects = data.itProjects || [];
-      muItReady = data.itReady === true;
-      cloudEl("muNewBox").hidden = data.callerIsAdmin === false;
-      if (data.callerIsAdmin === false){
-        cloudEl("muList").innerHTML = '<div class="mu-note">Only an Admin can manage users. Ask an Admin to make a change, or to make this account an Admin.</div>';
-        document.body.classList.add("no-user-admin");
-        muMsg("");
-        return;
-      }
-      renderMuList();
-      muSyncNewForm();
-      var setupNote = !muFnCurrent ? "Admin and Warehouse accounts, mobile numbers and passwords need the updated admin-users function - step 3 in this build's read-me."
-        : !muTypesReady ? "Admin and Warehouse accounts and mobile numbers need add-account-types.sql to be run - step 2 in this build's read-me."
-        : !muFeFnCurrent ? "PC-FE, FE and FE Viewer need the updated admin-users function - step 3 in this build's read-me."
-        : !muFeReady ? "PC-FE, FE and FE Viewer need add-fe-account-types.sql to be run - step 2 in this build's read-me." : "";
-      if (!keepMsg) muMsg(setupNote);
+      muTake(data);
+      muDraw();
+      if (!keepMsg) muMsg("");
     }).catch(function(e){
       muMsg("Couldn't load: " + (e && e.message ? e.message : e), "bad");
     });
   }
-
-  // the "Add a user" form's Job and Install Tracker boxes, for the Role showing
-  function muSyncNewForm(){
-    var kind = cloudEl("muNewRole").value;
-    var jobSel = cloudEl("muNewJob"), itSel = cloudEl("muNewIt");
-    jobSel.innerHTML = muJobOptionsHtml(jobSel.value, muKindIsFe(kind));
-    cloudEl("muNewJobWrap").classList.toggle("show", muKindShowsJob(kind));
-    var need = muItReady ? muKindItProject(kind) : "";
-    itSel.innerHTML = muItOptionsHtml(itSel.value, need === "required");
-    cloudEl("muNewItWrap").classList.toggle("show", !!need);
-  }
-  function openManageUsersModal(){
-    cloudEl("manageUsersBackdrop").hidden = false;
-    cloudEl("muNewEmail").value = "";
-    cloudEl("muNewPassword").value = "";
-    cloudEl("muNewName").value = "";
-    cloudEl("muNewPhone").value = "";
-    cloudEl("muNewRole").value = "staff";
-    cloudEl("muNewJobWrap").classList.remove("show");
-    cloudEl("muNewItWrap").classList.remove("show");
-    loadMuList();
-  }
-  function closeManageUsersModal(){ cloudEl("manageUsersBackdrop").hidden = true; }
-
-  // Manage Users list: role dropdown toggles that row's job dropdown, and
-  // marks the row dirty (Save button becomes visible) until saved.
-  document.addEventListener("change", function(ev){
-    var rowEl = ev.target.closest && ev.target.closest(".mu-row[data-id]");
-    if (!rowEl) return;
-    if (ev.target.classList.contains("mu-role")){
-      var kind = ev.target.value;
-      var jobSel = rowEl.querySelector(".mu-job");
-      jobSel.innerHTML = muJobOptionsHtml(jobSel.value, muKindIsFe(kind));
-      jobSel.classList.toggle("mu-job-hidden", !muKindShowsJob(kind));
-      // the Install Tracker line follows the kind: a project to pick for PC-FE / FE Viewer
-      var itLineEl = rowEl.querySelector(".mu-it-line");
-      var rowUser = muUsers.filter(function(u){ return u.id === rowEl.getAttribute("data-id"); })[0];
-      if (itLineEl && rowUser) itLineEl.innerHTML = muItLineInner(rowUser, kind);
-    }
-    if (ev.target.classList.contains("mu-role") || ev.target.classList.contains("mu-job") || ev.target.classList.contains("mu-it")){
-      rowEl.classList.add("mu-dirty");
-    }
-  });
-  document.addEventListener("input", function(ev){
-    if (!ev.target.classList || !ev.target.classList.contains("mu-phone")) return;
-    var rowEl = ev.target.closest(".mu-row[data-id]");
-    if (rowEl) rowEl.classList.add("mu-dirty");
-  });
-
-  document.addEventListener("click", function(ev){
-    var saveBtn = ev.target.closest && ev.target.closest(".mu-row .mu-save");
-    if (saveBtn){
-      var rowEl = saveBtn.closest(".mu-row");
-      var f = muFindRowEls(rowEl);
-      var kind = f.roleSel.value;
-      var rj = muRoleAndJob(kind, f.jobSel.value, f.itSel ? f.itSel.value : "");
-      if (muKindNeedsJob(kind) && !rj.jobId){ muMsg("Pick a job for that role first.", "bad"); return; }
-      if (muKindItProject(kind) === "required" && muItReady && !rj.itProjectId){ muMsg("Pick the Install Tracker project an FE Viewer may look at first.", "bad"); return; }
-      var phone = f.phoneEl ? f.phoneEl.value.trim() : "";
-      var notReady = muNotReadyReason(rj, phone);
-      if (notReady){ muMsg(notReady, "bad"); return; }
-      saveBtn.disabled = true;
-      muMsg("Saving...");
-      invokeFn("admin-users", {action: "setRole", userId: f.id, role: rj.role, jobId: rj.jobId, staffKind: rj.staffKind, phone: phone, feKind: rj.feKind || "", itProjectId: rj.itProjectId || null}).then(function(res){
-        saveBtn.disabled = false;
-        if (res.error){ muMsg("Couldn't save: " + res.error.message, "bad"); return; }
-        var data = res.data || {};
-        if (data.error){ muMsg("Couldn't save: " + data.error, "bad"); return; }
-        muMsg("Saved.", "good");
-        rowEl.classList.remove("mu-dirty");
-        loadMuList(true);
-      }).catch(function(e){
-        saveBtn.disabled = false;
-        muMsg("Couldn't save: " + (e && e.message ? e.message : e), "bad");
+  // A change to one box sends all nine of that login's levels (the function takes
+  // them together), filled in from what this window read when it was opened. So
+  // before any levels go out the list is read once more: a login whose saved
+  // levels are no longer the ones the edit started from was changed meanwhile by
+  // someone else (another Admin, or this one on another device), and its boxes
+  // are NOT sent - that would quietly put the other change back.
+  function muSave(){
+    if (muBusy || muState !== "ready") return;
+    var levelsGoOut = muBuildChanges(muUsers, muPend).some(function(ch){ return !!ch.set && !muLocalProblem(ch); });
+    if (!levelsGoOut){ muSaveSend(); return; }
+    var opened = muOpened;
+    muBusy = true;
+    muDrawBar();
+    muMsg("Saving...");
+    invokeFn("admin-users", {action: "list"}).then(function(res){
+      if (opened !== muOpened) return;
+      muBusy = false;
+      var data = (res && res.data) || {};
+      var err = (res && res.error && res.error.message) || data.error || "";
+      if (err){ muDrawBar(); muMsg("Couldn't save: " + err, "bad"); return; }
+      muTake(data);
+      var moved = [];
+      Object.keys(muPend).forEach(function(id){
+        var u = muUserById(id), p = muPend[id];
+        if (!u || !p.set || !p.from || muSameLevels(p.from, u.levels)) return;
+        p.set = null; p.error = "";
+        muPendTidy(id);
+        moved.push(u.email);
       });
-      return;
-    }
-    // Change password: opens a box on that user's line; Set password saves it.
-    var pwBtn = ev.target.closest && ev.target.closest(".mu-row .mu-pw-open, .mu-row .mu-pw-cancel, .mu-row .mu-pw-save");
-    if (pwBtn){
-      var pwRow = pwBtn.closest(".mu-row");
-      var pwForm = pwRow.querySelector(".mu-pw-form"), pwOpen = pwRow.querySelector(".mu-pw-open"), pwInput = pwRow.querySelector(".mu-pw-input");
-      var pwUser = muUsers.filter(function(u){ return u.id === pwRow.getAttribute("data-id"); })[0];
-      var showPwForm = function(on){ pwForm.hidden = !on; pwOpen.hidden = on; pwInput.value = ""; };
-      if (pwBtn.classList.contains("mu-pw-open")){
-        if (!muFnCurrent){ muMsg(MU_UPDATE_FN, "bad"); return; }
-        showPwForm(true); pwInput.focus(); muMsg("");
+      muDraw();
+      if (muState !== "ready"){ muMsg(""); return; }
+      if (moved.length){
+        muMsg("Not saved yet: " + moved.join(", ") + (moved.length === 1 ? " was" : " were") + " changed by someone else while this window was open. " +
+          (moved.length === 1 ? "Its" : "Their") + " boxes now show what is saved - check them, change them again if needed, then press Save changes.", "bad");
         return;
       }
-      if (pwBtn.classList.contains("mu-pw-cancel")){ showPwForm(false); muMsg(""); return; }
-      var newPassword = pwInput.value;
-      if (!newPassword || newPassword.length < 6){ muMsg("Password needs to be at least 6 characters.", "bad"); return; }
-      pwBtn.disabled = true;
-      muMsg("Changing the password...");
-      invokeFn("admin-users", {action: "setPassword", userId: pwRow.getAttribute("data-id"), password: newPassword}).then(function(res){
-        pwBtn.disabled = false;
-        var err = (res.error && res.error.message) || (res.data && res.data.error) || "";
-        if (err){ muMsg(/unknown action/i.test(err) ? MU_UPDATE_FN : "Couldn't change the password: " + err, "bad"); return; }
-        showPwForm(false);
-        muMsg("Password changed for " + (pwUser ? pwUser.email : "that user") + ". They sign in with the new one from now on.", "good");
-      }).catch(function(e){
-        pwBtn.disabled = false;
-        muMsg("Couldn't change the password: " + (e && e.message ? e.message : e), "bad");
-      });
+      muSaveSend();
+    }).catch(function(e){
+      if (opened !== muOpened) return;
+      muBusy = false;
+      muDrawBar();
+      muMsg("Couldn't save: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+  function muSaveSend(){
+    if (muBusy || muState !== "ready") return;
+    var all = muBuildChanges(muUsers, muPend), send = [], held = 0;
+    all.forEach(function(ch){
+      var problem = muLocalProblem(ch);
+      if (problem){ muPendFor(ch.userId).error = problem; held++; } else send.push(ch);
+    });
+    if (!send.length){
+      muDraw();
+      muMsg(held ? "Not saved - see the line marked in red." : "Nothing to save.", held ? "bad" : "");
       return;
     }
-    var delBtn = ev.target.closest && ev.target.closest(".mu-row .mu-delete");
-    if (delBtn){
-      var rowEl2 = delBtn.closest(".mu-row");
-      var f2 = muFindRowEls(rowEl2);
-      var user = muUsers.filter(function(u){ return u.id === f2.id; })[0];
-      if (!confirm("Delete the login for " + (user ? user.email : "this user") + "? They will no longer be able to sign in at all.")) return;
-      delBtn.disabled = true;
-      muMsg("Deleting...");
-      invokeFn("admin-users", {action: "deleteUser", userId: f2.id}).then(function(res){
-        delBtn.disabled = false;
-        if (res.error){ muMsg("Couldn't delete: " + res.error.message, "bad"); return; }
-        var data = res.data || {};
-        if (data.error){ muMsg("Couldn't delete: " + data.error, "bad"); return; }
-        muMsg("Deleted.", "good");
-        loadMuList(true);
-      }).catch(function(e){
-        delBtn.disabled = false;
-        muMsg("Couldn't delete: " + (e && e.message ? e.message : e), "bad");
+    var opened = muOpened;
+    muBusy = true;
+    muDrawBar();
+    muMsg("Saving...");
+    invokeFn("admin-users", {action: "saveMatrix", changes: send}).then(function(res){
+      if (opened !== muOpened) return;   // the window was closed (and perhaps opened again) meanwhile
+      muBusy = false;
+      if (res.error){ muDrawBar(); muMsg("Couldn't save: " + res.error.message, "bad"); return; }
+      var data = res.data || {};
+      if (!Array.isArray(data.results)){ muDrawBar(); muMsg("Couldn't save: " + (data.error || "no answer"), "bad"); return; }
+      var got = muReadResults(send, data);
+      // what was saved is no longer a change; what wasn't keeps its edits and says why
+      got.saved.forEach(function(id){
+        var u = muUserById(id), ch = send.filter(function(c){ return c.userId === id; })[0];
+        if (u && ch) muApplySaved(u, ch);
+        delete muPend[id];
       });
-    }
-  });
+      var failedIds = Object.keys(got.failed);
+      failedIds.forEach(function(id){ muPendFor(id).error = got.failed[id]; });
+      var notSaved = failedIds.length + held;
+      if (!notSaved) muMsg("Saved.", "good");
+      else {
+        var first = failedIds.slice(0, 2).map(function(id){ var u = muUserById(id); return (u ? u.email : "a login") + ": " + got.failed[id]; }).join("  ·  ");
+        muMsg((got.saved.length ? "Saved " + got.saved.length + " login" + (got.saved.length === 1 ? "" : "s") + ". " : "") +
+          notSaved + " not saved - " + (notSaved === 1 ? "it keeps its changes" : "they keep their changes") + " and " + (notSaved === 1 ? "is" : "are") + " marked in red." + (first ? " " + first : ""), "bad");
+      }
+      muDraw();
+      return loadMuList(true);
+    }).catch(function(e){
+      if (opened !== muOpened) return;
+      muBusy = false;
+      muDrawBar();
+      muMsg("Couldn't save: " + (e && e.message ? e.message : e), "bad");
+    });
+  }
+  function muDiscard(){
+    var n = muPendCount();
+    if (muBusy || !n) return;
+    if (!confirm("Discard " + n + " change" + (n === 1 ? "" : "s") + " that " + (n === 1 ? "hasn't" : "haven't") + " been saved?")) return;
+    muPend = {};
+    muDraw();
+    muMsg("");
+  }
 
-  var muNewRoleEl = cloudEl("muNewRole");
-  if (muNewRoleEl) muNewRoleEl.addEventListener("change", muSyncNewForm);
+  function openManageUsersModal(){
+    cloudEl("manageUsersBackdrop").hidden = false;
+    muOpened++;
+    muPend = {}; muState = ""; muView = "people"; muLit = ""; muMoreOpen = {}; muBusy = false;
+    muUsers = []; muLines = []; muHealth = [];
+    ["muNewEmail", "muNewPassword", "muNewName", "muNewPhone", "mxSearch"].forEach(function(id){ cloudEl(id).value = ""; });
+    cloudEl("muNewDb").innerHTML = muOptionsHtml(MU_DB_CHOICES, "none");
+    cloudEl("muNewIt").innerHTML = muOptionsHtml(MU_IT_CHOICES, "none");
+    cloudEl("muNewFe").innerHTML = muOptionsHtml(MU_FE_CHOICES, "none");
+    cloudEl("muNewMail").checked = true;
+    cloudEl("mxArchived").checked = false; cloudEl("mxUnlinked").checked = false;
+    cloudEl("muNewForm").hidden = true;
+    cloudEl("muList").innerHTML = ""; cloudEl("mxTable").innerHTML = "";
+    muDraw();
+    loadMuList();
+  }
+  // leaving with changes that aren't saved asks first
+  function closeManageUsersModal(){
+    var n = muPendCount();
+    if (muBusy){
+      if (!confirm("A save is still on its way. Close Manage users anyway?")) return;
+    } else if (n && !confirm(n + " change" + (n === 1 ? " hasn't" : "s haven't") + " been saved. Close Manage users and lose " + (n === 1 ? "it" : "them") + "?")) return;
+    muOpened++;
+    muPend = {}; muBusy = false;
+    cloudEl("manageUsersBackdrop").hidden = true;
+  }
 
-  var muCreateBtnEl = cloudEl("muCreateBtn");
-  if (muCreateBtnEl) muCreateBtnEl.addEventListener("click", function(){
-    var email = cloudEl("muNewEmail").value.trim();
-    var password = cloudEl("muNewPassword").value;
-    var displayName = cloudEl("muNewName").value.trim();
-    var kind = cloudEl("muNewRole").value;
-    var rj = muRoleAndJob(kind, muKindShowsJob(kind) ? cloudEl("muNewJob").value : "", cloudEl("muNewIt").value);
-    if (!email){ muMsg("Enter an email address.", "bad"); return; }
+  var manageUsersBackdropEl = cloudEl("manageUsersBackdrop");
+  if (manageUsersBackdropEl){
+    manageUsersBackdropEl.addEventListener("change", function(ev){
+      var t = ev.target;
+      if (t.id === "mxArchived" || t.id === "mxUnlinked"){ muDrawJobs(); return; }
+      var rowEl = t.closest && t.closest(".mu-row[data-id]");
+      var u = rowEl && muState === "ready" ? muUserById(rowEl.getAttribute("data-id")) : null;
+      if (!u || muBusy) return;
+      var patch = t.classList.contains("mu-db") ? muChoiceSet(MU_DB_CHOICES, t.value)
+        : t.classList.contains("mu-itsel") ? muChoiceSet(MU_IT_CHOICES, t.value)
+        : t.classList.contains("mu-fesel") ? muChoiceSet(MU_FE_CHOICES, t.value)
+        : t.classList.contains("mu-mailchk") ? {jobEmails: t.checked} : null;
+      if (!patch) return;
+      muChangeLevels(u, patch);
+      muRefreshRow(rowEl, u);
+      muDrawBar();
+    });
+    var mxSearchTimer = null;
+    manageUsersBackdropEl.addEventListener("input", function(ev){
+      var t = ev.target;
+      if (t.id === "mxSearch"){ clearTimeout(mxSearchTimer); mxSearchTimer = setTimeout(muDrawJobs, 120); return; }
+      if (!t.classList || !(t.classList.contains("mu-phone") || t.classList.contains("mu-name"))) return;
+      var rowEl = t.closest(".mu-row[data-id]");
+      var u = rowEl && muState === "ready" ? muUserById(rowEl.getAttribute("data-id")) : null;
+      if (!u || muBusy) return;
+      muSetText(u, t.classList.contains("mu-phone") ? "phone" : "name", t.value.trim());
+      rowEl.classList.toggle("mu-changed", !!muPend[u.id]);
+      muDrawBar();
+    });
+    manageUsersBackdropEl.addEventListener("click", function(ev){
+      var t = ev.target;
+      if (t === manageUsersBackdropEl){ closeManageUsersModal(); return; }
+      if (!t.closest) return;
+      if (t.closest("#manageUsersCloseBtn")){ closeManageUsersModal(); return; }
+      if (t.closest("#muTabPeople")){ muShowView("people"); return; }
+      if (t.closest("#muTabJobs")){ muLit = ""; muShowView("jobs"); return; }
+      if (t.closest("#muSaveBtn")){ muSave(); return; }
+      if (t.closest("#muDiscardBtn")){ muDiscard(); return; }
+      if (t.closest("#muNewToggle")){ cloudEl("muNewForm").hidden = !cloudEl("muNewForm").hidden; if (!cloudEl("muNewForm").hidden) cloudEl("muNewEmail").focus(); return; }
+      if (t.closest("#muCreateBtn")){ muCreate(); return; }
+      // the Jobs view: a cell, or a person's name
+      var td = t.closest("td.mx-c");
+      if (td){ mxClick(td); return; }
+      var person = t.closest("th.mx-person");
+      if (person){
+        var id = person.getAttribute("data-u");
+        muShowView("people");
+        var row = cloudEl("muList").querySelector('.mu-row[data-id="' + id.replace(/["\\]/g, "\\$&") + '"]');
+        if (row){ row.scrollIntoView({block: "center"}); row.classList.add("mu-flash"); setTimeout(function(){ row.classList.remove("mu-flash"); }, 1600); }
+        return;
+      }
+      var rowEl = t.closest(".mu-row[data-id]");
+      if (!rowEl) return;
+      var userId = rowEl.getAttribute("data-id"), user = muUserById(userId);
+      if (t.closest(".mu-jobs-link")){ muLit = userId; muShowView("jobs"); return; }
+      if (t.closest(".mu-more-btn")){
+        var more = rowEl.querySelector(".mu-more"), moreBtn = rowEl.querySelector(".mu-more-btn");
+        more.hidden = !more.hidden;
+        muMoreOpen[userId] = !more.hidden;
+        moreBtn.textContent = more.hidden ? "More" : "Less";
+        moreBtn.setAttribute("aria-expanded", more.hidden ? "false" : "true");
+        return;
+      }
+      // Change password: opens a box on that login's line; Set password saves it.
+      var pwBtn = t.closest(".mu-pw-open, .mu-pw-cancel, .mu-pw-save");
+      if (pwBtn){
+        var pwForm = rowEl.querySelector(".mu-pw-form"), pwOpen = rowEl.querySelector(".mu-pw-open"), pwInput = rowEl.querySelector(".mu-pw-input");
+        var showPwForm = function(on){ pwForm.hidden = !on; pwOpen.hidden = on; pwInput.value = ""; };
+        if (pwBtn.classList.contains("mu-pw-open")){ showPwForm(true); pwInput.focus(); muMsg(""); return; }
+        if (pwBtn.classList.contains("mu-pw-cancel")){ showPwForm(false); muMsg(""); return; }
+        var newPassword = pwInput.value;
+        if (!newPassword || newPassword.length < 6){ muMsg("Password needs to be at least 6 characters.", "bad"); return; }
+        pwBtn.disabled = true;
+        muMsg("Changing the password...");
+        invokeFn("admin-users", {action: "setPassword", userId: userId, password: newPassword}).then(function(res){
+          pwBtn.disabled = false;
+          var err = (res.error && res.error.message) || (res.data && res.data.error) || "";
+          if (err){ muMsg("Couldn't change the password: " + err, "bad"); return; }
+          showPwForm(false);
+          muMsg("Password changed for " + (user ? user.email : "that login") + ". They sign in with the new one from now on.", "good");
+        }).catch(function(e){
+          pwBtn.disabled = false;
+          muMsg("Couldn't change the password: " + (e && e.message ? e.message : e), "bad");
+        });
+        return;
+      }
+      var delBtn = t.closest(".mu-delete");
+      if (delBtn){
+        if (!confirm("Delete the login for " + (user ? user.email : "this user") + "? They will no longer be able to sign in at all.")) return;
+        delBtn.disabled = true;
+        muMsg("Deleting...");
+        invokeFn("admin-users", {action: "deleteUser", userId: userId}).then(function(res){
+          delBtn.disabled = false;
+          if (res.error){ muMsg("Couldn't delete: " + res.error.message, "bad"); return; }
+          var data = res.data || {};
+          if (data.error){ muMsg("Couldn't delete: " + data.error, "bad"); return; }
+          muMsg("Deleted.", "good");
+          loadMuList(true);
+        }).catch(function(e){
+          delBtn.disabled = false;
+          muMsg("Couldn't delete: " + (e && e.message ? e.message : e), "bad");
+        });
+      }
+    });
+  }
+  // Add a login. It can sign in right away; its jobs are ticked afterwards, in the Jobs view.
+  function muCreate(){
+    var btn = cloudEl("muCreateBtn");
+    var email = cloudEl("muNewEmail").value.trim(), password = cloudEl("muNewPassword").value;
+    if (!email){ muMsg("Enter an e-mail address.", "bad"); return; }
     if (!password || password.length < 6){ muMsg("Password needs to be at least 6 characters.", "bad"); return; }
-    if (muKindNeedsJob(kind) && !rj.jobId){ muMsg("Pick a job for that role first.", "bad"); return; }
-    if (muKindItProject(kind) === "required" && muItReady && !rj.itProjectId){ muMsg("Pick the Install Tracker project an FE Viewer may look at first.", "bad"); return; }
-    var newPhone = cloudEl("muNewPhone").value.trim();
-    var notReady = muNotReadyReason(rj, newPhone);
-    if (notReady){ muMsg(notReady, "bad"); return; }
-
-    muCreateBtnEl.disabled = true;
+    var set = muTidyLevels(Object.assign({}, muChoiceSet(MU_DB_CHOICES, cloudEl("muNewDb").value), muChoiceSet(MU_IT_CHOICES, cloudEl("muNewIt").value),
+      muChoiceSet(MU_FE_CHOICES, cloudEl("muNewFe").value), {jobEmails: cloudEl("muNewMail").checked}));
+    if (!set.appDb && set.itRole === "none" && set.feRole === "none"){ muMsg("Pick at least one app for the new login - all three say \"not used\".", "bad"); return; }
+    btn.disabled = true;
     muMsg("Creating...");
-    invokeFn("admin-users", {action: "createUser", email: email, password: password, displayName: displayName, role: rj.role, jobId: rj.jobId, staffKind: rj.staffKind, phone: newPhone, feKind: rj.feKind || "", itProjectId: rj.itProjectId || null}).then(function(res){
-      muCreateBtnEl.disabled = false;
-      if (res.error){ muMsg("Couldn't create: " + res.error.message, "bad"); return; }
+    invokeFn("admin-users", {action: "createUser", email: email, password: password, displayName: cloudEl("muNewName").value.trim(), phone: cloudEl("muNewPhone").value.trim(), set: set, ticks: []}).then(function(res){
+      btn.disabled = false;
+      // (the function may have made the login and then failed to save its levels: it says so, and the list
+      // read again shows that login at once - to be given its levels, or deleted)
+      if (res.error){
+        // (when the list can't be read either - no connection - its "Couldn't load" must not take the place of these words)
+        var why = "Couldn't create: " + res.error.message, opened = muOpened;
+        muMsg(why, "bad"); loadMuList(true).then(function(){ if (opened === muOpened) muMsg(why, "bad"); }); return;
+      }
       var data = res.data || {};
       if (data.error){ muMsg("Couldn't create: " + data.error, "bad"); return; }
-      muMsg("Created " + email + ".", "good");
-      cloudEl("muNewEmail").value = "";
-      cloudEl("muNewPassword").value = "";
-      cloudEl("muNewName").value = "";
-      cloudEl("muNewPhone").value = "";
+      muMsg("Created " + email + ". Tick the jobs they are on in the Jobs view.", "good");
+      ["muNewEmail", "muNewPassword", "muNewName", "muNewPhone"].forEach(function(id){ cloudEl(id).value = ""; });
       loadMuList(true);
     }).catch(function(e){
-      muCreateBtnEl.disabled = false;
+      btn.disabled = false;
       muMsg("Couldn't create: " + (e && e.message ? e.message : e), "bad");
     });
-  });
+  }
 
   var manageUsersBtnEl = cloudEl("manageUsersBtn");
   if (manageUsersBtnEl) manageUsersBtnEl.addEventListener("click", openManageUsersModal);
-  var manageUsersCloseBtnEl = cloudEl("manageUsersCloseBtn");
-  if (manageUsersCloseBtnEl) manageUsersCloseBtnEl.addEventListener("click", closeManageUsersModal);
-  var manageUsersBackdropEl = cloudEl("manageUsersBackdrop");
-  if (manageUsersBackdropEl) manageUsersBackdropEl.addEventListener("click", function(ev){ if (ev.target === manageUsersBackdropEl) closeManageUsersModal(); });
 
   // ---------- mark equipment that's on an open delivery request ----------
   // Lets staff see, right in the main table, which rows already have a
@@ -9705,7 +10830,7 @@
       // failure now throws, and the caller shows it on screen.
       var failed = [jobsRes, rowsRes, reqsRes, deliveriesRes, assetsRes, checkoutsRes].filter(function(r){ return r && r.error; })[0];
       if (failed) throw failed.error;
-      var jobs = jobsRes.data || [];
+      var jobs = onlyMyJobs(jobsRes.data || []);
       var rowsByJob = rowsRes.data || {}, openReqByJob = {};   // job id -> {total, received, shipped}
       (reqsRes.data || []).forEach(function(r){
         openReqByJob[r.job_id] = (openReqByJob[r.job_id] || 0) + 1;
@@ -9717,7 +10842,7 @@
       (assetsRes.data || []).forEach(function(a){ assetsById[a.id] = a; });
       var jobNameById = {};
       jobs.forEach(function(j){ jobNameById[j.id] = (j.meta && j.meta.project) || j.name || "Untitled job"; });
-      var openCheckouts = (checkoutsRes.data || []).filter(function(c){ return !c.returned_at; });
+      var openCheckouts = onlyOfMyJobs((checkoutsRes.data || []).filter(function(c){ return !c.returned_at; }), jobs);
       // Any asset a checkout points at that the list above didn't include is
       // fetched by id, so the deployed-assets list always names what's out.
       var missingIds = Array.from(new Set(openCheckouts.map(function(c){ return c.asset_id; })
@@ -9731,7 +10856,7 @@
           // archived jobs drop off the Projects cards; their deliveries and
           // deployed assets (named from the full list above) still show
           jobs: jobs.filter(function(j){ return !j.archived; }), rowsByJob: rowsByJob, openReqByJob: openReqByJob,
-          deliveries: deliveriesRes && deliveriesRes.data || [], driverEmailById: driverEmailById,
+          deliveries: onlyOfMyJobs(deliveriesRes && deliveriesRes.data || [], jobs), driverEmailById: driverEmailById,
           assetsById: assetsById, jobNameById: jobNameById, openCheckouts: openCheckouts
         };
       });
@@ -9922,7 +11047,7 @@
         if (err){
           // an answer with no reason in it means the function itself isn't there
           showResult(/non-2xx|failed to send a request|failed to fetch|not found|404/i.test(err)
-            ? "Sending from here isn't set up yet - see \"Text messages\" in this build's read-me (the send-driver-texts function)."
+            ? "Sending from here isn't set up yet - the send-driver-texts function has to be added in Supabase first."
             : "Not sent: " + err, "bad");
           return;
         }
@@ -12238,7 +13363,7 @@
   // submits the signed pick-up slip (the database does it, for what was ticked).
   var pickupData = null;      // {checkouts, assetsById, jobs, openPickups} as last loaded
   var pickupSavedId = null;   // set once this window has saved a pick-up
-  var PICKUP_NEEDS_SQL = "Pick-ups need add-pickups.sql to be run in the Supabase SQL editor first - step 2 in this build's read-me.";
+  var PICKUP_NEEDS_SQL = "Pick-ups need add-pickups.sql to be run in the Supabase SQL editor first.";
 
   function pickupMsg(text, kind){
     var m = cloudEl("pickupMsg");
@@ -12411,7 +13536,7 @@
   // totalQty}. Nothing about stock changes for them. The driver ticks them off
   // on the slip like the assets; those ticks are saved in picked_item_ids
   // (add-asset-transfers-and-pickup-items.sql adds that column).
-  var PICKUP_ITEMS_NEEDS_SQL = "Other items on a pick-up need add-asset-transfers-and-pickup-items.sql to be run in the Supabase SQL editor first - step 2 in this build's read-me.";
+  var PICKUP_ITEMS_NEEDS_SQL = "Other items on a pick-up need add-asset-transfers-and-pickup-items.sql to be run in the Supabase SQL editor first.";
   function pickupCustomItems(d){
     return ((d && d.items) || []).filter(function(it){ return it && it.custom; });
   }
@@ -12837,7 +13962,7 @@
   // with job A" entry is closed and an "out with job B" entry opened, each
   // with a note naming the other job. Only the records change - no driver.
   // The window reads the same "what is out" list as the pick-up window.
-  var TRANSFER_NEEDS_SQL = "Transfers need add-asset-transfers-and-pickup-items.sql to be run in the Supabase SQL editor first - step 2 in this build's read-me.";
+  var TRANSFER_NEEDS_SQL = "Transfers need add-asset-transfers-and-pickup-items.sql to be run in the Supabase SQL editor first.";
   var assetTransferWant = null;   // {jobId, assetId}: the one asset the window was opened for, if any
 
   function assetTransferMsg(text, kind){
